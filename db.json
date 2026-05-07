@@ -1,0 +1,2378 @@
+{
+  "groups": [
+    {
+      "id": "aif",
+      "name": "AIF",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "art",
+      "name": "Art",
+      "parent": "fixed_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "bank",
+      "name": "Banks",
+      "parent": "current_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "capital_account",
+      "name": "Capital Account",
+      "type": "LIABILITY"
+    },
+    {
+      "id": "capital_gains",
+      "name": "Capital Gains",
+      "parent": "income",
+      "type": "INCOME"
+    },
+    {
+      "id": "cash",
+      "name": "Cash-in-Hand",
+      "parent": "current_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "current_assets",
+      "name": "Current Assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "current_liabilities",
+      "name": "Current Liabilities",
+      "type": "LIABILITY"
+    },
+    {
+      "id": "debtors",
+      "name": "Sundry Debtors",
+      "parent": "current_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "deposits_loans",
+      "name": "Deposits / Loans",
+      "parent": "current_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "duties_taxes",
+      "name": "Duties & Taxes",
+      "type": "LIABILITY"
+    },
+    {
+      "id": "expenses",
+      "name": "Expenses",
+      "parent": "profit_loss",
+      "type": "EXPENSE"
+    },
+    {
+      "id": "fds",
+      "name": "FDs",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "fixed_assets",
+      "name": "Fixed Asset",
+      "type": "ASSET"
+    },
+    {
+      "id": "gold",
+      "name": "Gold",
+      "parent": "fixed_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "household_expense",
+      "name": "Household Expense",
+      "parent": "expenses",
+      "type": "EXPENSE"
+    },
+    {
+      "id": "income",
+      "name": "Income",
+      "parent": "profit_loss",
+      "type": "INCOME"
+    },
+    {
+      "id": "income_tax",
+      "name": "Income Tax",
+      "parent": "expenses",
+      "type": "EXPENSE"
+    },
+    {
+      "id": "insurance_asset",
+      "name": "Insurance",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "insurance_premium",
+      "name": "Insurance Premium",
+      "parent": "expenses",
+      "type": "EXPENSE"
+    },
+    {
+      "id": "interest_saving",
+      "name": "Interest on Saving Account",
+      "parent": "income",
+      "type": "INCOME"
+    },
+    {
+      "id": "investments",
+      "name": "Investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "jewellery",
+      "name": "Jewellery",
+      "parent": "fixed_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "loans_asset",
+      "name": "Loans and Advances (Asset)",
+      "parent": "current_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "loans_liability",
+      "name": "Loans (Liability)",
+      "type": "LIABILITY"
+    },
+    {
+      "id": "mf_debt",
+      "name": "Mutual Funds(Debt)",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "mf_equity",
+      "name": "Mutual Funds(Equity)",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "misc_assets",
+      "name": "Misc Assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "ncd_debentures",
+      "name": "NCD/Debentures",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "nps_uup",
+      "name": "NPS/UUP",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "pms_aif",
+      "name": "PMS / AIF",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "post_office",
+      "name": "Post Office",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "ppf_epf",
+      "name": "PPF/EPF",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "private_equity",
+      "name": "Private Equity",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "profit_loss",
+      "name": "Profit & Loss",
+      "type": "LIABILITY"
+    },
+    {
+      "id": "property",
+      "name": "Properties",
+      "parent": "fixed_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "provisions",
+      "name": "Provisions",
+      "type": "LIABILITY"
+    },
+    {
+      "id": "share_txn_charges",
+      "name": "Share Transaction Charges",
+      "parent": "expenses",
+      "type": "EXPENSE"
+    },
+    {
+      "id": "silver",
+      "name": "Silver",
+      "parent": "fixed_assets",
+      "type": "ASSET"
+    },
+    {
+      "id": "special_inv_funds",
+      "name": "Special Inv. Funds",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "stock_in_trade",
+      "name": "Stock-in-Trade",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "stocks",
+      "name": "Stocks",
+      "parent": "investments",
+      "type": "ASSET"
+    },
+    {
+      "id": "stt",
+      "name": "STT",
+      "parent": "expenses",
+      "type": "EXPENSE"
+    },
+    {
+      "id": "sundry_creditors",
+      "name": "Sundry Creditors",
+      "type": "LIABILITY"
+    },
+    {
+      "id": "tax_charges_stocks",
+      "name": "Tax & Charges - Stocks",
+      "parent": "expenses",
+      "type": "EXPENSE"
+    },
+    {
+      "id": "traded_bonds",
+      "name": "Traded Bonds",
+      "parent": "investments",
+      "type": "ASSET"
+    }
+  ],
+  "ledgers": [
+    {
+      "id": "l1",
+      "name": "Krisha Shah",
+      "groupId": "current_liabilities",
+      "openingBalance": 0,
+      "openingType": "CR"
+    },
+    {
+      "id": "l2",
+      "name": "Pramesh Shah",
+      "groupId": "current_liabilities",
+      "openingBalance": 0,
+      "openingType": "CR"
+    },
+    {
+      "id": "l3",
+      "name": "Sauhil Shah",
+      "groupId": "capital_account",
+      "openingBalance": 0,
+      "openingType": "CR"
+    },
+    {
+      "id": "l4",
+      "name": "Unnati Shah",
+      "groupId": "capital_account",
+      "openingBalance": 0,
+      "openingType": "CR"
+    },
+    {
+      "id": "l5",
+      "name": "Capital Account",
+      "groupId": "capital_account",
+      "openingBalance": 483277,
+      "openingType": "CR"
+    },
+    {
+      "id": "l6",
+      "name": "Interest On Saving Account",
+      "groupId": "interest_saving",
+      "openingBalance": 911,
+      "openingType": "CR"
+    },
+    {
+      "id": "l7",
+      "name": "Long Term Gain (Equity)",
+      "groupId": "capital_gains",
+      "openingBalance": 4971.73,
+      "openingType": "DR"
+    },
+    {
+      "id": "l8",
+      "name": "STT - MPr",
+      "groupId": "stt",
+      "openingBalance": 0.55,
+      "openingType": "DR"
+    },
+    {
+      "id": "l9",
+      "name": "Jewellery",
+      "groupId": "jewellery",
+      "openingBalance": 307500,
+      "openingType": "DR"
+    },
+    {
+      "id": "l10",
+      "name": "BANDHAN Arbitrage Fund-Direct Plan- Growth (6341159/66)",
+      "groupId": "mf_equity",
+      "openingBalance": 35000,
+      "openingType": "DR"
+    },
+    {
+      "id": "l11",
+      "name": "Edelweiss Nifty Midcap150 Momentum 50 Index Fund - Direct Plan - Growth (91044592493 / 0)",
+      "groupId": "mf_equity",
+      "openingBalance": 10000,
+      "openingType": "DR"
+    },
+    {
+      "id": "l12",
+      "name": "Edelweiss Nifty500 Multicap Momentum Quality 50 Index Fund - Direct - Gr...",
+      "groupId": "mf_equity",
+      "openingBalance": 10000,
+      "openingType": "DR"
+    },
+    {
+      "id": "l13",
+      "name": "ICICI Prudential Dividend Yield Equity Fund Direct Plan Growth Option (34030122/30)",
+      "groupId": "mf_equity",
+      "openingBalance": 20000,
+      "openingType": "DR"
+    },
+    {
+      "id": "l14",
+      "name": "JM Flexicap Fund (Direct) - Growth Option (79915382765 / 0)",
+      "groupId": "mf_equity",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "l15",
+      "name": "Mirae Asset Nifty MidSmallcap400 Momentum Quality 100 ETF Fund of Fund -...",
+      "groupId": "mf_equity",
+      "openingBalance": 25000,
+      "openingType": "DR"
+    },
+    {
+      "id": "l16",
+      "name": "Quant Mid Cap Fund Growth Option Direct Plan (51074476855 / 0)",
+      "groupId": "mf_equity",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "l17",
+      "name": "Quant Small Cap Fund-Growth Option-Direct Plan (51074476845 / 0)",
+      "groupId": "mf_equity",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "l18",
+      "name": "SBI Contra Fund - Direct Plan - Growth (38067944)",
+      "groupId": "mf_equity",
+      "openingBalance": 20000,
+      "openingType": "DR"
+    },
+    {
+      "id": "l19",
+      "name": "Cash on Hand",
+      "groupId": "cash",
+      "openingBalance": 504,
+      "openingType": "DR"
+    },
+    {
+      "id": "l20",
+      "name": "Kotak Bank (A/c. No. - 5348805437)",
+      "groupId": "bank",
+      "openingBalance": 51211.72,
+      "openingType": "DR"
+    },
+    {
+      "id": "stk_hdfc",
+      "name": "HDFC Bank Ltd",
+      "groupId": "stocks",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "stk_tcs",
+      "name": "Tata Consultancy Services",
+      "groupId": "stocks",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "stk_reliance",
+      "name": "Reliance Industries Ltd",
+      "groupId": "stocks",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "stk_infosys",
+      "name": "Infosys Ltd",
+      "groupId": "stocks",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "stk_icicibnk",
+      "name": "ICICI Bank Ltd",
+      "groupId": "stocks",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "stk_lt",
+      "name": "Larsen & Toubro Ltd",
+      "groupId": "stocks",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "stk_ril",
+      "name": "Asian Paints Ltd",
+      "groupId": "stocks",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "mf_parag",
+      "name": "Parag Parikh Flexi Cap Fund - Direct Growth",
+      "groupId": "mf_equity",
+      "openingBalance": 0,
+      "openingType": "DR"
+    },
+    {
+      "id": "mf_axis",
+      "name": "Axis Small Cap Fund - Direct Plan - Growth",
+      "groupId": "mf_equity",
+      "openingBalance": 0,
+      "openingType": "DR"
+    }
+  ],
+  "vouchers": [
+    {
+      "id": "demo-1",
+      "date": "2026-05-05",
+      "type": "receipt",
+      "narration": "Initial Capital Injection"
+    },
+    {
+      "id": "1778037289342",
+      "date": "2026-02-06",
+      "type": "receipt"
+    },
+    {
+      "id": "42f2934a-7edb-4efa-9ebb-95ec604b3643",
+      "date": "2026-05-06",
+      "type": "receipt",
+      "narration": "",
+      "voucherNo": "RCPT-0002",
+      "fy": "2026-2027"
+    },
+    {
+      "id": "fcf99e28-8c69-46c6-aabb-afa33de41775",
+      "date": "2026-05-06",
+      "type": "journal",
+      "narration": "",
+      "voucherNo": "JRN-0002",
+      "fy": "2026-2027"
+    },
+    {
+      "id": "920b2ce4-3e85-4462-90b5-e4708ece11ea",
+      "date": "2026-05-06",
+      "type": "receipt",
+      "narration": "",
+      "voucherNo": "RCPT-0003",
+      "fy": "2026-2027"
+    },
+    {
+      "id": "020268bd-7645-4596-8457-1231d1091147",
+      "date": "2026-05-06",
+      "type": "contra",
+      "narration": "",
+      "voucherNo": "PV-0001",
+      "fy": "2026-2027"
+    },
+    {
+      "id": "16e88462-d0aa-43cd-a3c5-96c1bbed78c9",
+      "date": "2025-04-09",
+      "type": "payment",
+      "narration": "Purchase of BANDHAN Arbitrage Fund",
+      "voucherNo": "PUR-6171",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "abde17b1-15ea-4cbc-98fa-f08c5c64bb06",
+      "date": "2025-07-03",
+      "type": "receipt",
+      "narration": "Partial sale of BANDHAN Arbitrage Fund",
+      "voucherNo": "SL-1493",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "84e7a154-b22e-42b6-a931-aa3572ade32e",
+      "date": "2025-04-12",
+      "type": "payment",
+      "narration": "Purchase of Edelweiss Nifty Midcap150",
+      "voucherNo": "PUR-3861",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "2c8dfe34-0448-4d0b-9b93-67bd63223d99",
+      "date": "2025-04-21",
+      "type": "payment",
+      "narration": "Purchase of ICICI Prudential Dividend Yield",
+      "voucherNo": "PUR-4872",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "987cdd14-a951-4233-a560-b40f3ea9d8dc",
+      "date": "2025-07-28",
+      "type": "receipt",
+      "narration": "Partial sale of ICICI Prudential Dividend Yield",
+      "voucherNo": "SL-2475",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "aead8b19-7f32-4415-bc3d-b39bd7a61f54",
+      "date": "2025-04-17",
+      "type": "payment",
+      "narration": "Purchase of SBI Contra Fund",
+      "voucherNo": "PUR-2459",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "8d34f684-cfac-4c7d-ac8c-084e7decc6ce",
+      "date": "2025-07-28",
+      "type": "receipt",
+      "narration": "Partial sale of SBI Contra Fund",
+      "voucherNo": "SL-9477",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "8d776e65-5fa4-4b60-9bbe-346f8e08b8c1",
+      "date": "2025-04-20",
+      "type": "payment",
+      "narration": "Purchase of BANDHAN Arbitrage Fund",
+      "voucherNo": "PUR-8253",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "ce502e1a-a429-4e8b-93f5-0b80211bb176",
+      "date": "2025-04-07",
+      "type": "payment",
+      "narration": "Purchase of Edelweiss Nifty Midcap150",
+      "voucherNo": "PUR-6714",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "4684ebee-6bff-4f03-85e9-ebe0ed9d32a2",
+      "date": "2025-06-19",
+      "type": "receipt",
+      "narration": "Partial sale of Edelweiss Nifty Midcap150",
+      "voucherNo": "SL-4537",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "5e97d50e-18d4-4887-8d81-0c6acba46db5",
+      "date": "2025-04-06",
+      "type": "payment",
+      "narration": "Purchase of ICICI Prudential Dividend Yield",
+      "voucherNo": "PUR-5684",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "87163c10-2a02-4047-a223-47a39c870ce8",
+      "date": "2025-07-29",
+      "type": "receipt",
+      "narration": "Partial sale of ICICI Prudential Dividend Yield",
+      "voucherNo": "SL-7516",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "32b81263-4ce7-4666-8c8f-d3f4ea08a933",
+      "date": "2025-04-27",
+      "type": "payment",
+      "narration": "Purchase of SBI Contra Fund",
+      "voucherNo": "PUR-7776",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "b2da4fc8-c666-4420-9e7a-2fe66fbd92cb",
+      "date": "2025-06-28",
+      "type": "receipt",
+      "narration": "Partial sale of SBI Contra Fund",
+      "voucherNo": "SL-4746",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "bdaf20c5-fee0-4c03-9c34-b417802b6283",
+      "date": "2025-04-13",
+      "type": "payment",
+      "narration": "Purchase of BANDHAN Arbitrage Fund",
+      "voucherNo": "PUR-1976",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "07e4dcc9-7f60-4dbc-b00d-289ec36eb1d1",
+      "date": "2025-07-16",
+      "type": "receipt",
+      "narration": "Partial sale of BANDHAN Arbitrage Fund",
+      "voucherNo": "SL-1936",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "ecbce887-4192-475f-aea9-fd7f4bb64eee",
+      "date": "2025-04-30",
+      "type": "payment",
+      "narration": "Purchase of Edelweiss Nifty Midcap150",
+      "voucherNo": "PUR-8822",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "d2f98746-6151-47a7-9770-c172ee96463d",
+      "date": "2025-04-11",
+      "type": "payment",
+      "narration": "Purchase of ICICI Prudential Dividend Yield",
+      "voucherNo": "PUR-9867",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "5196f486-cf80-4618-b53b-5f8eeb5001f3",
+      "date": "2025-04-12",
+      "type": "payment",
+      "narration": "Purchase of SBI Contra Fund",
+      "voucherNo": "PUR-9244",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "5ff46683-6246-487b-ab06-931ba864cb9b",
+      "date": "2025-04-13",
+      "type": "payment",
+      "narration": "Purchase of BANDHAN Arbitrage Fund",
+      "voucherNo": "PUR-4784",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "a6d665e2-5f03-45df-b5f7-52cc6a9a8df0",
+      "date": "2025-04-14",
+      "type": "payment",
+      "narration": "Purchase of Edelweiss Nifty Midcap150",
+      "voucherNo": "PUR-8539",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "5027d845-103a-4d77-9060-82586acc737a",
+      "date": "2025-07-20",
+      "type": "receipt",
+      "narration": "Partial sale of Edelweiss Nifty Midcap150",
+      "voucherNo": "SL-2311",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "57bfbf35-0f64-4aab-b5e7-3649bceb4391",
+      "date": "2025-04-27",
+      "type": "payment",
+      "narration": "Purchase of ICICI Prudential Dividend Yield",
+      "voucherNo": "PUR-7859",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "5d4e89ca-cc44-4a2b-833a-73ca11d05ec0",
+      "date": "2025-06-24",
+      "type": "receipt",
+      "narration": "Partial sale of ICICI Prudential Dividend Yield",
+      "voucherNo": "SL-2107",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "9e5e422e-9b7d-4d11-ae36-04fe30442379",
+      "date": "2025-04-04",
+      "type": "payment",
+      "narration": "Purchase of SBI Contra Fund",
+      "voucherNo": "PUR-2855",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "0e9e865d-d327-4281-bc0f-c44abe460f72",
+      "date": "2025-04-23",
+      "type": "payment",
+      "narration": "Purchase of BANDHAN Arbitrage Fund",
+      "voucherNo": "PUR-1285",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "23011ba2-a338-478b-a285-0798fe1d9d23",
+      "date": "2025-07-22",
+      "type": "receipt",
+      "narration": "Partial sale of BANDHAN Arbitrage Fund",
+      "voucherNo": "SL-9383",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "28d2cf98-a792-4c19-be97-2c33e61818ff",
+      "date": "2025-04-23",
+      "type": "payment",
+      "narration": "Purchase of Edelweiss Nifty Midcap150",
+      "voucherNo": "PUR-1195",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "1dca9c2f-b08f-4a29-b99d-de99207d4600",
+      "date": "2025-04-14",
+      "type": "payment",
+      "narration": "Purchase of ICICI Prudential Dividend Yield",
+      "voucherNo": "PUR-9956",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "e858fac6-4e3d-4163-b043-10e1dcccc461",
+      "date": "2025-07-09",
+      "type": "receipt",
+      "narration": "Partial sale of ICICI Prudential Dividend Yield",
+      "voucherNo": "SL-7674",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "880733c7-6aef-4559-a198-c8107c3ccf35",
+      "date": "2025-04-06",
+      "type": "payment",
+      "narration": "Purchase of SBI Contra Fund",
+      "voucherNo": "PUR-9876",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "39fed448-8806-4f14-9280-e5e7c999176b",
+      "date": "2025-07-25",
+      "type": "receipt",
+      "narration": "Partial sale of SBI Contra Fund",
+      "voucherNo": "SL-6385",
+      "fy": "2025-2026",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "2cc3f9ab-f629-42b7-a6dd-87e15800a981",
+      "date": "2025-04-08",
+      "type": "payment",
+      "narration": "Purchase of BANDHAN Arbitrage Fund",
+      "voucherNo": "PUR-1939",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "f459e7e4-832a-44a7-b976-02a8e868c601",
+      "date": "2025-04-22",
+      "type": "payment",
+      "narration": "Purchase of Edelweiss Nifty Midcap150",
+      "voucherNo": "PUR-5681",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "75eebb5b-edc0-46cb-a9ff-2682dd0149dc",
+      "date": "2025-04-04",
+      "type": "payment",
+      "narration": "Purchase of ICICI Prudential Dividend Yield",
+      "voucherNo": "PUR-7645",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "b25ef201-d90e-4f52-abb9-c5d669be06e2",
+      "date": "2025-04-15",
+      "type": "payment",
+      "narration": "Purchase of SBI Contra Fund",
+      "voucherNo": "PUR-2071",
+      "fy": "2025-2026",
+      "portfolioId": "8hgulm5ay"
+    },
+    {
+      "id": "8ba60560-dccc-4d11-8596-ca6aba881131",
+      "date": "2025-04-16",
+      "type": "payment",
+      "narration": "Purchase of BANDHAN Arbitrage Fund",
+      "voucherNo": "PUR-1742",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "c22ffde2-cecd-416a-bebe-9ed771074aa0",
+      "date": "2025-04-16",
+      "type": "payment",
+      "narration": "Purchase of Edelweiss Nifty Midcap150",
+      "voucherNo": "PUR-6920",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "71a90d80-9ee8-4641-9234-470b031ca226",
+      "date": "2025-04-23",
+      "type": "payment",
+      "narration": "Purchase of ICICI Prudential Dividend Yield",
+      "voucherNo": "PUR-6361",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "4e221754-e507-4508-a642-92084d01db95",
+      "date": "2025-04-18",
+      "type": "payment",
+      "narration": "Purchase of SBI Contra Fund",
+      "voucherNo": "PUR-8325",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "e135bae2-244c-419f-b41b-589f5e5f1931",
+      "date": "2025-06-17",
+      "type": "receipt",
+      "narration": "Partial sale of SBI Contra Fund",
+      "voucherNo": "SL-9548",
+      "fy": "2025-2026",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "9fc869e1-fcf0-495d-802c-da290faa50dd",
+      "date": "2025-04-22",
+      "type": "payment",
+      "narration": "Purchase of BANDHAN Arbitrage Fund",
+      "voucherNo": "PUR-8841",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "4a46e393-0855-4036-ae77-4f60c1ae1c51",
+      "date": "2025-04-22",
+      "type": "payment",
+      "narration": "Purchase of Edelweiss Nifty Midcap150",
+      "voucherNo": "PUR-8901",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "09e5f4f4-0704-40ff-b576-ec963f973344",
+      "date": "2025-04-23",
+      "type": "payment",
+      "narration": "Purchase of ICICI Prudential Dividend Yield",
+      "voucherNo": "PUR-8682",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "7f71d39f-6a71-4693-b63d-e21303db50ee",
+      "date": "2025-04-03",
+      "type": "payment",
+      "narration": "Purchase of SBI Contra Fund",
+      "voucherNo": "PUR-2575",
+      "fy": "2025-2026",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "ed7b243a-66a7-4034-be1d-3078ddd8c51b",
+      "date": "2024-07-15",
+      "type": "payment",
+      "narration": "Purchase of stk_hdfc — 500 units @ 1420.50",
+      "voucherNo": "PUR-4931",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "bc3ab8c9-cdd9-4e33-85d1-f4353d558a86",
+      "date": "2024-11-20",
+      "type": "payment",
+      "narration": "Purchase of stk_hdfc — 300 units @ 1390.00",
+      "voucherNo": "PUR-8475",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "91a49e2d-5572-4cf3-8ce4-2a4d082643e0",
+      "date": "2025-02-10",
+      "type": "receipt",
+      "narration": "Sale of stk_hdfc — 200 units @ 1680.00",
+      "voucherNo": "SL-2438",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "bbf06f5c-bfc9-4f32-be2b-4ba76029f012",
+      "date": "2024-08-05",
+      "type": "payment",
+      "narration": "Purchase of stk_tcs — 150 units @ 3780.00",
+      "voucherNo": "PUR-6479",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "ddea223b-010f-4990-b563-48ecb5b95607",
+      "date": "2025-01-12",
+      "type": "payment",
+      "narration": "Purchase of stk_tcs — 100 units @ 3650.00",
+      "voucherNo": "PUR-9639",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "ebb26612-5ae0-41b8-b1d2-cbb26c23e97c",
+      "date": "2024-06-20",
+      "type": "payment",
+      "narration": "Purchase of stk_reliance — 400 units @ 2870.00",
+      "voucherNo": "PUR-7320",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "b24296c8-8c2f-4b4b-8e38-7c1dc9119831",
+      "date": "2025-01-08",
+      "type": "receipt",
+      "narration": "Sale of stk_reliance — 150 units @ 3100.00",
+      "voucherNo": "SL-9630",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "37b5359b-6484-4960-b430-4bb760601a84",
+      "date": "2024-09-03",
+      "type": "payment",
+      "narration": "Purchase of stk_infosys — 300 units @ 1580.00",
+      "voucherNo": "PUR-4639",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "5416f095-d625-4668-8454-ec9ad1de1613",
+      "date": "2024-05-10",
+      "type": "payment",
+      "narration": "Purchase of stk_hdfc — 200 units @ 1450.00",
+      "voucherNo": "PUR-6434",
+      "fy": "2024-2025",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "b273edb5-499e-401a-b335-5539a958576d",
+      "date": "2024-07-22",
+      "type": "payment",
+      "narration": "Purchase of stk_icicibnk — 600 units @ 1140.00",
+      "voucherNo": "PUR-1233",
+      "fy": "2024-2025",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "27950c28-8dd9-4041-8392-a27cfe814101",
+      "date": "2025-01-15",
+      "type": "receipt",
+      "narration": "Sale of stk_icicibnk — 200 units @ 1290.00",
+      "voucherNo": "SL-4202",
+      "fy": "2024-2025",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "a83872ef-6b6e-460e-a6b8-43e1b51208da",
+      "date": "2024-08-18",
+      "type": "payment",
+      "narration": "Purchase of stk_lt — 250 units @ 3250.00",
+      "voucherNo": "PUR-7318",
+      "fy": "2024-2025",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "a2d0e10b-6e59-43e6-86f5-9efa4cdccdfb",
+      "date": "2024-10-05",
+      "type": "payment",
+      "narration": "Purchase of stk_ril — 300 units @ 2900.00",
+      "voucherNo": "PUR-9569",
+      "fy": "2024-2025",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "f1861329-568a-44fe-bc59-81fbd4f58dfd",
+      "date": "2025-02-20",
+      "type": "receipt",
+      "narration": "Sale of stk_ril — 100 units @ 3180.00",
+      "voucherNo": "SL-2134",
+      "fy": "2024-2025",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "11b1c876-f173-4e26-8c17-5058981c91f0",
+      "date": "2024-12-12",
+      "type": "payment",
+      "narration": "Purchase of stk_tcs — 100 units @ 3900.00",
+      "voucherNo": "PUR-7147",
+      "fy": "2024-2025",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "9835b18c-0079-4fe0-9aa9-58167cab4af9",
+      "date": "2025-01-25",
+      "type": "payment",
+      "narration": "Purchase of stk_infosys — 400 units @ 1610.00",
+      "voucherNo": "PUR-5887",
+      "fy": "2024-2025",
+      "portfolioId": "79dvmya60"
+    },
+    {
+      "id": "d1db3190-ff5f-4dea-80fd-340107877b83",
+      "date": "2024-06-01",
+      "type": "payment",
+      "narration": "Purchase of mf_parag — 820 units @ 68.50",
+      "voucherNo": "PUR-4311",
+      "fy": "2024-2025",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "870eb29c-32a3-452a-9506-dfc1633280bc",
+      "date": "2024-09-15",
+      "type": "payment",
+      "narration": "Purchase of mf_parag — 600 units @ 71.20",
+      "voucherNo": "PUR-4441",
+      "fy": "2024-2025",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "2f654bcf-6800-4bc9-b9fe-a4f9a9ccdb98",
+      "date": "2025-01-10",
+      "type": "receipt",
+      "narration": "Sale of mf_parag — 300 units @ 78.40",
+      "voucherNo": "SL-3859",
+      "fy": "2024-2025",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "d84e52da-08ca-4778-a9e2-0ac46ff8bbca",
+      "date": "2024-07-01",
+      "type": "payment",
+      "narration": "Purchase of mf_axis — 1200 units @ 105.00",
+      "voucherNo": "PUR-1635",
+      "fy": "2024-2025",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "8cb7c0b2-afcf-4505-bf8f-798177c3feb1",
+      "date": "2024-11-01",
+      "type": "payment",
+      "narration": "Purchase of mf_axis — 800 units @ 112.00",
+      "voucherNo": "PUR-2218",
+      "fy": "2024-2025",
+      "portfolioId": "z7hv9y8lm"
+    },
+    {
+      "id": "e044c39d-75ad-4e59-8b03-319acfc5e076",
+      "date": "2024-08-10",
+      "type": "payment",
+      "narration": "Purchase of mf_parag — 500 units @ 69.00",
+      "voucherNo": "PUR-9063",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    },
+    {
+      "id": "1ddaebbe-26c8-44a6-93ab-5fb8fae7a8ee",
+      "date": "2025-02-15",
+      "type": "payment",
+      "narration": "Purchase of mf_axis — 400 units @ 109.00",
+      "voucherNo": "PUR-6008",
+      "fy": "2024-2025",
+      "portfolioId": "0wpdrjsvq"
+    }
+  ],
+  "entries": [
+    {
+      "id": "e1",
+      "voucherId": "demo-1",
+      "ledgerId": "Bank",
+      "debit": 500000,
+      "credit": 0
+    },
+    {
+      "id": "e2",
+      "voucherId": "demo-1",
+      "ledgerId": "Capital",
+      "debit": 0,
+      "credit": 500000
+    },
+    {
+      "id": "7a3ce606-c7db-4e5f-9736-fbc810c851a4",
+      "voucherId": "1778037289342",
+      "ledgerId": "l20",
+      "debit": 5000,
+      "credit": 0
+    },
+    {
+      "id": "209f37b5-1c76-4dbc-aa85-50bb917d3df4",
+      "voucherId": "1778037289342",
+      "ledgerId": "l6",
+      "debit": 0,
+      "credit": 5000
+    },
+    {
+      "id": "3rpcgs6ns",
+      "voucherId": "42f2934a-7edb-4efa-9ebb-95ec604b3643",
+      "ledgerId": "l20",
+      "debit": 2000,
+      "credit": 0
+    },
+    {
+      "id": "s8j7wfyvm",
+      "voucherId": "42f2934a-7edb-4efa-9ebb-95ec604b3643",
+      "ledgerId": "l2",
+      "debit": 0,
+      "credit": 2000
+    },
+    {
+      "id": "fca5d3ec-fb61-47c6-8508-bc660f9894ef",
+      "voucherId": "fcf99e28-8c69-46c6-aabb-afa33de41775",
+      "ledgerId": "l2",
+      "debit": 525,
+      "credit": 0,
+      "narration": ""
+    },
+    {
+      "id": "cf07db6a-50d8-4c8c-9fc3-d275f9d1f146",
+      "voucherId": "fcf99e28-8c69-46c6-aabb-afa33de41775",
+      "ledgerId": "l1",
+      "debit": 0,
+      "credit": 525,
+      "narration": ""
+    },
+    {
+      "id": "2hg3ojjdp",
+      "voucherId": "920b2ce4-3e85-4462-90b5-e4708ece11ea",
+      "ledgerId": "l20",
+      "debit": 1256,
+      "credit": 0
+    },
+    {
+      "id": "6y6h6ji9s",
+      "voucherId": "920b2ce4-3e85-4462-90b5-e4708ece11ea",
+      "ledgerId": "l6",
+      "debit": 0,
+      "credit": 1256
+    },
+    {
+      "id": "ad454127-89ff-411b-84c5-fa5d9edf18a5",
+      "voucherId": "020268bd-7645-4596-8457-1231d1091147",
+      "ledgerId": "l20",
+      "debit": 3000,
+      "credit": 0,
+      "narration": ""
+    },
+    {
+      "id": "a10d3927-88ff-4348-b043-0ad844cb7b76",
+      "voucherId": "020268bd-7645-4596-8457-1231d1091147",
+      "ledgerId": "l19",
+      "debit": 0,
+      "credit": 3000,
+      "narration": ""
+    },
+    {
+      "id": "bafa1913-b305-49bc-995d-9f1f81e5bc89",
+      "voucherId": "16e88462-d0aa-43cd-a3c5-96c1bbed78c9",
+      "ledgerId": "l10",
+      "debit": 195652.40551354655,
+      "credit": 0,
+      "quantity": 956,
+      "price": 204.65732794304031
+    },
+    {
+      "id": "78e3681a-c564-48f0-811a-21641eee45c4",
+      "voucherId": "16e88462-d0aa-43cd-a3c5-96c1bbed78c9",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 195652.40551354655
+    },
+    {
+      "id": "f476c3d0-414b-4202-8ca8-f0d518cb8034",
+      "voucherId": "abde17b1-15ea-4cbc-98fa-f08c5c64bb06",
+      "ledgerId": "l20",
+      "debit": 96270.80706440617,
+      "credit": 0
+    },
+    {
+      "id": "84a5bd5a-095f-49dc-9109-1d108ba142f0",
+      "voucherId": "abde17b1-15ea-4cbc-98fa-f08c5c64bb06",
+      "ledgerId": "l10",
+      "debit": 0,
+      "credit": 96270.80706440617,
+      "quantity": 392,
+      "price": 245.58879353164838
+    },
+    {
+      "id": "ed7e3e6a-eb59-488f-8516-af1397acd645",
+      "voucherId": "84e7a154-b22e-42b6-a931-aa3572ade32e",
+      "ledgerId": "l11",
+      "debit": 143578.26697490207,
+      "credit": 0,
+      "quantity": 678,
+      "price": 211.76735542020955
+    },
+    {
+      "id": "2bb19cf4-8385-45a0-8a2f-04fac59d8fe9",
+      "voucherId": "84e7a154-b22e-42b6-a931-aa3572ade32e",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 143578.26697490207
+    },
+    {
+      "id": "1586eb0b-1ba7-4256-8eb2-b86d9499313c",
+      "voucherId": "2c8dfe34-0448-4d0b-9b93-67bd63223d99",
+      "ledgerId": "l13",
+      "debit": 133974.54710113563,
+      "credit": 0,
+      "quantity": 972,
+      "price": 137.83389619458399
+    },
+    {
+      "id": "550040e1-1d17-471f-8d6c-f10838121965",
+      "voucherId": "2c8dfe34-0448-4d0b-9b93-67bd63223d99",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 133974.54710113563
+    },
+    {
+      "id": "c8ef32e0-097b-4a9d-aea1-9c81d03197ec",
+      "voucherId": "987cdd14-a951-4233-a560-b40f3ea9d8dc",
+      "ledgerId": "l20",
+      "debit": 70295.28705923783,
+      "credit": 0
+    },
+    {
+      "id": "42de09d7-530e-4843-bfed-b561043fa22e",
+      "voucherId": "987cdd14-a951-4233-a560-b40f3ea9d8dc",
+      "ledgerId": "l13",
+      "debit": 0,
+      "credit": 70295.28705923783,
+      "quantity": 425,
+      "price": 165.40067543350077
+    },
+    {
+      "id": "994e9462-fa68-4ae0-b2fc-93a348e17d14",
+      "voucherId": "aead8b19-7f32-4415-bc3d-b39bd7a61f54",
+      "ledgerId": "l18",
+      "debit": 67276.04172696962,
+      "credit": 0,
+      "quantity": 186,
+      "price": 361.6991490697292
+    },
+    {
+      "id": "625cd5f7-cde1-45d0-9819-34990ffb7f64",
+      "voucherId": "aead8b19-7f32-4415-bc3d-b39bd7a61f54",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 67276.04172696962
+    },
+    {
+      "id": "02845061-491c-4a3b-b09b-06d4554ef21a",
+      "voucherId": "8d34f684-cfac-4c7d-ac8c-084e7decc6ce",
+      "ledgerId": "l20",
+      "debit": 25174.260775253148,
+      "credit": 0
+    },
+    {
+      "id": "f1b76389-6748-4b79-a5f0-481659091fb3",
+      "voucherId": "8d34f684-cfac-4c7d-ac8c-084e7decc6ce",
+      "ledgerId": "l18",
+      "debit": 0,
+      "credit": 25174.260775253148,
+      "quantity": 58,
+      "price": 434.038978883675
+    },
+    {
+      "id": "f12922aa-702c-4618-9037-08e66e10ed5e",
+      "voucherId": "8d776e65-5fa4-4b60-9bbe-346f8e08b8c1",
+      "ledgerId": "l10",
+      "debit": 42210.10211812311,
+      "credit": 0,
+      "quantity": 168,
+      "price": 251.2506078459709
+    },
+    {
+      "id": "488785b3-8e0f-4b47-a255-96368915fb56",
+      "voucherId": "8d776e65-5fa4-4b60-9bbe-346f8e08b8c1",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 42210.10211812311
+    },
+    {
+      "id": "ebe25f56-6ffe-4f0c-a7f7-760aa922a21b",
+      "voucherId": "ce502e1a-a429-4e8b-93f5-0b80211bb176",
+      "ledgerId": "l11",
+      "debit": 447240.6083410518,
+      "credit": 0,
+      "quantity": 986,
+      "price": 453.5908806704379
+    },
+    {
+      "id": "2aba7fb0-39a1-4365-8951-41b4ffa22eb1",
+      "voucherId": "ce502e1a-a429-4e8b-93f5-0b80211bb176",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 447240.6083410518
+    },
+    {
+      "id": "89e17880-2381-4c23-b7fc-9e58480b16f2",
+      "voucherId": "4684ebee-6bff-4f03-85e9-ebe0ed9d32a2",
+      "ledgerId": "l20",
+      "debit": 195951.26044962916,
+      "credit": 0
+    },
+    {
+      "id": "8b7f32d0-3960-4745-853d-8f8e0f9e5d10",
+      "voucherId": "4684ebee-6bff-4f03-85e9-ebe0ed9d32a2",
+      "ledgerId": "l11",
+      "debit": 0,
+      "credit": 195951.26044962916,
+      "quantity": 360,
+      "price": 544.3090568045254
+    },
+    {
+      "id": "cff6faf7-5159-429a-9395-1c79892fca07",
+      "voucherId": "5e97d50e-18d4-4887-8d81-0c6acba46db5",
+      "ledgerId": "l13",
+      "debit": 34427.112509129,
+      "credit": 0,
+      "quantity": 266,
+      "price": 129.42523499672558
+    },
+    {
+      "id": "5d3dbed7-5b16-41ae-a0fb-8caebd420552",
+      "voucherId": "5e97d50e-18d4-4887-8d81-0c6acba46db5",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 34427.112509129
+    },
+    {
+      "id": "cb3ca616-df3e-47f5-b50d-26208e30b6b4",
+      "voucherId": "87163c10-2a02-4047-a223-47a39c870ce8",
+      "ledgerId": "l20",
+      "debit": 18637.233839528482,
+      "credit": 0
+    },
+    {
+      "id": "2b67bf1f-a21b-430b-934b-5596ac333a90",
+      "voucherId": "87163c10-2a02-4047-a223-47a39c870ce8",
+      "ledgerId": "l13",
+      "debit": 0,
+      "credit": 18637.233839528482,
+      "quantity": 120,
+      "price": 155.3102819960707
+    },
+    {
+      "id": "a0784b18-ab76-45ea-a589-edb666864e56",
+      "voucherId": "32b81263-4ce7-4666-8c8f-d3f4ea08a933",
+      "ledgerId": "l18",
+      "debit": 189234.93117221183,
+      "credit": 0,
+      "quantity": 581,
+      "price": 325.70556139795497
+    },
+    {
+      "id": "12ceb3c1-559b-40ac-8eaf-1d9fa7584a43",
+      "voucherId": "32b81263-4ce7-4666-8c8f-d3f4ea08a933",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 189234.93117221183
+    },
+    {
+      "id": "eeb79ef5-33e0-41dc-954e-0bdaf7fe2b38",
+      "voucherId": "b2da4fc8-c666-4420-9e7a-2fe66fbd92cb",
+      "ledgerId": "l20",
+      "debit": 54327.68764117888,
+      "credit": 0
+    },
+    {
+      "id": "2bef9682-ec52-43f1-bb3b-75d467eaf957",
+      "voucherId": "b2da4fc8-c666-4420-9e7a-2fe66fbd92cb",
+      "ledgerId": "l18",
+      "debit": 0,
+      "credit": 54327.68764117888,
+      "quantity": 139,
+      "price": 390.84667367754594
+    },
+    {
+      "id": "076d2995-dace-4d07-9010-6685b75c324b",
+      "voucherId": "bdaf20c5-fee0-4c03-9c34-b417802b6283",
+      "ledgerId": "l10",
+      "debit": 69661.18487973204,
+      "credit": 0,
+      "quantity": 389,
+      "price": 179.07759609185615
+    },
+    {
+      "id": "49f9df5d-8a47-473c-8d01-90818aa3dcba",
+      "voucherId": "bdaf20c5-fee0-4c03-9c34-b417802b6283",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 69661.18487973204
+    },
+    {
+      "id": "0c41e7a8-e88e-423c-9a13-4f7cc40ab06f",
+      "voucherId": "07e4dcc9-7f60-4dbc-b00d-289ec36eb1d1",
+      "ledgerId": "l20",
+      "debit": 26861.639413778423,
+      "credit": 0
+    },
+    {
+      "id": "50b48fa3-40d7-4aeb-a9fb-b2dc151937a7",
+      "voucherId": "07e4dcc9-7f60-4dbc-b00d-289ec36eb1d1",
+      "ledgerId": "l10",
+      "debit": 0,
+      "credit": 26861.639413778423,
+      "quantity": 125,
+      "price": 214.8931153102274
+    },
+    {
+      "id": "607f4a8d-6869-4074-8069-a69dae93084e",
+      "voucherId": "ecbce887-4192-475f-aea9-fd7f4bb64eee",
+      "ledgerId": "l11",
+      "debit": 123742.47115121006,
+      "credit": 0,
+      "quantity": 381,
+      "price": 324.7833888483204
+    },
+    {
+      "id": "e40396c1-fd36-4cca-bf00-a762b1bbb35e",
+      "voucherId": "ecbce887-4192-475f-aea9-fd7f4bb64eee",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 123742.47115121006
+    },
+    {
+      "id": "769947e6-b174-4a8f-9b0f-5b6539dca56e",
+      "voucherId": "d2f98746-6151-47a7-9770-c172ee96463d",
+      "ledgerId": "l13",
+      "debit": 213752.4869321578,
+      "credit": 0,
+      "quantity": 585,
+      "price": 365.3888665506971
+    },
+    {
+      "id": "13688705-5038-4edb-bb07-93d350465658",
+      "voucherId": "d2f98746-6151-47a7-9770-c172ee96463d",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 213752.4869321578
+    },
+    {
+      "id": "49d3608e-026a-4b91-961e-1ce149007355",
+      "voucherId": "5196f486-cf80-4618-b53b-5f8eeb5001f3",
+      "ledgerId": "l18",
+      "debit": 12948.96399454237,
+      "credit": 0,
+      "quantity": 581,
+      "price": 22.287373484582393
+    },
+    {
+      "id": "c5894901-086a-431d-8ce9-e48e5302640c",
+      "voucherId": "5196f486-cf80-4618-b53b-5f8eeb5001f3",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 12948.96399454237
+    },
+    {
+      "id": "fa9ec578-da6a-4993-b32e-382b589d573d",
+      "voucherId": "5ff46683-6246-487b-ab06-931ba864cb9b",
+      "ledgerId": "l10",
+      "debit": 57088.58283426829,
+      "credit": 0,
+      "quantity": 925,
+      "price": 61.717386847857604
+    },
+    {
+      "id": "ab265f41-4d95-484a-8ccb-dfc8f3273a86",
+      "voucherId": "5ff46683-6246-487b-ab06-931ba864cb9b",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 57088.58283426829
+    },
+    {
+      "id": "d38e9f74-43da-420f-b78a-b4997a7f3d03",
+      "voucherId": "a6d665e2-5f03-45df-b5f7-52cc6a9a8df0",
+      "ledgerId": "l11",
+      "debit": 52160.21546845627,
+      "credit": 0,
+      "quantity": 443,
+      "price": 117.743150041662
+    },
+    {
+      "id": "e614b7a3-4444-4d5b-9f44-daaa988ad8e3",
+      "voucherId": "a6d665e2-5f03-45df-b5f7-52cc6a9a8df0",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 52160.21546845627
+    },
+    {
+      "id": "2aa6ee63-1c95-49aa-a461-a57185d41cfc",
+      "voucherId": "5027d845-103a-4d77-9060-82586acc737a",
+      "ledgerId": "l20",
+      "debit": 26138.979309248964,
+      "credit": 0
+    },
+    {
+      "id": "6a0654cc-e202-406b-a14e-b26982b8c4a5",
+      "voucherId": "5027d845-103a-4d77-9060-82586acc737a",
+      "ledgerId": "l11",
+      "debit": 0,
+      "credit": 26138.979309248964,
+      "quantity": 185,
+      "price": 141.2917800499944
+    },
+    {
+      "id": "313bf3e6-6db5-4e56-b5ec-cc6761c165c7",
+      "voucherId": "57bfbf35-0f64-4aab-b5e7-3649bceb4391",
+      "ledgerId": "l13",
+      "debit": 85490.7900350747,
+      "credit": 0,
+      "quantity": 388,
+      "price": 220.33708771926467
+    },
+    {
+      "id": "b35a782c-fa4d-422f-b93e-ad19f395e052",
+      "voucherId": "57bfbf35-0f64-4aab-b5e7-3649bceb4391",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 85490.7900350747
+    },
+    {
+      "id": "abddc317-be9e-4106-bbf4-a5f210ec5266",
+      "voucherId": "5d4e89ca-cc44-4a2b-833a-73ca11d05ec0",
+      "ledgerId": "l20",
+      "debit": 34901.39469473152,
+      "credit": 0
+    },
+    {
+      "id": "ee80f9fb-82e1-4602-bd51-ad8abcc5a17c",
+      "voucherId": "5d4e89ca-cc44-4a2b-833a-73ca11d05ec0",
+      "ledgerId": "l13",
+      "debit": 0,
+      "credit": 34901.39469473152,
+      "quantity": 132,
+      "price": 264.4045052631176
+    },
+    {
+      "id": "3dd273fc-7fe1-4b80-9bcc-c10ded4d7972",
+      "voucherId": "9e5e422e-9b7d-4d11-ae36-04fe30442379",
+      "ledgerId": "l18",
+      "debit": 194382.0425766851,
+      "credit": 0,
+      "quantity": 998,
+      "price": 194.77158574818148
+    },
+    {
+      "id": "e52cbfb9-bf69-4679-ae83-47c9359f2d72",
+      "voucherId": "9e5e422e-9b7d-4d11-ae36-04fe30442379",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 194382.0425766851
+    },
+    {
+      "id": "7c86301a-8764-4ce0-8854-91801f5c3ebb",
+      "voucherId": "0e9e865d-d327-4281-bc0f-c44abe460f72",
+      "ledgerId": "l10",
+      "debit": 72345.96220174644,
+      "credit": 0,
+      "quantity": 779,
+      "price": 92.87029807669633
+    },
+    {
+      "id": "4d6c6dad-eca5-4a0f-b395-bbfba3fa3cdf",
+      "voucherId": "0e9e865d-d327-4281-bc0f-c44abe460f72",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 72345.96220174644
+    },
+    {
+      "id": "28e079f1-b88a-4b72-ac62-a21bc8aa37e7",
+      "voucherId": "23011ba2-a338-478b-a285-0798fe1d9d23",
+      "ledgerId": "l20",
+      "debit": 17496.764157649588,
+      "credit": 0
+    },
+    {
+      "id": "56f0858e-c192-4031-be43-3d290d0b3232",
+      "voucherId": "23011ba2-a338-478b-a285-0798fe1d9d23",
+      "ledgerId": "l10",
+      "debit": 0,
+      "credit": 17496.764157649588,
+      "quantity": 157,
+      "price": 111.4443576920356
+    },
+    {
+      "id": "f5e37944-0f36-462e-8305-7d7185308c5f",
+      "voucherId": "28d2cf98-a792-4c19-be97-2c33e61818ff",
+      "ledgerId": "l11",
+      "debit": 382143.36832510546,
+      "credit": 0,
+      "quantity": 871,
+      "price": 438.7409510047135
+    },
+    {
+      "id": "e31efcc6-7d77-4dc9-90fb-165eab3fa63d",
+      "voucherId": "28d2cf98-a792-4c19-be97-2c33e61818ff",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 382143.36832510546
+    },
+    {
+      "id": "799edc67-a168-4851-9eec-94cb9e86864f",
+      "voucherId": "1dca9c2f-b08f-4a29-b99d-de99207d4600",
+      "ledgerId": "l13",
+      "debit": 273829.401631407,
+      "credit": 0,
+      "quantity": 609,
+      "price": 449.63776950969947
+    },
+    {
+      "id": "d922a00e-3787-4f75-9e72-7c6c654849bb",
+      "voucherId": "1dca9c2f-b08f-4a29-b99d-de99207d4600",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 273829.401631407
+    },
+    {
+      "id": "c76f8483-02d1-46a4-921b-ac92170adb8b",
+      "voucherId": "e858fac6-4e3d-4163-b043-10e1dcccc461",
+      "ledgerId": "l20",
+      "debit": 147301.33329137755,
+      "credit": 0
+    },
+    {
+      "id": "6acd7b72-8adc-422f-ad9c-bd4f0a7a3680",
+      "voucherId": "e858fac6-4e3d-4163-b043-10e1dcccc461",
+      "ledgerId": "l13",
+      "debit": 0,
+      "credit": 147301.33329137755,
+      "quantity": 273,
+      "price": 539.5653234116394
+    },
+    {
+      "id": "03ba16fe-57c0-4cb0-8944-f0f862cd6037",
+      "voucherId": "880733c7-6aef-4559-a198-c8107c3ccf35",
+      "ledgerId": "l18",
+      "debit": 267652.2015576796,
+      "credit": 0,
+      "quantity": 779,
+      "price": 343.5843408956093
+    },
+    {
+      "id": "2a270478-019c-4f1b-a2dc-ebc4475639c8",
+      "voucherId": "880733c7-6aef-4559-a198-c8107c3ccf35",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 267652.2015576796
+    },
+    {
+      "id": "74cd0451-8f51-4e50-8eaf-e08335735b2a",
+      "voucherId": "39fed448-8806-4f14-9280-e5e7c999176b",
+      "ledgerId": "l20",
+      "debit": 4947.614508896773,
+      "credit": 0
+    },
+    {
+      "id": "ca9aaf70-abb2-4271-97f8-2ddd7108df4c",
+      "voucherId": "39fed448-8806-4f14-9280-e5e7c999176b",
+      "ledgerId": "l18",
+      "debit": 0,
+      "credit": 4947.614508896773,
+      "quantity": 12,
+      "price": 412.3012090747311
+    },
+    {
+      "id": "d20336ec-bf21-4770-ad02-6df6528fab6d",
+      "voucherId": "2cc3f9ab-f629-42b7-a6dd-87e15800a981",
+      "ledgerId": "l10",
+      "debit": 31066.674093301484,
+      "credit": 0,
+      "quantity": 687,
+      "price": 45.22077742838644
+    },
+    {
+      "id": "e05dbb51-5f08-4d2d-ab44-4aef7348261f",
+      "voucherId": "2cc3f9ab-f629-42b7-a6dd-87e15800a981",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 31066.674093301484
+    },
+    {
+      "id": "f6bbf45e-dd6c-4730-a038-f838cee5312b",
+      "voucherId": "f459e7e4-832a-44a7-b976-02a8e868c601",
+      "ledgerId": "l11",
+      "debit": 49327.93904582492,
+      "credit": 0,
+      "quantity": 730,
+      "price": 67.57251924085605
+    },
+    {
+      "id": "58c8302c-1117-4d5b-b675-08c109eb1b34",
+      "voucherId": "f459e7e4-832a-44a7-b976-02a8e868c601",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 49327.93904582492
+    },
+    {
+      "id": "a27ee2f9-995f-4cbc-8efe-736465f6ad4c",
+      "voucherId": "75eebb5b-edc0-46cb-a9ff-2682dd0149dc",
+      "ledgerId": "l13",
+      "debit": 142638.4726585965,
+      "credit": 0,
+      "quantity": 629,
+      "price": 226.77022680222018
+    },
+    {
+      "id": "57b63db6-5993-4367-8b68-73325a94c29d",
+      "voucherId": "75eebb5b-edc0-46cb-a9ff-2682dd0149dc",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 142638.4726585965
+    },
+    {
+      "id": "a14c2cdd-8672-44f7-ab1f-9141f9509578",
+      "voucherId": "b25ef201-d90e-4f52-abb9-c5d669be06e2",
+      "ledgerId": "l18",
+      "debit": 53605.48837954789,
+      "credit": 0,
+      "quantity": 716,
+      "price": 74.86800053009482
+    },
+    {
+      "id": "069eb59e-aa51-4058-b5d9-70da8c48c2d7",
+      "voucherId": "b25ef201-d90e-4f52-abb9-c5d669be06e2",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 53605.48837954789
+    },
+    {
+      "id": "f865b1bc-3f37-423c-88e1-ac7c4bb01eb9",
+      "voucherId": "8ba60560-dccc-4d11-8596-ca6aba881131",
+      "ledgerId": "l10",
+      "debit": 154524.14106287307,
+      "credit": 0,
+      "quantity": 476,
+      "price": 324.63054845141403
+    },
+    {
+      "id": "8c6d4abb-326d-468a-9740-a9d838dd4296",
+      "voucherId": "8ba60560-dccc-4d11-8596-ca6aba881131",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 154524.14106287307
+    },
+    {
+      "id": "cc318f3b-4344-4ebe-b5b5-8b5aa39d825e",
+      "voucherId": "c22ffde2-cecd-416a-bebe-9ed771074aa0",
+      "ledgerId": "l11",
+      "debit": 183608.83757213326,
+      "credit": 0,
+      "quantity": 983,
+      "price": 186.7841684355374
+    },
+    {
+      "id": "36bde799-59b7-4691-b7c5-154fe43cec4b",
+      "voucherId": "c22ffde2-cecd-416a-bebe-9ed771074aa0",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 183608.83757213326
+    },
+    {
+      "id": "f5516332-8da4-4ae3-ac8b-7d5906291bdf",
+      "voucherId": "71a90d80-9ee8-4641-9234-470b031ca226",
+      "ledgerId": "l13",
+      "debit": 29383.097557607063,
+      "credit": 0,
+      "quantity": 101,
+      "price": 290.92175799610953
+    },
+    {
+      "id": "560ea460-c93a-4578-b7e4-cec54a18407f",
+      "voucherId": "71a90d80-9ee8-4641-9234-470b031ca226",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 29383.097557607063
+    },
+    {
+      "id": "4d033966-3237-453f-88ea-5854a5d19b8a",
+      "voucherId": "4e221754-e507-4508-a642-92084d01db95",
+      "ledgerId": "l18",
+      "debit": 76660.35951996126,
+      "credit": 0,
+      "quantity": 616,
+      "price": 124.44863558435269
+    },
+    {
+      "id": "320398e5-60c4-447a-aa80-f315d54f752e",
+      "voucherId": "4e221754-e507-4508-a642-92084d01db95",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 76660.35951996126
+    },
+    {
+      "id": "be1105f6-8e33-46e4-81dd-ab20d7d5a640",
+      "voucherId": "e135bae2-244c-419f-b41b-589f5e5f1931",
+      "ledgerId": "l20",
+      "debit": 27328.92037432385,
+      "credit": 0
+    },
+    {
+      "id": "6a300d63-229d-4014-929a-1f3b96b850af",
+      "voucherId": "e135bae2-244c-419f-b41b-589f5e5f1931",
+      "ledgerId": "l18",
+      "debit": 0,
+      "credit": 27328.92037432385,
+      "quantity": 183,
+      "price": 149.33836270122322
+    },
+    {
+      "id": "e48a21f2-6e52-454d-9771-591dc5e3a0e9",
+      "voucherId": "9fc869e1-fcf0-495d-802c-da290faa50dd",
+      "ledgerId": "l10",
+      "debit": 84292.43741158077,
+      "credit": 0,
+      "quantity": 613,
+      "price": 137.50805450502574
+    },
+    {
+      "id": "146f614c-8ea2-4263-ab16-1e09adc613e3",
+      "voucherId": "9fc869e1-fcf0-495d-802c-da290faa50dd",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 84292.43741158077
+    },
+    {
+      "id": "136089ac-f47c-4f7f-a18d-1dee9223e171",
+      "voucherId": "4a46e393-0855-4036-ae77-4f60c1ae1c51",
+      "ledgerId": "l11",
+      "debit": 173840.00841412257,
+      "credit": 0,
+      "quantity": 394,
+      "price": 441.2182954673162
+    },
+    {
+      "id": "3f40a86c-f2e6-43bc-a2ca-f5bcb6213ad2",
+      "voucherId": "4a46e393-0855-4036-ae77-4f60c1ae1c51",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 173840.00841412257
+    },
+    {
+      "id": "0d2bc512-311b-4be7-92ae-b3749d845539",
+      "voucherId": "09e5f4f4-0704-40ff-b576-ec963f973344",
+      "ledgerId": "l13",
+      "debit": 16590.930956212087,
+      "credit": 0,
+      "quantity": 109,
+      "price": 152.21037574506502
+    },
+    {
+      "id": "dadba05a-50ce-4a1d-aedf-e8296948e401",
+      "voucherId": "09e5f4f4-0704-40ff-b576-ec963f973344",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 16590.930956212087
+    },
+    {
+      "id": "e784787d-191d-4902-9354-f2aa054491d7",
+      "voucherId": "7f71d39f-6a71-4693-b63d-e21303db50ee",
+      "ledgerId": "l18",
+      "debit": 162026.86091854924,
+      "credit": 0,
+      "quantity": 427,
+      "price": 379.4540068350099
+    },
+    {
+      "id": "67aa6d6c-a89b-456a-ab2a-d981e08e4e80",
+      "voucherId": "7f71d39f-6a71-4693-b63d-e21303db50ee",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 162026.86091854924
+    },
+    {
+      "id": "5bbe1d44-c0eb-4f21-937d-418a38451d11",
+      "voucherId": "ed7b243a-66a7-4034-be1d-3078ddd8c51b",
+      "ledgerId": "stk_hdfc",
+      "debit": 710250.0,
+      "credit": 0,
+      "quantity": 500,
+      "price": 1420.5
+    },
+    {
+      "id": "25e41753-5bb6-4c34-af87-2d0d900c2efb",
+      "voucherId": "ed7b243a-66a7-4034-be1d-3078ddd8c51b",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 710250.0
+    },
+    {
+      "id": "9a4db6ab-5a75-494b-803d-f076620ba82c",
+      "voucherId": "bc3ab8c9-cdd9-4e33-85d1-f4353d558a86",
+      "ledgerId": "stk_hdfc",
+      "debit": 417000.0,
+      "credit": 0,
+      "quantity": 300,
+      "price": 1390.0
+    },
+    {
+      "id": "b8b494c0-5b91-4605-a6ec-fcf549ed0fd3",
+      "voucherId": "bc3ab8c9-cdd9-4e33-85d1-f4353d558a86",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 417000.0
+    },
+    {
+      "id": "0f74ee95-c912-4299-828a-c0b6b9439897",
+      "voucherId": "91a49e2d-5572-4cf3-8ce4-2a4d082643e0",
+      "ledgerId": "l20",
+      "debit": 336000.0,
+      "credit": 0
+    },
+    {
+      "id": "eeab27b7-af1e-4043-a80e-af9352e58a79",
+      "voucherId": "91a49e2d-5572-4cf3-8ce4-2a4d082643e0",
+      "ledgerId": "stk_hdfc",
+      "debit": 0,
+      "credit": 336000.0,
+      "quantity": 200,
+      "price": 1680.0
+    },
+    {
+      "id": "b9068082-e63a-4699-9211-7126f4053203",
+      "voucherId": "bbf06f5c-bfc9-4f32-be2b-4ba76029f012",
+      "ledgerId": "stk_tcs",
+      "debit": 567000.0,
+      "credit": 0,
+      "quantity": 150,
+      "price": 3780.0
+    },
+    {
+      "id": "cf2b13d2-7b68-4422-8842-6399a272f324",
+      "voucherId": "bbf06f5c-bfc9-4f32-be2b-4ba76029f012",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 567000.0
+    },
+    {
+      "id": "9a9642f3-c479-4e75-a532-db352cb3b638",
+      "voucherId": "ddea223b-010f-4990-b563-48ecb5b95607",
+      "ledgerId": "stk_tcs",
+      "debit": 365000.0,
+      "credit": 0,
+      "quantity": 100,
+      "price": 3650.0
+    },
+    {
+      "id": "e65c791e-6544-4711-abcd-bc9d8a9203a5",
+      "voucherId": "ddea223b-010f-4990-b563-48ecb5b95607",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 365000.0
+    },
+    {
+      "id": "f9e7ad8e-c28a-434f-815b-6fd9af952f5d",
+      "voucherId": "ebb26612-5ae0-41b8-b1d2-cbb26c23e97c",
+      "ledgerId": "stk_reliance",
+      "debit": 1148000.0,
+      "credit": 0,
+      "quantity": 400,
+      "price": 2870.0
+    },
+    {
+      "id": "2a9ede87-88bb-4a1c-ab27-2a7598f3e58c",
+      "voucherId": "ebb26612-5ae0-41b8-b1d2-cbb26c23e97c",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 1148000.0
+    },
+    {
+      "id": "6c559865-4d0f-4a61-9105-fad5037360c2",
+      "voucherId": "b24296c8-8c2f-4b4b-8e38-7c1dc9119831",
+      "ledgerId": "l20",
+      "debit": 465000.0,
+      "credit": 0
+    },
+    {
+      "id": "3ca5c61d-55f7-4aa6-9aba-347976e0714a",
+      "voucherId": "b24296c8-8c2f-4b4b-8e38-7c1dc9119831",
+      "ledgerId": "stk_reliance",
+      "debit": 0,
+      "credit": 465000.0,
+      "quantity": 150,
+      "price": 3100.0
+    },
+    {
+      "id": "49bd7e76-8adf-48ff-8c55-ad0aea941ce8",
+      "voucherId": "37b5359b-6484-4960-b430-4bb760601a84",
+      "ledgerId": "stk_infosys",
+      "debit": 474000.0,
+      "credit": 0,
+      "quantity": 300,
+      "price": 1580.0
+    },
+    {
+      "id": "3e2f71c7-aedc-4944-83d4-27a6813e736f",
+      "voucherId": "37b5359b-6484-4960-b430-4bb760601a84",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 474000.0
+    },
+    {
+      "id": "4ecdef5a-1614-468b-b758-ef075b8641c2",
+      "voucherId": "5416f095-d625-4668-8454-ec9ad1de1613",
+      "ledgerId": "stk_hdfc",
+      "debit": 290000.0,
+      "credit": 0,
+      "quantity": 200,
+      "price": 1450.0
+    },
+    {
+      "id": "417e118e-274b-4f54-8d90-d3496726e5bb",
+      "voucherId": "5416f095-d625-4668-8454-ec9ad1de1613",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 290000.0
+    },
+    {
+      "id": "3ac6dce9-83d4-40df-bedb-15a74966f1ff",
+      "voucherId": "b273edb5-499e-401a-b335-5539a958576d",
+      "ledgerId": "stk_icicibnk",
+      "debit": 684000.0,
+      "credit": 0,
+      "quantity": 600,
+      "price": 1140.0
+    },
+    {
+      "id": "6fb369c4-af0e-4339-83a3-0a1ea50bc4ae",
+      "voucherId": "b273edb5-499e-401a-b335-5539a958576d",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 684000.0
+    },
+    {
+      "id": "8fc7df87-d3f8-4b04-9837-366179c9147f",
+      "voucherId": "27950c28-8dd9-4041-8392-a27cfe814101",
+      "ledgerId": "l20",
+      "debit": 258000.0,
+      "credit": 0
+    },
+    {
+      "id": "b9184895-722a-422c-8055-7324c21aeffc",
+      "voucherId": "27950c28-8dd9-4041-8392-a27cfe814101",
+      "ledgerId": "stk_icicibnk",
+      "debit": 0,
+      "credit": 258000.0,
+      "quantity": 200,
+      "price": 1290.0
+    },
+    {
+      "id": "2fc8d29e-8720-48c3-b9e8-11b8237a77ab",
+      "voucherId": "a83872ef-6b6e-460e-a6b8-43e1b51208da",
+      "ledgerId": "stk_lt",
+      "debit": 812500.0,
+      "credit": 0,
+      "quantity": 250,
+      "price": 3250.0
+    },
+    {
+      "id": "b1d6b8a7-d153-43fc-ac7d-eb07f34e7a98",
+      "voucherId": "a83872ef-6b6e-460e-a6b8-43e1b51208da",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 812500.0
+    },
+    {
+      "id": "f1a46870-a8ce-4178-85cc-73ce1bc51013",
+      "voucherId": "a2d0e10b-6e59-43e6-86f5-9efa4cdccdfb",
+      "ledgerId": "stk_ril",
+      "debit": 870000.0,
+      "credit": 0,
+      "quantity": 300,
+      "price": 2900.0
+    },
+    {
+      "id": "ee3e096a-fd07-4fb9-8cb6-ad699ada229d",
+      "voucherId": "a2d0e10b-6e59-43e6-86f5-9efa4cdccdfb",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 870000.0
+    },
+    {
+      "id": "98500b4f-8912-4903-b3af-d52acdf9de65",
+      "voucherId": "f1861329-568a-44fe-bc59-81fbd4f58dfd",
+      "ledgerId": "l20",
+      "debit": 318000.0,
+      "credit": 0
+    },
+    {
+      "id": "ff6a22ce-3cb6-4831-bc29-c0d88f2786fe",
+      "voucherId": "f1861329-568a-44fe-bc59-81fbd4f58dfd",
+      "ledgerId": "stk_ril",
+      "debit": 0,
+      "credit": 318000.0,
+      "quantity": 100,
+      "price": 3180.0
+    },
+    {
+      "id": "faa24e8a-0dc9-4df7-b6c4-d9f01224859f",
+      "voucherId": "11b1c876-f173-4e26-8c17-5058981c91f0",
+      "ledgerId": "stk_tcs",
+      "debit": 390000.0,
+      "credit": 0,
+      "quantity": 100,
+      "price": 3900.0
+    },
+    {
+      "id": "e98b42a0-8060-4908-8228-857bf9e8b7ce",
+      "voucherId": "11b1c876-f173-4e26-8c17-5058981c91f0",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 390000.0
+    },
+    {
+      "id": "1b44bfb9-4a68-40f5-8b86-d2fc961c0570",
+      "voucherId": "9835b18c-0079-4fe0-9aa9-58167cab4af9",
+      "ledgerId": "stk_infosys",
+      "debit": 644000.0,
+      "credit": 0,
+      "quantity": 400,
+      "price": 1610.0
+    },
+    {
+      "id": "e9704af7-423f-42aa-b432-60d4a4fa002a",
+      "voucherId": "9835b18c-0079-4fe0-9aa9-58167cab4af9",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 644000.0
+    },
+    {
+      "id": "0567b8be-9b07-49c1-bafe-59e220b4160d",
+      "voucherId": "d1db3190-ff5f-4dea-80fd-340107877b83",
+      "ledgerId": "mf_parag",
+      "debit": 56170.0,
+      "credit": 0,
+      "quantity": 820,
+      "price": 68.5
+    },
+    {
+      "id": "2f55b561-e770-439c-9f14-c29973d2ae8e",
+      "voucherId": "d1db3190-ff5f-4dea-80fd-340107877b83",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 56170.0
+    },
+    {
+      "id": "b322735c-c0ae-4625-950e-2a6010a16b51",
+      "voucherId": "870eb29c-32a3-452a-9506-dfc1633280bc",
+      "ledgerId": "mf_parag",
+      "debit": 42720.0,
+      "credit": 0,
+      "quantity": 600,
+      "price": 71.2
+    },
+    {
+      "id": "55d2df74-e497-4e1f-a6a1-02103e21c33b",
+      "voucherId": "870eb29c-32a3-452a-9506-dfc1633280bc",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 42720.0
+    },
+    {
+      "id": "1a6bfd28-709e-4a2d-9c0b-f975a7b9846d",
+      "voucherId": "2f654bcf-6800-4bc9-b9fe-a4f9a9ccdb98",
+      "ledgerId": "l20",
+      "debit": 23520.0,
+      "credit": 0
+    },
+    {
+      "id": "6bccde41-d965-41e6-bf90-59a7f4e45879",
+      "voucherId": "2f654bcf-6800-4bc9-b9fe-a4f9a9ccdb98",
+      "ledgerId": "mf_parag",
+      "debit": 0,
+      "credit": 23520.0,
+      "quantity": 300,
+      "price": 78.4
+    },
+    {
+      "id": "2bae5dec-22c5-459c-b8dc-1a5bbc1e3d27",
+      "voucherId": "d84e52da-08ca-4778-a9e2-0ac46ff8bbca",
+      "ledgerId": "mf_axis",
+      "debit": 126000.0,
+      "credit": 0,
+      "quantity": 1200,
+      "price": 105.0
+    },
+    {
+      "id": "05b11808-461c-4d59-b727-89a62d2cf325",
+      "voucherId": "d84e52da-08ca-4778-a9e2-0ac46ff8bbca",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 126000.0
+    },
+    {
+      "id": "9ef9ef31-0b57-443e-9d36-dec42b50c0ec",
+      "voucherId": "8cb7c0b2-afcf-4505-bf8f-798177c3feb1",
+      "ledgerId": "mf_axis",
+      "debit": 89600.0,
+      "credit": 0,
+      "quantity": 800,
+      "price": 112.0
+    },
+    {
+      "id": "395e1a2b-d035-4ac1-a118-ae10d26d68ff",
+      "voucherId": "8cb7c0b2-afcf-4505-bf8f-798177c3feb1",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 89600.0
+    },
+    {
+      "id": "26bf970a-025d-4e0d-a4ba-d14e7b9d7e07",
+      "voucherId": "e044c39d-75ad-4e59-8b03-319acfc5e076",
+      "ledgerId": "mf_parag",
+      "debit": 34500.0,
+      "credit": 0,
+      "quantity": 500,
+      "price": 69.0
+    },
+    {
+      "id": "36f0dec8-0113-43ec-bc24-a2f5227494aa",
+      "voucherId": "e044c39d-75ad-4e59-8b03-319acfc5e076",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 34500.0
+    },
+    {
+      "id": "ed53befe-6b50-45d0-912a-071b9c28dadb",
+      "voucherId": "1ddaebbe-26c8-44a6-93ab-5fb8fae7a8ee",
+      "ledgerId": "mf_axis",
+      "debit": 43600.0,
+      "credit": 0,
+      "quantity": 400,
+      "price": 109.0
+    },
+    {
+      "id": "183313aa-5918-48ce-85ca-3166a195d382",
+      "voucherId": "1ddaebbe-26c8-44a6-93ab-5fb8fae7a8ee",
+      "ledgerId": "l20",
+      "debit": 0,
+      "credit": 43600.0
+    }
+  ],
+  "families": [
+    {
+      "id": "gilv9xql8",
+      "familyName": "PRAMESH SHAH",
+      "category": "Individual",
+      "createdAt": "2026-05-06T17:45:20.441Z"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "8fsdnspd2",
+      "familyId": "gilv9xql8",
+      "accountName": "ARJIN Shah",
+      "fullName": "Arjin S Shah",
+      "pan": "AAIPS3626G",
+      "accountingStartYear": "2024-25",
+      "createdAt": "2026-05-06T17:46:28.577Z"
+    },
+    {
+      "id": "zxq2mh8m0",
+      "familyId": "gilv9xql8",
+      "accountName": "prs ",
+      "fullName": "Pramesh shah ",
+      "pan": "AAIPS3624R",
+      "accountingStartYear": "2020-21",
+      "createdAt": "2026-05-06T17:48:22.857Z"
+    }
+  ],
+  "portfolios": [
+    {
+      "id": "0wpdrjsvq",
+      "accountId": "8fsdnspd2",
+      "portfolioName": "Arjin eq ",
+      "portfolioType": "Equity",
+      "createdAt": "2026-05-06T17:46:56.137Z"
+    },
+    {
+      "id": "8hgulm5ay",
+      "accountId": "8fsdnspd2",
+      "portfolioName": "Arjin Trading ",
+      "isTradingPortfolio": true,
+      "createdAt": "2026-05-06T17:47:27.081Z"
+    },
+    {
+      "id": "z7hv9y8lm",
+      "accountId": "8fsdnspd2",
+      "portfolioName": "arjin debt ",
+      "createdAt": "2026-05-06T17:47:47.705Z"
+    },
+    {
+      "id": "79dvmya60",
+      "accountId": "zxq2mh8m0",
+      "portfolioName": "prs EQ",
+      "portfolioType": "Equity",
+      "createdAt": "2026-05-06T17:48:43.569Z"
+    }
+  ],
+  "investorGroups": [
+    {
+      "id": "egie3klmq",
+      "groupName": "EQ",
+      "portfolioIds": [
+        "0wpdrjsvq",
+        "z7hv9y8lm",
+        "79dvmya60"
+      ],
+      "createdAt": "2026-05-06T17:49:10.929Z"
+    }
+  ]
+}
