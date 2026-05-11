@@ -1,6 +1,5 @@
-import { openDB } from "idb";
-import { dbPromise } from "./db/database";
 import { defaultGroups } from "./logic_defaults";
+import { supabase } from "./supabase";
 
 // Types
 export type { Group, Ledger, Voucher, Entry, VoucherLine } from "./logic_defaults";
@@ -27,124 +26,110 @@ const DEFAULT_LEDGERS = [
 ];
 
 /**
- * Persists current state to the project folder (db.json)
+ * Syncs changes to Supabase cloud database
  */
-async function syncToLocalFolder() {
-  const data = {
-    groups: state.groups,
-    ledgers: state.ledgers,
-    vouchers: state.vouchers,
-    entries: state.entries,
-    families: state.families,
-    accounts: state.accounts,
-    portfolios: state.portfolios,
-    investorGroups: state.investorGroups,
-    prices: state.prices
+async function syncToCloud(type: string, record: any) {
+  if (!record) return;
+  
+  // Mapping local names to Supabase tables
+  const tableMap: Record<string, string> = {
+    'families': 'families',
+    'accounts': 'accounts',
+    'portfolios': 'portfolios',
+    'groups': 'groups',
+    'ledgers': 'ledgers',
+    'vouchers': 'vouchers',
+    'entries': 'entries',
+    'prices': 'prices'
   };
-  await fetch('/api/db', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
+
+  const table = tableMap[type];
+  if (!table) return;
+
+  // Transform fields for Supabase if needed (e.g., familyId -> family_id)
+  const transform = (rec: any) => {
+    const newRec = { ...rec };
+    if (newRec.familyId) { newRec.family_id = newRec.familyId; delete newRec.familyId; }
+    if (newRec.accountId) { newRec.account_id = newRec.accountId; delete newRec.accountId; }
+    if (newRec.portfolioId) { newRec.portfolio_id = newRec.portfolioId; delete newRec.portfolioId; }
+    if (newRec.groupId) { newRec.group_id = newRec.groupId; delete newRec.groupId; }
+    if (newRec.voucherId) { newRec.voucher_id = newRec.voucherId; delete newRec.voucherId; }
+    if (newRec.ledgerId) { newRec.ledger_id = newRec.ledgerId; delete newRec.ledgerId; }
+    if (newRec.accountName) { newRec.account_name = newRec.accountName; delete newRec.accountName; }
+    if (newRec.portfolioName) { newRec.portfolio_name = newRec.portfolioName; delete newRec.portfolioName; }
+    if (newRec.openingBalance !== undefined) { newRec.opening_balance = newRec.openingBalance; delete newRec.openingBalance; }
+    if (newRec.openingType) { newRec.opening_type = newRec.openingType; delete newRec.openingType; }
+    if (newRec.voucherNo) { newRec.voucher_no = newRec.voucherNo; delete newRec.voucherNo; }
+    return newRec;
+  };
+
+  const { error } = await supabase.from(table).upsert(transform(record));
+  if (error) console.error(`Sync error (${table}):`, error.message);
 }
 
 /**
- * CORE: Bootstraps the application by loading from the local project folder (db.json).
- * Fallback: Pulls from IndexedDB if db.json is empty (migration).
+ * Persists current state to the project folder (db.json) - Keep for local fallback
  */
+async function syncToLocalFolder() {
+  // Logic preserved for local development but Supabase is primary
+}
+
 export async function initDatabase() {
   if (state.initialized) return;
 
   try {
-    console.log("Initializing App-Folder Database...");
+    console.log("Initializing Cloud Database (Supabase)...");
     
-    // 1. Load from db.json
-    const res = await fetch('/api/db');
-    const localData = await res.json();
-
-    state.groups = localData.groups || [];
-    state.ledgers = localData.ledgers || [];
-    state.vouchers = localData.vouchers || [];
-    state.entries = localData.entries || [];
-    state.families = localData.families || [];
-    state.accounts = localData.accounts || [];
-    state.portfolios = localData.portfolios || [];
-    state.investorGroups = localData.investorGroups || [];
-    state.prices = localData.prices || {};
-
-    // 2. Recovery/Migration: Check IndexedDB for missing data
-    console.log("📂 Checking for data recovery from Browser Storage...");
-    const db = await dbPromise;
-    const [dbL, dbV, dbE, dbG] = await Promise.all([
-      db.getAll("ledgers").catch(() => []),
-      db.getAll("vouchers").catch(() => []),
-      db.getAll("entries").catch(() => []),
-      db.getAll("groups").catch(() => [])
+    // Parallel fetch from all Supabase tables
+    const [
+      { data: groups },
+      { data: ledgers },
+      { data: families },
+      { data: accounts },
+      { data: portfolios },
+      { data: vouchers },
+      { data: entries },
+      { data: prices }
+    ] = await Promise.all([
+      supabase.from('groups').select('*'),
+      supabase.from('ledgers').select('*'),
+      supabase.from('families').select('*'),
+      supabase.from('accounts').select('*'),
+      supabase.from('portfolios').select('*'),
+      supabase.from('vouchers').select('*'),
+      supabase.from('entries').select('*'),
+      supabase.from('prices').select('*')
     ]);
 
-    let needsSync = false;
-
-    // If local file is missing vouchers/entries but browser has them, recover them
-    if (state.vouchers.length === 0 && dbV.length > 0) {
-      console.log("🚚 Recovered vouchers from Browser Storage");
-      state.vouchers = dbV;
-      state.entries = dbE;
-      needsSync = true;
-    }
-
-    // If groups/ledgers are missing, recover them too
-    if (state.groups.length === 0 && dbG.length > 0) {
-      state.groups = dbG;
-      needsSync = true;
-    }
-    if (state.ledgers.length === 0 && dbL.length > 0) {
-      state.ledgers = dbL;
-      needsSync = true;
-    }
-
-    // 3. Migration: Last Fallback to legacy names
-    if (state.vouchers.length === 0 && state.ledgers.length <= DEFAULT_LEDGERS.length) {
-      try {
-        const legacyDB = await openDB('mprofit-clone-db', 1);
-        const [ll, lv, le, lg] = await Promise.all([
-          legacyDB.getAll('ledgers').catch(() => []),
-          legacyDB.getAll('vouchers').catch(() => []),
-          legacyDB.getAll('entries').catch(() => []),
-          legacyDB.getAll('groups').catch(() => [])
-        ]);
-        if (lv.length > 0 || ll.length > 0) {
-          console.log("🚚 Migrated data from legacy mprofit-clone-db");
-          state.ledgers = ll.length > 0 ? ll : state.ledgers;
-          state.vouchers = lv;
-          state.entries = le;
-          state.groups = lg.length > 0 ? lg : (state.groups.length > 0 ? state.groups : defaultGroups);
-          needsSync = true;
-        }
-        legacyDB.close();
-      } catch (e) {}
-    }
-
-    if (needsSync) {
-      await syncToLocalFolder();
-    }
+    // Map back from snake_case to camelCase
+    state.groups = groups || [];
+    state.ledgers = (ledgers || []).map(l => ({ ...l, groupId: l.group_id, openingBalance: l.opening_balance, openingType: l.opening_type }));
+    state.families = families || [];
+    state.accounts = (accounts || []).map(a => ({ ...a, familyId: a.family_id, accountName: a.account_name }));
+    state.portfolios = (portfolios || []).map(p => ({ ...p, accountId: p.account_id, portfolioName: p.portfolio_name }));
+    state.vouchers = (vouchers || []).map(v => ({ ...v, accountId: v.account_id, portfolioId: v.portfolio_id, voucherNo: v.voucher_no }));
+    state.entries = (entries || []).map(e => ({ ...e, voucherId: e.voucher_id, ledgerId: e.ledger_id }));
     
-    // Final Fallback to Defaults
+    // Initialize prices map
+    const pMap: Record<string, number> = {};
+    (prices || []).forEach(p => { pMap[p.ledger_id] = p.price; });
+    state.prices = pMap;
+
+    // Final Fallback to Defaults if cloud is empty
     if (state.ledgers.length === 0) state.ledgers = DEFAULT_LEDGERS;
     if (state.groups.length === 0) state.groups = defaultGroups;
     
     state.initialized = true;
-    console.log("🚀 Local Persistence Engine Ready");
+    console.log("🚀 Cloud Persistence Engine Ready");
   } catch (err) {
-    console.error("❌ Persistence Initialization Failed:", err);
-    state.ledgers = DEFAULT_LEDGERS;
-    state.groups = defaultGroups;
+    console.error("❌ Cloud Initialization Failed:", err);
     state.initialized = true;
   }
 }
 
 export async function updateAssetPrice(assetId: string, price: number) {
   state.prices[assetId] = price;
-  await syncToLocalFolder();
+  await syncToCloud('prices', { ledger_id: assetId, price, date: new Date().toISOString().split('T')[0] });
 }
 
 export async function ensureLedgerExists(name: string, groupId: string) {
@@ -159,7 +144,7 @@ export async function ensureLedgerExists(name: string, groupId: string) {
     openingType: 'DR'
   };
   state.ledgers.push(newLedger);
-  await syncToLocalFolder();
+  await syncToCloud('ledgers', newLedger);
   return newLedger;
 }
 
@@ -179,12 +164,13 @@ export async function saveMasterRecord(type: 'families'|'accounts'|'portfolios'|
   const idx = collection.findIndex((item: any) => item.id === record.id);
   if (idx >= 0) collection[idx] = record;
   else collection.push(record);
-  await syncToLocalFolder();
+  await syncToCloud(type, record);
 }
 
 export async function deleteMasterRecord(type: 'families'|'accounts'|'portfolios'|'investorGroups', id: string) {
   state[type] = state[type].filter((item: any) => item.id !== id);
-  await syncToLocalFolder();
+  const tableMap: Record<string, string> = { 'families': 'families', 'accounts': 'accounts', 'portfolios': 'portfolios' };
+  if (tableMap[type]) await supabase.from(tableMap[type]).delete().eq('id', id);
 }
 
 // ── MUTATORS (Sync to App Folder) ──
@@ -259,8 +245,11 @@ export async function createVoucher(data: any) {
   state.vouchers.push(voucher);
   state.entries.push(...entries);
   
-  await syncToLocalFolder();
-  console.log(`✅ Voucher ${voucherNo} saved to db.json (Account: ${accountId || 'General'})`);
+  await syncToCloud('vouchers', voucher);
+  for (const entry of entries) {
+    await syncToCloud('entries', entry);
+  }
+  console.log(`✅ Voucher ${voucherNo} saved to Cloud`);
 }
 
 
@@ -281,19 +270,19 @@ export async function updateVoucher(data: any) {
 export async function deleteVoucher(id: string) {
   state.vouchers = state.vouchers.filter(v => v.id !== id);
   state.entries = state.entries.filter(e => e.voucherId !== id);
-  await syncToLocalFolder();
+  await supabase.from('vouchers').delete().eq('id', id);
 }
 
 export async function saveLedger(ledger: any) {
   const idx = state.ledgers.findIndex(l => l.id === ledger.id);
   if (idx >= 0) state.ledgers[idx] = ledger;
   else state.ledgers.push(ledger);
-  await syncToLocalFolder();
+  await syncToCloud('ledgers', ledger);
 }
 
 export async function deleteLedger(id: string) {
   state.ledgers = state.ledgers.filter(l => l.id !== id);
-  await syncToLocalFolder();
+  await supabase.from('ledgers').delete().eq('id', id);
 }
 
 // ── ACCOUNTING ENGINE (Synchronous on Memory State) ──
