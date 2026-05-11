@@ -109,6 +109,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
   const handleSave = async () => {
     if (!originalVoucher) return;
     
+    const isBuy = type === 'BUY';
     const netAmount = isBuy ? tradeAmount + totalCharges : tradeAmount - totalCharges;
 
     // 1. Resolve Broker/Bank Ledger

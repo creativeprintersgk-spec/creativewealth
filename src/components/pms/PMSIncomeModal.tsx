@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, FolderOpen } from 'lucide-react';
-import { getStoredPortfolios, getStoredLedgers, createVoucher, updateVoucher, deleteVoucher, getVoucherById } from '../../logic';
+import { getStoredPortfolios, getStoredLedgers, createVoucher, updateVoucher, deleteVoucher, getVoucherById, ensureLedgerExists, getStoredGroups } from '../../logic';
 
 interface Props {
   assetId: string;
@@ -34,6 +34,9 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
         const port = portfolios.find((p: any) => p.id === v.portfolioId);
         if (port) setPortfolioName(port.portfolioName);
 
+        const tdsLine = v.lines.find((l: any) => l.ledgerId === 'TDS_Receivable');
+        const assetLine = v.lines.find((l: any) => l.credit > 0);
+        
         if (tdsLine) setTds(tdsLine.debit || 0);
         if (assetLine) setAmount(assetLine.credit || 0);
 
@@ -56,7 +59,11 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
       finalBankId = bankLedger.id;
     }
 
-    const tdsLedger = await ledgers.find(l => l.name === 'TDS Receivable') || await createVoucher({ id: 'tds_init', date: '2000-01-01', type: 'journal', lines: [], narration: 'init' }) && ledgers[0]; // Simplified: logic.ts should have a better way
+    let tdsLedger = ledgers.find(l => l.name === 'TDS Receivable');
+    if (!tdsLedger) {
+       await createVoucher({ id: 'tds_init', date: '2000-01-01', type: 'journal', lines: [], narration: 'init' });
+       tdsLedger = ledgers[0];
+    }
     // Actually, I'll use ensureLedgerExists if I can import it or implement it.
     // Let's assume ensureLedgerExists is available in logic.ts (I saw it used in PMSTransactionModal).
     

@@ -12,7 +12,12 @@ type Row = {
   todaysGain: number;
   overallGain: number;
   currentValue: number;
-  portfolioSplits?: any[];
+  portfolioSplits: Array<{
+    portfolioId: string;
+    portfolioName: string;
+    quantity: number;
+    amtInvested: number;
+  }>;
 };
 
 interface Props {
