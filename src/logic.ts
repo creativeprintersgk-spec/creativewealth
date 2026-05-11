@@ -15,6 +15,7 @@ let state = {
   accounts: [] as any[],
   portfolios: [] as any[],
   investorGroups: [] as any[],
+  prices: {} as Record<string, number>,
   initialized: false
 };
 
@@ -37,7 +38,8 @@ async function syncToLocalFolder() {
     families: state.families,
     accounts: state.accounts,
     portfolios: state.portfolios,
-    investorGroups: state.investorGroups
+    investorGroups: state.investorGroups,
+    prices: state.prices
   };
   await fetch('/api/db', {
     method: 'POST',
@@ -68,6 +70,7 @@ export async function initDatabase() {
     state.accounts = localData.accounts || [];
     state.portfolios = localData.portfolios || [];
     state.investorGroups = localData.investorGroups || [];
+    state.prices = localData.prices || {};
 
     // 2. Recovery/Migration: Check IndexedDB for missing data
     console.log("📂 Checking for data recovery from Browser Storage...");
@@ -124,7 +127,7 @@ export async function initDatabase() {
     if (needsSync) {
       await syncToLocalFolder();
     }
-
+    
     // Final Fallback to Defaults
     if (state.ledgers.length === 0) state.ledgers = DEFAULT_LEDGERS;
     if (state.groups.length === 0) state.groups = defaultGroups;
@@ -139,6 +142,27 @@ export async function initDatabase() {
   }
 }
 
+export async function updateAssetPrice(assetId: string, price: number) {
+  state.prices[assetId] = price;
+  await syncToLocalFolder();
+}
+
+export async function ensureLedgerExists(name: string, groupId: string) {
+  const existing = state.ledgers.find(l => l.name === name || l.id === name);
+  if (existing) return existing;
+
+  const newLedger = {
+    id: 'l_' + Math.random().toString(36).substr(2, 9),
+    name,
+    groupId,
+    openingBalance: 0,
+    openingType: 'DR'
+  };
+  state.ledgers.push(newLedger);
+  await syncToLocalFolder();
+  return newLedger;
+}
+
 // ── GETTERS (Sync for UI performance) ──
 export function getStoredGroups() { return state.groups; }
 export function getStoredLedgers() { return state.ledgers; }
@@ -148,6 +172,7 @@ export function getStoredFamilies() { return state.families; }
 export function getStoredAccounts() { return state.accounts; }
 export function getStoredPortfolios() { return state.portfolios; }
 export function getStoredInvestorGroups() { return state.investorGroups; }
+export function getStoredPrices() { return state.prices; }
 
 export async function saveMasterRecord(type: 'families'|'accounts'|'portfolios'|'investorGroups', record: any) {
   const collection = state[type];
@@ -202,6 +227,13 @@ export async function createVoucher(data: any) {
   const fy = data.fy || getFY(data.date);
   const voucherNo = data.voucherNo || getNextVoucherNo(data.type, fy);
 
+  // Derive accountId from portfolioId if not provided
+  let accountId = data.accountId;
+  if (!accountId && data.portfolioId) {
+    const port = state.portfolios.find(p => p.id === data.portfolioId);
+    if (port) accountId = port.accountId;
+  }
+
   const voucher = { 
     id: data.id, 
     date: data.date, 
@@ -209,7 +241,8 @@ export async function createVoucher(data: any) {
     narration: data.narration,
     voucherNo: voucherNo,
     fy: fy,
-    portfolioId: data.portfolioId // NEW: Link to portfolio
+    portfolioId: data.portfolioId,
+    accountId: accountId // Ensure accountId is preserved
   };
 
   const entries = data.lines.map((l: any) => ({
@@ -218,8 +251,8 @@ export async function createVoucher(data: any) {
     ledgerId: l.ledgerId,
     debit: Number(l.debit) || 0,
     credit: Number(l.credit) || 0,
-    quantity: Number(l.quantity) || 0, // NEW: Support quantity
-    price: Number(l.price) || 0,       // NEW: Support price
+    quantity: Number(l.quantity) || 0,
+    price: Number(l.price) || 0,
     narration: l.narration 
   }));
 
@@ -227,7 +260,7 @@ export async function createVoucher(data: any) {
   state.entries.push(...entries);
   
   await syncToLocalFolder();
-  console.log(`✅ Voucher ${voucherNo} saved to db.json`);
+  console.log(`✅ Voucher ${voucherNo} saved to db.json (Account: ${accountId || 'General'})`);
 }
 
 
@@ -277,11 +310,14 @@ function getFYRange(fy: string) {
   };
 }
 
-export function getLedgerWithBalance(ledgerId: string, startDate?: string, endDate?: string) {
+export function getLedgerWithBalance(ledgerId: string, startDate?: string, endDate?: string, accountId?: string) {
   const ledger = state.ledgers.find(l => l.id === ledgerId);
-  if (!ledger) return [];
+  if (!ledger) return { transactions: [], openingBalance: 0, closingBalance: 0 };
 
   const range = (startDate && endDate) ? { start: startDate, end: endDate } : null;
+
+  // Resolve portfolios if accountId is provided for deeper filtering
+  const portfolioIds = accountId ? state.portfolios.filter(p => p.accountId === accountId).map(p => p.id) : null;
 
   // Get all entries for this ledger
   const ledgerEntries = state.entries.filter(e => e.ledgerId === ledgerId);
@@ -296,6 +332,18 @@ export function getLedgerWithBalance(ledgerId: string, startDate?: string, endDa
   });
 
   let runningBalance = ledger.openingType === 'DR' ? ledger.openingBalance : -ledger.openingBalance;
+  
+  // Account Isolation: If accountId is provided, the opening balance should only include 
+  // transactions for that account. BUT wait - usually opening balance is a static value 
+  // on the ledger. In WealthCore, ledgers like "Bank" are shared, so "opening balance" 
+  // for a specific account on a shared ledger is complex.
+  // Requirement: "strictly enforce person-wise integrity".
+  // This implies either:
+  // a) Ledgers are NOT shared (each person has their own Bank A/c ledger).
+  // b) Ledgers are shared, but filtered.
+  // If shared, the "Ledger Opening Balance" property belongs to NO ONE or the first person.
+  // Better: In a professional PMS, every person has their own ledger for their bank account.
+  
   let fyOpeningBalance = runningBalance;
   
   const fyTransactions: any[] = [];
@@ -303,6 +351,15 @@ export function getLedgerWithBalance(ledgerId: string, startDate?: string, endDa
   entriesWithDate.forEach(e => {
     const isBeforeFY = range ? e.date < range.start : false;
     const isWithinFY = range ? (e.date >= range.start && e.date <= range.end) : true;
+
+    // Filter by Account (Priority 1: accountId on voucher, Priority 2: portfolio mapping)
+    if (accountId) {
+      const vAccount = e.v?.accountId;
+      const vPortId = e.v?.portfolioId;
+      
+      const belongsToAccount = (vAccount === accountId) || (vPortId && portfolioIds?.includes(vPortId));
+      if (!belongsToAccount) return;
+    }
 
     if (isBeforeFY) {
       runningBalance += e.debit;
@@ -341,16 +398,9 @@ export function getLedgerWithBalance(ledgerId: string, startDate?: string, endDa
         credit: e.credit,
         balance: runningBalance
       });
-    } else {
-      // Future transaction relative to FY - don't include in transactions, 
-      // but if we wanted full running balance we'd keep going.
-      // For FY drill-down, we stop at the transactions, but the "Closing" 
-      // should ideally be the balance at end of FY.
     }
   });
 
-  // Attach the calculated Opening Balance for the FY to the first element or metadata
-  // We'll return an object instead of just an array to make it cleaner for the UI
   return {
     transactions: fyTransactions,
     openingBalance: fyOpeningBalance,
@@ -358,49 +408,95 @@ export function getLedgerWithBalance(ledgerId: string, startDate?: string, endDa
   };
 }
 
-export function getLedgerBalance(ledgerId: string): number {
+export function getLedgerBalance(ledgerId: string, accountId?: string): number {
   const ledger = state.ledgers.find(l => l.id === ledgerId);
   if (!ledger) return 0;
 
   let bal = ledger.openingType === 'DR' ? ledger.openingBalance : -ledger.openingBalance;
+  
+  // Resolve portfolios if accountId is provided for filtering
+  const portfolioIds = accountId ? state.portfolios.filter(p => p.accountId === accountId).map(p => p.id) : null;
+
   state.entries.filter(e => e.ledgerId === ledgerId).forEach(e => {
+    const v = state.vouchers.find(v => v.id === e.voucherId);
+    if (!v) return;
+    
+    if (accountId) {
+      const vAccount = v.accountId;
+      const vPortId = v.portfolioId;
+      const belongsToAccount = (vAccount === accountId) || (vPortId && portfolioIds?.includes(vPortId));
+      if (!belongsToAccount) return;
+    }
+
     bal += e.debit;
     bal -= e.credit;
   });
   return bal;
 }
 
-export function calculateGroupTotal(groupId: string): number {
+export function calculateGroupTotal(groupId: string, accountId?: string): number {
   const group = state.groups.find(g => g.id === groupId);
   if (!group) return 0;
 
   let total = 0;
   const ledgersInGroup = state.ledgers.filter(l => l.groupId === groupId);
   ledgersInGroup.forEach(l => {
-    total += getLedgerBalance(l.id);
+    total += getLedgerBalance(l.id, accountId);
   });
 
   const childGroups = state.groups.filter(g => g.parent === groupId);
   childGroups.forEach(cg => {
-    total += calculateGroupTotal(cg.id);
+    total += calculateGroupTotal(cg.id, accountId);
   });
 
   return total;
 }
 
-export function generateBS() {
-  const assets = calculateGroupTotal('fixed_assets') + calculateGroupTotal('investments') + calculateGroupTotal('current_assets');
-  const rawLiabilities = calculateGroupTotal('capital_account') + calculateGroupTotal('loans_liability') + calculateGroupTotal('current_liabilities');
-  const income = calculateGroupTotal('income');
-  const expense = calculateGroupTotal('expenses');
-  const profit = (-income) - expense;
-
-  return {
-    assets: assets,
-    liabilities: (-rawLiabilities) + profit,
-    profit
-  };
-}
+export function generateBS(accountId?: string) {
+   let assets = 0;
+   let liabilities = 0;
+   let income = 0;
+   let expense = 0;
+ 
+   // Resolve root type for any group
+   const getGroupType = (groupId: string): string => {
+     let current = state.groups.find((g: any) => g.id === groupId);
+     while (current) {
+       if (current.type) return current.type;
+       current = state.groups.find((g: any) => g.id === current.parent);
+     }
+     return "ASSET";
+   };
+ 
+   state.ledgers.forEach(ledger => {
+     const type = getGroupType(ledger.groupId);
+     const bal = getLedgerBalance(ledger.id, accountId);
+ 
+     if (type === 'ASSET') assets += bal;
+     else if (type === 'LIABILITY') liabilities += bal;
+     else if (type === 'INCOME') income += bal;
+     else if (type === 'EXPENSE') expense += bal;
+   });
+ 
+   const profit = (-income) - expense;
+ 
+   return {
+     assets: assets,
+     liabilities: (-liabilities) + profit,
+     profit,
+     // Detailed breakdown for UI
+     assetGroups: state.groups.filter(g => g.type === 'ASSET' && !g.parent).map(g => ({
+       id: g.id,
+       name: g.name,
+       total: calculateGroupTotal(g.id, accountId)
+     })),
+     liabilityGroups: state.groups.filter(g => g.type === 'LIABILITY' && !g.parent).map(g => ({
+       id: g.id,
+       name: g.name,
+       total: calculateGroupTotal(g.id, accountId)
+     }))
+   };
+ }
 
 export function getVoucherById(id: string) {
   const v = state.vouchers.find(v => v.id === id);
@@ -629,22 +725,25 @@ export function getHoldings(portfolioIds: string[], assetGroupId?: string | stri
   return Object.values(holdingsMap)
     .filter(h => Math.abs(h.quantity) > 0.0001) // Filter out zero holdings
     .map(h => {
-      h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : 0;
-      
-      // MOCK: Current price logic
-      // In a real app, this would come from a price service
-      h.currentPrice = h.avgPrice * (1.1 + Math.random() * 0.2); // +10-30% gain mock
-      
-      h.currentValue = h.quantity * h.currentPrice;
-      h.overallGain = h.currentValue - h.amtInvested;
-      h.todaysGain = h.currentValue * 0.005; // 0.5% today's gain mock
-      
-      return h;
-    });
+       h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : 0;
+       
+       // Current price logic: use stored price or fallback to mock
+       const storedPrice = state.prices[h.assetId];
+       if (storedPrice !== undefined) {
+         h.currentPrice = storedPrice;
+       } else {
+         h.currentPrice = h.avgPrice * 1.1; // Default 10% gain if no price set
+       }
+       
+       h.currentValue = h.quantity * h.currentPrice;
+       h.overallGain = h.currentValue - h.amtInvested;
+       h.todaysGain = 0; // We don't have daily change logic yet
+       
+       return h;
+     });
 }
 
 /**
-
  * Gets transaction history for a specific asset across portfolios.
  * Used for the Drilldown Ledger Modal.
  */
@@ -660,6 +759,7 @@ export interface AssetTransaction {
   amount: number;
   balanceQty: number;
   narration: string;
+  voucherId: string;
 }
 
 export function getAssetTransactions(portfolioIds: string[], assetId: string): AssetTransaction[] {
@@ -694,7 +794,8 @@ export function getAssetTransactions(portfolioIds: string[], assetId: string): A
       credit: entry.credit,
       amount: entry.debit || entry.credit,
       balanceQty: runningQty,
-      narration: entry.narration || voucher.narration || ''
+      narration: entry.narration || voucher.narration || '',
+      voucherId: voucher.id
     };
   });
 }
@@ -732,7 +833,31 @@ export function getPortfolioActivity(portfolioIds: string[]) {
       price: e.price || 0,
       amount: e.debit || e.credit,
       voucherNo: v.voucherNo,
-      narration: v.narration || ''
+      narration: v.narration || '',
+      voucherId: v.id
     };
   });
+}
+
+export function getTrialBalance(asOfDate?: string, accountId?: string) {
+  const trialBalance: any[] = [];
+  
+  state.ledgers.forEach(ledger => {
+    const lData = getLedgerWithBalance(ledger.id, undefined, asOfDate, accountId);
+    if (!Array.isArray(lData) && Math.abs(lData.closingBalance) > 0.001) {
+      const group = state.groups.find(g => g.id === ledger.groupId);
+      trialBalance.push({
+        ledgerId: ledger.id,
+        ledgerName: ledger.name,
+        groupId: ledger.groupId,
+        groupName: group?.name || 'Unknown',
+        type: group?.type || 'ASSET',
+        debit: lData.closingBalance > 0 ? lData.closingBalance : 0,
+        credit: lData.closingBalance < 0 ? Math.abs(lData.closingBalance) : 0,
+        balance: lData.closingBalance
+      });
+    }
+  });
+
+  return trialBalance;
 }

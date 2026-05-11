@@ -1,6 +1,6 @@
 import * as db from "../db/helpers";
 
-export async function getBalanceSheet(_startDate: string, endDate: string) {
+export async function getBalanceSheet(_startDate: string, endDate: string, accountId?: string) {
 
   const groups  = await db.getAll("groups")
   const ledgers = await db.getAll("ledgers")
@@ -24,6 +24,10 @@ export async function getBalanceSheet(_startDate: string, endDate: string) {
     entriesByVoucher[e.voucherId].push(e)
   })
 
+  // Filter portfolios if accountId is provided
+  const allPortfolios = await db.getAll("portfolios");
+  const portfolioIds = accountId ? allPortfolios.filter((p: any) => p.accountId === accountId).map((p: any) => p.id) : null;
+
   const getLedgerBalance = (ledger: any, groupType: string): number => {
     let debit = 0
     let credit = 0
@@ -34,9 +38,15 @@ export async function getBalanceSheet(_startDate: string, endDate: string) {
     }
 
     vouchers.forEach((v: any) => {
-      // For Balance Sheet (As of Date), all accounts accumulate up to endDate.
-      // If the year was closed, a closing voucher already zeroed out the Income/Expense.
       if (v.date <= endDate) {
+        // Account Isolation
+        if (accountId) {
+          const vAccount = v.accountId;
+          const vPortId = v.portfolioId;
+          const belongsToAccount = (vAccount === accountId) || (vPortId && portfolioIds?.includes(vPortId));
+          if (!belongsToAccount) return;
+        }
+
         ;(entriesByVoucher[v.id] || []).forEach((e: any) => {
           if (e.ledgerId === ledger.id) {
             debit  += e.debit  || 0

@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, Database, Clock, Download, Upload } from 'lucide-react';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, Database, Clock, Download, Upload, Calculator } from 'lucide-react';
 
 import { getStoredLedgers, getStoredVouchers, initDatabase } from './logic';
 
@@ -93,16 +93,35 @@ export default function Sidebar() {
               <Layers /> Chart of Accounts
             </button>
             <button 
+              className={`sidebar-nav-item ${isActive('/trial-balance') ? 'active' : ''}`}
+              onClick={() => navigate('/trial-balance')}
+            >
+              <Calculator /> Trial Balance
+            </button>
+            <button 
               className={`sidebar-nav-item ${isActive('/ledger') ? 'active' : ''}`}
               onClick={() => navigate('/ledger')}
             >
               <BookOpen /> Ledger View
             </button>
+          </div>
+        </div>
+
+        {/* REPORTS SECTION */}
+        <div>
+          <div className="sidebar-section-label">Reports & Insights</div>
+          <div className="sidebar-group-items">
             <button 
               className={`sidebar-nav-item ${isActive('/balance-sheet') ? 'active' : ''}`}
               onClick={() => navigate('/balance-sheet')}
             >
               <Scale /> Balance Sheet
+            </button>
+            <button 
+              className="sidebar-nav-item"
+              style={{ opacity: 0.5, cursor: 'not-allowed' }}
+            >
+              <LayoutDashboard /> Profit & Loss
             </button>
           </div>
         </div>

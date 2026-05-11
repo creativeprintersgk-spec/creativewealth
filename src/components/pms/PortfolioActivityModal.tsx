@@ -7,9 +7,10 @@ interface Props {
   onClose: () => void;
   portfolioIds: string[];
   title: string;
+  onEditTransaction?: (voucherId: string) => void;
 }
 
-export default function PortfolioActivityModal({ open, onClose, portfolioIds, title }: Props) {
+export default function PortfolioActivityModal({ open, onClose, portfolioIds, title, onEditTransaction }: Props) {
   if (!open) return null;
 
   const activity = getPortfolioActivity(portfolioIds);
@@ -49,7 +50,11 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
                 </tr>
               ) : (
                 activity.map((tx, i) => (
-                  <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                  <tr 
+                    key={tx.id} 
+                    style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa', cursor: 'pointer' }}
+                    onDoubleClick={() => onEditTransaction?.((tx as any).voucherId)}
+                  >
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{tx.date}</td>
                     <td style={{ padding: '12px 16px', fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{tx.voucherNo}</td>
                     <td style={{ padding: '12px 16px', color: '#64748b' }}>{tx.portfolioName}</td>

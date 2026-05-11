@@ -9,11 +9,13 @@ import {
   getStoredGroups,
   getNextVoucherNo,
   getLedgerWithBalance,
+  getStoredAccounts,
   type VoucherLine
 } from "./logic";
 import VoucherGrid from "./components/VoucherGrid";
 import { v4 as uuid } from "uuid";
 import { useFY } from "./FYContext";
+import { useFamily } from "./contexts/FamilyContext";
 
 type VoucherType = "payment" | "receipt" | "journal" | "contra";
 
@@ -29,11 +31,13 @@ export default function VoucherModal({
   onSaved,
   voucherId,
   selectedLedger,
+  accountId: propAccountId,
 }: {
   onClose: () => void;
   onSaved?: () => void;
   voucherId?: string;
   selectedLedger?: string;
+  accountId?: string;
 }) {
   const { selectedFY } = useFY();
   const today = new Date().toISOString().slice(0, 10);
@@ -41,6 +45,7 @@ export default function VoucherModal({
   const [type, setType] = useState<VoucherType>("receipt");
   const [voucherNo, setVoucherNo] = useState("");
   const [date, setDate] = useState(today);
+  const [accountId, setAccountId] = useState<string>(propAccountId || "");
   const [narration, setNarration] = useState("");
   const [error, setError] = useState("");
 
@@ -51,6 +56,9 @@ export default function VoucherModal({
   const [searchQuery, setSearchQuery] = useState("");
 
   const [voucherLines, setVoucherLines] = useState<VoucherLine[]>([]);
+
+  const { activeFamilyId } = useFamily();
+  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
   const groups = getStoredGroups();
   const mappedLedgers = getStoredLedgers().map(l => ({
@@ -91,6 +99,7 @@ export default function VoucherModal({
         setType(v.type);
         setVoucherNo(v.voucherNo || "");
         setDate(v.date);
+        setAccountId(v.accountId || "");
         setNarration(v.narration || "");
         const lines: VoucherLine[] = v.lines.map((e: any) => ({
           id: e.id || uuid(),
@@ -101,8 +110,11 @@ export default function VoucherModal({
           narration: e.narration || "",
         }));
         setVoucherLines(lines);
-        if (lines.length === 2) {
-          const other = lines.find(l => l.ledgerId !== mainAccount);
+        
+        // Populate Simple Mode fields
+        const nonZeroLines = lines.filter(l => (l.debit !== 0 || l.credit !== 0));
+        if (nonZeroLines.length >= 2) {
+          const other = nonZeroLines.find(l => l.ledgerId !== mainAccount) || nonZeroLines[1];
           if (other) {
             setSimpleAccount(other.ledgerName);
             setSimpleAmount(String(other.debit || other.credit || ""));
@@ -128,6 +140,7 @@ export default function VoucherModal({
 
     if (isSimpleMode && !isSimpleValid) { setError("Select an account and enter an amount."); return; }
     if (!isSimpleMode && !isGridValid) { setError("Voucher is not balanced."); return; }
+    if (!accountId) { setError("Please select an Account (Member) for this voucher."); return; }
 
     let finalLines: any[] = [];
     if (isSimpleMode) {
@@ -141,7 +154,7 @@ export default function VoucherModal({
 
     const data = {
       id: (voucherId && voucherId !== "new") ? voucherId : uuid(),
-      date, type, voucherNo, fy: selectedFY, narration, lines: finalLines,
+      date, type, voucherNo, fy: selectedFY, accountId, narration, lines: finalLines,
     };
 
     try {
@@ -222,6 +235,21 @@ export default function VoucherModal({
           <div style={{ flex: 1 }} />
           {/* Voucher number + date inline */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0 12px" }}>
+            {!propAccountId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '0 8px', height: '30px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b' }}>PERSON:</span>
+                <select 
+                  value={accountId}
+                  onChange={e => setAccountId(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '11px', fontWeight: 700, color: '#0f172a', outline: 'none' }}
+                >
+                  <option value="">-- Select Member --</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>{acc.accountName.toUpperCase()}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <span style={{
               fontSize: "12px", fontWeight: 800, color: currentTypeMeta.color,
               background: `${currentTypeMeta.color}18`,

@@ -24,6 +24,7 @@ export type Voucher = {
   voucherNo?: string;
   fy?: string;
   portfolioId?: string;
+  accountId?: string;
 }
 
 

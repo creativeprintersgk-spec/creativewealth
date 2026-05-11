@@ -7,18 +7,19 @@ interface LedgerDrilldownModalProps {
   ledgerId: string;
   startDate?: string;
   endDate?: string;
+  accountId?: string;
   onClose: () => void;
   onVoucherClick: (voucherId: string) => void;
   onNewVoucher: () => void;
 }
 
-export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, onClose, onVoucherClick, onNewVoucher }: LedgerDrilldownModalProps) {
+export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, accountId, onClose, onVoucherClick, onNewVoucher }: LedgerDrilldownModalProps) {
   const { selectedFY } = useFY();
   const ledger = useMemo(() => getStoredLedgers().find(l => l.id === ledgerId), [ledgerId, getStoredLedgers()]);
   
   const drilldownData = useMemo(() => 
-    getLedgerWithBalance(ledgerId, startDate, endDate), 
-    [ledgerId, startDate, endDate, getStoredVouchers(), getStoredEntries()]
+    getLedgerWithBalance(ledgerId, startDate, endDate, accountId), 
+    [ledgerId, startDate, endDate, accountId, getStoredVouchers(), getStoredEntries()]
   );
 
   const isArray = Array.isArray(drilldownData);

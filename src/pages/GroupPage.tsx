@@ -1,42 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries, type Ledger, type Group, type Voucher, type Entry } from '../logic';
-import { ArrowLeft, ChevronRight, FileText } from 'lucide-react';
+import { getStoredLedgers, getStoredGroups, getLedgerBalance, calculateGroupTotal, getStoredAccounts } from '../logic';
+import { ArrowLeft, ChevronRight, FileText, Users } from 'lucide-react';
+import { useFamily } from '../contexts/FamilyContext';
 
 export default function GroupPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   
+  const { activeFamilyId } = useFamily();
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  
   const ledgers = getStoredLedgers();
   const groups = getStoredGroups();
-  const entries = getStoredEntries();
+  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
   const group = groups.find(item => item.id === groupId);
   const subGroups = groups.filter(g => g.parent === groupId);
   const groupLedgers = ledgers.filter(l => l.groupId === groupId);
 
-  const getLedgerBal = (ledger: Ledger) => {
-    let bal = ledger.openingType === 'DR' ? ledger.openingBalance : -ledger.openingBalance;
-    entries.filter(e => e.ledgerId === ledger.id).forEach(e => {
-      bal += e.debit;
-      bal -= e.credit;
-    });
-    return bal;
-  };
-
-  // Helper to calculate group total for display
-  const getGroupBal = (id: string) => {
-    let total = 0;
-    // Ledgers in this group
-    ledgers.filter(l => l.groupId === id).forEach(l => {
-      total += getLedgerBal(l);
-    });
-    // Subgroups
-    groups.filter(g => g.parent === id).forEach(sg => {
-      total += getGroupBal(sg.id);
-    });
-    return total;
-  };
+  // Use centralized logic
+  const getLedgerBal = (ledgerId: string) => getLedgerBalance(ledgerId, selectedAccountId);
+  const getGroupBal = (id: string) => calculateGroupTotal(id, selectedAccountId);
 
   return (
     <div className="page-container" style={{ padding: '2rem' }}>
@@ -58,9 +43,23 @@ export default function GroupPage() {
         >
           <ArrowLeft size={18} />
         </button>
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{group?.name || 'Group Details'}</h1>
-          <p style={{ color: '#666' }}>Drill-down: {group?.type} hierarchy</p>
+        <div style={{ flex: 1 }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{group?.name || 'Group Details'}</h1>
+          <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>Drill-down: {group?.type} hierarchy</p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#fff', padding: '6px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+          <Users size={16} color="#2563eb" />
+          <select 
+            value={selectedAccountId} 
+            onChange={e => setSelectedAccountId(e.target.value)}
+            style={{ background: 'transparent', border: 'none', fontSize: '13px', fontWeight: 700, color: '#0f172a', outline: 'none', cursor: 'pointer' }}
+          >
+            <option value="">Consolidated</option>
+            {accounts.map(acc => (
+              <option key={acc.id} value={acc.id}>{acc.accountName}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -113,7 +112,7 @@ export default function GroupPage() {
 
                 {/* Render Ledgers */}
                 {groupLedgers.map(l => {
-                  const balance = getLedgerBal(l);
+                  const balance = getLedgerBal(l.id);
                   return (
                     <tr 
                       key={l.id} 

@@ -28,6 +28,9 @@ import HoldingBreakupModal from '../components/pms/HoldingBreakupModal';
 import AssetLedgerModal from '../components/pms/AssetLedgerModal';
 import FamilySelectorModal from '../components/FamilySelectorModal';
 import PortfolioActivityModal from '../components/pms/PortfolioActivityModal';
+import PMSTransactionModal from '../components/pms/PMSTransactionModal';
+import PMSIncomeModal from '../components/pms/PMSIncomeModal';
+import PMSPriceModal from '../components/pms/PMSPriceModal';
 
 const ASSET_TYPE_MAP: Record<string, string | string[] | undefined> = {
   all: undefined,
@@ -94,6 +97,21 @@ export default function PMSWorkspace() {
   const [isFamilySelectorOpen, setIsFamilySelectorOpen] = useState(false);
   const [isSelectorOpen, setIsSelectorOpen] = useState<'port' | 'group' | null>(null);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
+  const [incomeAsset, setIncomeAsset] = useState<{ id: string; name: string; portIds: string[] } | null>(null);
+  const [priceAsset, setPriceAsset] = useState<{ id: string; name: string; currentPrice: number } | null>(null);
+
+  const [isViewsMenuOpen, setIsViewsMenuOpen] = useState(false);
+  const [isActivityMenuOpen, setIsActivityMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClick = () => {
+      setIsViewsMenuOpen(false);
+      setIsActivityMenuOpen(false);
+    };
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
 
   const accounts = useMemo(() => getStoredAccounts().filter(a => a.familyId === activeFamily?.id), [activeFamily?.id]);
   const portfolios = useMemo(() => getStoredPortfolios().filter(p => accounts.some(acc => acc.id === p.accountId)), [accounts]);
@@ -210,12 +228,67 @@ export default function PMSWorkspace() {
                 <LayoutGrid size={16} /> Open Group
               </button>
               <div style={{ width: '1px', height: '24px', background: '#e2e8f0', margin: '0 8px' }} />
-              <button onClick={() => navigate('/master-entry')} className="btn-secondary" style={{ height: '40px', padding: '0 16px', justifyContent: 'center' }}>
-                <Settings size={16} /> Edit Master
-              </button>
-              <button onClick={() => setIsActivityOpen(true)} className="btn-amber" style={{ height: '40px', padding: '0 16px', justifyContent: 'center' }}>
-                <Activity size={18} /> Activity Menu
-              </button>
+              
+              <div style={{ position: 'relative' }}>
+                <button onClick={(e) => { e.stopPropagation(); setIsViewsMenuOpen(!isViewsMenuOpen); setIsActivityMenuOpen(false); }} className="btn-secondary" style={{ height: '40px', padding: '0 16px', gap: '6px' }}>
+                  Views <ChevronDown size={14} />
+                </button>
+                {isViewsMenuOpen && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', minWidth: '220px', zIndex: 100, padding: '4px' }}>
+                    <button className="dropdown-item">Collapse All</button>
+                    <button className="dropdown-item">Views of Summary Table</button>
+                    <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+                    <button className="dropdown-item">Sort By Current Value</button>
+                    <button className="dropdown-item">Sort By Today's Gain %</button>
+                    <button className="dropdown-item">Sort By Overall Gain %</button>
+                    <button className="dropdown-item">Sort By Overall Gain</button>
+                    <button className="dropdown-item">Sort By Today's Gain</button>
+                    <button className="dropdown-item">Show 0 Values</button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <button onClick={(e) => { e.stopPropagation(); setIsActivityMenuOpen(!isActivityMenuOpen); setIsViewsMenuOpen(false); }} className="btn-amber" style={{ height: '40px', padding: '0 16px', gap: '6px' }}>
+                  <Activity size={16} /> Activity Menu <ChevronDown size={14} />
+                </button>
+                {isActivityMenuOpen && (
+                  <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', minWidth: '240px', zIndex: 100, padding: '4px' }}>
+                    <button className="dropdown-item" onClick={() => setIsActivityOpen(true)}>View Transactions</button>
+                    <button className="dropdown-item" onClick={() => setEditingVoucherId('new')}>Add Transaction</button>
+                    <button className="dropdown-item">Other Transactions</button>
+                    <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+                    <button className="dropdown-item" onClick={() => {
+                      if (selectedHolding) {
+                        setIncomeAsset({
+                          id: selectedHolding.assetId,
+                          name: selectedHolding.assetName,
+                          portIds: currentTab?.portfolioIds || []
+                        });
+                      } else {
+                        alert("Please select an asset from the grid first.");
+                      }
+                    }}>Add Income for the Asset</button>
+                    <button className="dropdown-item" onClick={() => {
+                      if (selectedHolding) {
+                        setPriceAsset({
+                          id: selectedHolding.assetId,
+                          name: selectedHolding.assetName,
+                          currentPrice: selectedHolding.currentPrice
+                        });
+                      } else {
+                        alert("Please select an asset from the grid first.");
+                      }
+                    }}>Set Current Price</button>
+                    <button className="dropdown-item">Update Prices of the portfolio</button>
+                    <button className="dropdown-item">Edit/Delete asset for this portfolio</button>
+                    <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+                    <button className="dropdown-item">Advance</button>
+                    <button className="dropdown-item">Edit Selected Asset</button>
+                  </div>
+                )}
+              </div>
+
               <button onClick={() => window.location.reload()} className="btn-secondary" style={{ height: '40px', width: '40px', padding: 0, justifyContent: 'center' }}>
                 <RefreshCw size={16} />
               </button>
@@ -253,7 +326,26 @@ export default function PMSWorkspace() {
 
       {/* ── MODALS ── */}
       {selectedHolding && <HoldingBreakupModal open={!!selectedHolding} holding={selectedHolding} onClose={() => setSelectedHolding(null)} onDrilldown={handleDrilldown} />}
-      {selectedAssetForLedger && <AssetLedgerModal open={!!selectedAssetForLedger} assetId={selectedAssetForLedger.id} assetName={selectedAssetForLedger.name} portfolioIds={selectedAssetForLedger.portIds} onClose={() => setSelectedAssetForLedger(null)} />}
+      {selectedAssetForLedger && (
+        <AssetLedgerModal 
+          open={!!selectedAssetForLedger} 
+          assetId={selectedAssetForLedger.id} 
+          assetName={selectedAssetForLedger.name} 
+          portfolioIds={selectedAssetForLedger.portIds} 
+          onClose={() => setSelectedAssetForLedger(null)} 
+          onEditTransaction={setEditingVoucherId}
+        />
+      )}
+      {editingVoucherId && (
+        <PMSTransactionModal 
+          voucherId={editingVoucherId}
+          onClose={() => setEditingVoucherId(null)}
+          onSaved={() => {
+            setEditingVoucherId(null);
+            window.location.reload(); // Quick refresh for now
+          }}
+        />
+      )}
       {isSelectorOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }} onClick={() => setIsSelectorOpen(null)}>
           <div className="modal-box" style={{ padding: '24px' }} onClick={e => e.stopPropagation()}>
@@ -269,7 +361,33 @@ export default function PMSWorkspace() {
         </div>
       )}
       <FamilySelectorModal isOpen={isFamilySelectorOpen} onClose={() => setIsFamilySelectorOpen(false)} />
-      <PortfolioActivityModal open={isActivityOpen} onClose={() => setIsActivityOpen(false)} portfolioIds={currentTab?.portfolioIds || []} title={currentTab?.label || ''} />
+      <PortfolioActivityModal open={isActivityOpen} onClose={() => setIsActivityOpen(false)} portfolioIds={currentTab?.portfolioIds || []} title={currentTab?.label || ''} onEditTransaction={setEditingVoucherId} />
+      
+      {incomeAsset && (
+        <PMSIncomeModal 
+          assetId={incomeAsset.id}
+          assetName={incomeAsset.name}
+          portfolioIds={incomeAsset.portIds}
+          onClose={() => setIncomeAsset(null)}
+          onSaved={() => {
+            setIncomeAsset(null);
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {priceAsset && (
+        <PMSPriceModal 
+          assetId={priceAsset.id}
+          assetName={priceAsset.name}
+          currentPrice={priceAsset.currentPrice}
+          onClose={() => setPriceAsset(null)}
+          onSaved={() => {
+            setPriceAsset(null);
+            window.location.reload();
+          }}
+        />
+      )}
       
       <style>{`
         .btn-active-tab { height: 32px; padding: 0 16px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #1d4ed8; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -287,6 +405,9 @@ export default function PMSWorkspace() {
 
         .pms-selector-item { padding: 14px; text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 700; color: #1e293b; transition: all 0.2s; }
         .pms-selector-item:hover { background: #eff6ff; border-color: #3b82f6; color: #2563eb; transform: translateX(4px); }
+
+        .dropdown-item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: #475569; border-radius: 6px; cursor: pointer; transition: background 0.1s; }
+        .dropdown-item:hover { background: #f1f5f9; color: #0f172a; }
       `}</style>
     </div>
   );

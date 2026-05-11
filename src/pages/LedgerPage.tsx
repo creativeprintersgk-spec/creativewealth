@@ -1,16 +1,19 @@
 import React, { useState, useCallback, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Plus, ArrowLeft } from "lucide-react"
-import { getLedgerWithBalance, getStoredLedgers, getStoredGroups } from "../logic"
+import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredAccounts } from "../logic"
 import VoucherModal from "../VoucherModal"
 import LedgerModal from "../LedgerModal"
 import { useFY } from "../FYContext"
+import { useFamily } from "../contexts/FamilyContext"
 
 export default function LedgerPage() {
   const { ledgerId: paramId } = useParams<{ ledgerId: string }>();
   const navigate = useNavigate();
+  const { activeFamilyId } = useFamily();
   
   const [selectedLedgerId, setSelectedLedgerId] = useState(paramId || "Bank")
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("")
   const [showModal, setShowModal] = useState(false)
   const [showLedgerModal, setShowLedgerModal] = useState(false)
   const [editingLedger, setEditingLedger] = useState<any>(null)
@@ -85,7 +88,9 @@ export default function LedgerPage() {
     return customRange
   })()
 
-  const drilldownData = getLedgerWithBalance(selectedLedgerId, effectiveDates.start, effectiveDates.end)
+  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
+
+  const drilldownData = getLedgerWithBalance(selectedLedgerId, effectiveDates.start, effectiveDates.end, selectedAccountId)
   const data = Array.isArray(drilldownData) ? [] : drilldownData.transactions;
   const selectedLedger = ledgers.find(l => l.id === selectedLedgerId || l.name === selectedLedgerId);
   const selectedLedgerName = selectedLedger?.name || selectedLedgerId;
@@ -112,42 +117,60 @@ export default function LedgerPage() {
           </button>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ledger Account</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <select 
-                value={selectedLedgerId} 
-                onChange={(e) => {
-                  setSelectedLedgerId(e.target.value);
-                  navigate(`/ledger/${e.target.value}`);
-                }}
-                style={{ 
-                  fontSize: '1.25rem', 
-                  fontWeight: 700, 
-                  border: 'none', 
-                  background: 'transparent', 
-                  cursor: 'pointer',
-                  color: '#1a1a1a',
-                  outline: 'none',
-                  padding: 0,
-                  margin: 0
-                }}
-              >
-                {ledgers.map(l => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </select>
-              <button 
-                onClick={handleEditLedger}
-                style={{ 
-                  fontSize: '0.75rem', 
-                  color: '#2563eb', 
-                  background: 'none', 
-                  border: 'none', 
-                  cursor: 'pointer',
-                  padding: '2px 4px'
-                }}
-              >
-                Edit
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <select 
+                  value={selectedLedgerId} 
+                  onChange={(e) => {
+                    setSelectedLedgerId(e.target.value);
+                    navigate(`/ledger/${e.target.value}`);
+                  }}
+                  style={{ 
+                    fontSize: '1.25rem', 
+                    fontWeight: 700, 
+                    border: 'none', 
+                    background: 'transparent', 
+                    cursor: 'pointer',
+                    color: '#1a1a1a',
+                    outline: 'none',
+                    padding: 0,
+                    margin: 0
+                  }}
+                >
+                  {ledgers.map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+                <button 
+                  onClick={handleEditLedger}
+                  style={{ 
+                    fontSize: '0.75rem', 
+                    color: '#2563eb', 
+                    background: 'none', 
+                    border: 'none', 
+                    cursor: 'pointer',
+                    padding: '2px 4px'
+                  }}
+                >
+                  Edit
+                </button>
+              </div>
+
+              <div style={{ height: '24px', width: '1px', background: '#eee' }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#f8fafc', padding: '4px 12px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Account:</span>
+                <select 
+                  value={selectedAccountId}
+                  onChange={e => setSelectedAccountId(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', fontSize: '12px', fontWeight: 700, color: '#0f172a', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="">Consolidated (All Members)</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>{acc.accountName}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>

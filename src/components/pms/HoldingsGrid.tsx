@@ -77,34 +77,34 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
       onMouseEnter={e => (e.currentTarget.style.background = '#eff6ff')}
       onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#fafafa')}
     >
-      <td style={{ padding: '7px 10px', fontSize: '13px', fontWeight: 500, color: '#1e293b', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <td style={{ padding: '4px 10px', fontSize: '13px', fontWeight: 500, color: '#1e293b', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {row.assetName}
       </td>
-      <td style={{ padding: '7px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
         {fmtQty(row.quantity)}
       </td>
-      <td style={{ padding: '7px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
         {fmt(row.avgPrice)}
       </td>
-      <td style={{ padding: '7px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
         {fmt(row.amtInvested, 0)}
       </td>
-      <td style={{ padding: '7px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
         {fmt(row.currentPrice)}
       </td>
-      <td style={{ padding: '7px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: gainColor(row.todaysGain), fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: gainColor(row.todaysGain), fontVariantNumeric: 'tabular-nums' }}>
         <div>{fmt(row.todaysGain, 0)}</div>
         <div style={{ fontSize: '10px', opacity: 0.8 }}>
           {row.currentValue > 0 ? ((row.todaysGain / row.currentValue) * 100).toFixed(2) + '%' : '—'}
         </div>
       </td>
-      <td style={{ padding: '7px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: 600, color: gainColor(row.overallGain), fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: 600, color: gainColor(row.overallGain), fontVariantNumeric: 'tabular-nums' }}>
         <div>{fmt(row.overallGain, 0)}</div>
         <div style={{ fontSize: '10px', opacity: 0.8 }}>
           {row.amtInvested > 0 ? ((row.overallGain / row.amtInvested) * 100).toFixed(2) + '%' : '—'}
         </div>
       </td>
-      <td style={{ padding: '7px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
         {fmt(row.currentValue, 0)}
       </td>
     </tr>
@@ -129,7 +129,7 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
           onMouseLeave={e => (e.currentTarget.style.background = '#eef2ff')}
         >
           {/* 1. Name */}
-          <td style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 700, color: '#3730a3', borderBottom: '1px solid #c7d2fe', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <td style={{ padding: '4px 10px', fontSize: '12px', fontWeight: 700, color: '#3730a3', borderBottom: '1px solid #c7d2fe', display: 'flex', alignItems: 'center', gap: '6px' }}>
             {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             {label}
             <span style={{ fontSize: '10px', color: '#6366f1', background: '#e0e7ff', padding: '1px 6px', borderRadius: '99px', marginLeft: '4px' }}>
@@ -141,21 +141,21 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
           {/* 3. Avg Price */}
           <td style={{ borderBottom: '1px solid #c7d2fe' }} />
           {/* 4. Amt Invested */}
-          <td style={{ padding: '6px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 700, color: '#3730a3', fontVariantNumeric: 'tabular-nums' }}>
+          <td style={{ padding: '4px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 700, color: '#3730a3', fontVariantNumeric: 'tabular-nums' }}>
             {fmt(total.invested, 0)}
           </td>
           {/* 5. Cur Price */}
           <td style={{ borderBottom: '1px solid #c7d2fe' }} />
           {/* 6. Today's Gain */}
-          <td style={{ padding: '6px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', color: gainColor(total.today), fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+          <td style={{ padding: '4px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', color: gainColor(total.today), fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
             {fmt(total.today, 0)}
           </td>
           {/* 7. Overall Gain */}
-          <td style={{ padding: '6px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 700, color: gainColor(total.gain), fontVariantNumeric: 'tabular-nums' }}>
+          <td style={{ padding: '4px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 700, color: gainColor(total.gain), fontVariantNumeric: 'tabular-nums' }}>
             {fmt(total.gain, 0)}
           </td>
           {/* 8. Cur Value */}
-          <td style={{ padding: '6px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 800, color: '#3730a3', fontVariantNumeric: 'tabular-nums' }}>
+          <td style={{ padding: '4px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 800, color: '#3730a3', fontVariantNumeric: 'tabular-nums' }}>
             {fmt(total.value, 0)}
           </td>
         </tr>

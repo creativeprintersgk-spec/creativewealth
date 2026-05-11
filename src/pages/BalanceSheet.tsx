@@ -1,15 +1,28 @@
 import React, { useEffect, useState } from "react"
 import { getBalanceSheet } from "../services/balanceSheet"
 import { useFY } from "../FYContext"
-import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, createVoucher } from "../logic"
+import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, createVoucher, getStoredAccounts } from "../logic"
 import { v4 as uuid } from "uuid"
 import LedgerDrilldownModal from "../LedgerDrilldownModal"
 import VoucherModal from "../VoucherModal"
+import { useFamily } from "../contexts/FamilyContext"
+import { Users } from 'lucide-react'
 
 export default function BalanceSheet() {
   const { selectedFY, reportFilter, customRange } = useFY()
-  const [data, setData] = useState<{ assets: any[], liabilities: any[], totalAssets: number, totalLiabilities: number } | null>(null)
+  const { activeFamilyId } = useFamily()
   
+  const [data, setData] = useState<{ assets: any[], liabilities: any[], totalAssets: number, totalLiabilities: number } | null>(null)
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('')
+  
+  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
+
+  useEffect(() => {
+    if (!selectedAccountId && accounts.length > 0) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
+
   // View Controls
   const [expandAll, setExpandAll] = useState(false)
   const [showZeroValues, setShowZeroValues] = useState(false)
@@ -40,10 +53,11 @@ export default function BalanceSheet() {
     return customRange
   })()
 
-  useEffect(() => { load() }, [selectedFY, reportFilter, customRange.start, customRange.end])
+  useEffect(() => { load() }, [selectedFY, reportFilter, customRange.start, customRange.end, selectedAccountId])
 
   async function load() {
-    const res = await getBalanceSheet(effectiveDates.start, effectiveDates.end)
+    if (!selectedAccountId && accounts.length > 0) return;
+    const res = await getBalanceSheet(effectiveDates.start, effectiveDates.end, selectedAccountId)
     setData(res)
   }
 
@@ -253,6 +267,18 @@ export default function BalanceSheet() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+              <Users size={16} color="#2563eb" />
+              <select 
+                value={selectedAccountId} 
+                onChange={e => setSelectedAccountId(e.target.value)}
+                style={{ background: 'transparent', border: 'none', fontSize: '12px', fontWeight: 700, color: '#1e293b', outline: 'none', cursor: 'pointer' }}
+              >
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.accountName.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
             <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: '#f8fafc', padding: '6px 12px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
               <input type="checkbox" checked={showZeroValues} onChange={e => setShowZeroValues(e.target.checked)} /> Show Zero Values
             </label>
@@ -315,6 +341,7 @@ export default function BalanceSheet() {
             ledgerId={selectedLedgerId} 
             startDate={effectiveDates.start}
             endDate={effectiveDates.end}
+            accountId={selectedAccountId}
             onClose={() => setSelectedLedgerId(null)}
             onVoucherClick={(vid) => setSelectedVoucherId(vid)}
             onNewVoucher={() => setSelectedVoucherId('new')}
@@ -327,6 +354,7 @@ export default function BalanceSheet() {
           <VoucherModal 
             voucherId={selectedVoucherId === 'new' ? undefined : selectedVoucherId}
             selectedLedger={selectedLedgerId || undefined}
+            accountId={selectedAccountId}
             onClose={() => setSelectedVoucherId(null)}
             onSaved={() => {
               setSelectedVoucherId(null);
