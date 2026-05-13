@@ -40,7 +40,8 @@ async function syncToCloud(type: string, record: any) {
     'ledgers': 'ledgers',
     'vouchers': 'vouchers',
     'entries': 'entries',
-    'prices': 'prices'
+    'prices': 'prices',
+    'investorGroups': 'investor_groups'
   };
 
   const table = tableMap[type];
@@ -60,11 +61,30 @@ async function syncToCloud(type: string, record: any) {
     if (newRec.openingBalance !== undefined) { newRec.opening_balance = newRec.openingBalance; delete newRec.openingBalance; }
     if (newRec.openingType) { newRec.opening_type = newRec.openingType; delete newRec.openingType; }
     if (newRec.voucherNo) { newRec.voucher_no = newRec.voucherNo; delete newRec.voucherNo; }
+    if (newRec.portfolioIds) { newRec.portfolio_ids = newRec.portfolioIds; delete newRec.portfolioIds; }
+    if (newRec.groupName) { newRec.group_name = newRec.groupName; delete newRec.groupName; }
+    if (newRec.familyName) { newRec.name = newRec.familyName; delete newRec.familyName; }
+    if (newRec.parent) { newRec.parent_id = newRec.parent; delete newRec.parent; }
+    
+    // Remove UI-only or unsupported fields for Supabase schema
+    delete newRec.fullName;
+    delete newRec.accountingStartYear;
+    delete newRec.address;
+    delete newRec.city;
+    delete newRec.country;
+    delete newRec.category;
+    delete newRec.portfolioType;
+    delete newRec.isTradingPortfolio;
+
     return newRec;
   };
 
   const { error } = await supabase.from(table).upsert(transform(record));
-  if (error) console.error(`Sync error (${table}):`, error.message);
+  if (error) {
+    console.error(`❌ Sync error (${table}):`, error.message);
+  } else {
+    console.log(`✅ Successfully synced ${table} record to cloud.`);
+  }
 }
 
 /**
@@ -89,7 +109,8 @@ export async function initDatabase() {
       { data: portfolios },
       { data: vouchers },
       { data: entries },
-      { data: prices }
+      { data: prices },
+      { data: investorGroups }
     ] = await Promise.all([
       supabase.from('groups').select('*'),
       supabase.from('ledgers').select('*'),
@@ -98,17 +119,19 @@ export async function initDatabase() {
       supabase.from('portfolios').select('*'),
       supabase.from('vouchers').select('*'),
       supabase.from('entries').select('*'),
-      supabase.from('prices').select('*')
+      supabase.from('prices').select('*'),
+      supabase.from('investor_groups').select('*')
     ]);
 
     // Map back from snake_case to camelCase
-    state.groups = groups || [];
+    state.groups = (groups || []).map(g => ({ ...g, parent: g.parent_id }));
     state.ledgers = (ledgers || []).map(l => ({ ...l, groupId: l.group_id, openingBalance: l.opening_balance, openingType: l.opening_type }));
-    state.families = families || [];
+    state.families = (families || []).map(f => ({ ...f, familyName: f.name }));
     state.accounts = (accounts || []).map(a => ({ ...a, familyId: a.family_id, accountName: a.account_name }));
     state.portfolios = (portfolios || []).map(p => ({ ...p, accountId: p.account_id, portfolioName: p.portfolio_name }));
-    state.vouchers = (vouchers || []).map(v => ({ ...v, accountId: v.account_id, portfolioId: v.portfolio_id, voucherNo: v.voucher_no }));
-    state.entries = (entries || []).map(e => ({ ...e, voucherId: e.voucher_id, ledgerId: e.ledger_id }));
+    state.vouchers = (vouchers || []).map(v => ({ ...v, accountId: v.account_id || v.accountId, portfolioId: v.portfolio_id || v.portfolioId, voucherNo: v.voucher_no || v.voucherNo }));
+    state.entries = (entries || []).map(e => ({ ...e, voucherId: e.voucher_id || e.voucherId, ledgerId: e.ledger_id || e.ledgerId }));
+    state.investorGroups = (investorGroups || []).map(ig => ({ ...ig, groupName: ig.group_name || ig.groupName, portfolioIds: ig.portfolio_ids || ig.portfolioIds }));
     
     // Initialize prices map
     const pMap: Record<string, number> = {};
@@ -614,9 +637,18 @@ export interface AssetHolding {
 export function getHoldings(portfolioIds: string[], assetGroupId?: string | string[]): AssetHolding[] {
   const holdingsMap: Record<string, AssetHolding> = {};
 
-  // 1. Get all vouchers for these portfolios
-  const relevantVouchers = state.vouchers.filter(v => portfolioIds.includes(v.portfolioId));
+  // 1. Get all vouchers for these portfolios (or accounts owning these portfolios)
+  const relevantVouchers = state.vouchers.filter(v => {
+    if (v.portfolioId && portfolioIds.includes(v.portfolioId)) return true;
+    // Fallback: If no portfolioId on voucher, check if it belongs to an account that owns these portfolios
+    const accountPortfolios = state.portfolios.filter(p => p.accountId === v.accountId).map(p => p.id);
+    return accountPortfolios.some(pid => portfolioIds.includes(pid));
+  });
   const vIds = new Set(relevantVouchers.map(v => v.id));
+  
+  if (relevantVouchers.length === 0 && portfolioIds.length > 0) {
+    console.warn("getHoldings: No vouchers found for portfolios:", portfolioIds);
+  }
 
   // 2. Get all entries for these vouchers
   const relevantEntries = state.entries.filter(e => vIds.has(e.voucherId));
