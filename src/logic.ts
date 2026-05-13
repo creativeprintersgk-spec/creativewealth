@@ -1,5 +1,6 @@
-import { defaultGroups } from "./logic_defaults";
-import { supabase } from "./supabase";
+import { defaultGroups } from "./logic_defaults.ts";
+import { supabase } from "./supabase.ts";
+import { calculateCapitalGains, applyTaxRules } from "./accounting-engine/voucherEngine.ts";
 
 // Types
 export type { Group, Ledger, Voucher, Entry, VoucherLine } from "./logic_defaults";
@@ -10,6 +11,7 @@ let state = {
   ledgers: [] as any[],
   vouchers: [] as any[],
   entries: [] as any[],
+  taxLots: [] as any[],
   families: [] as any[],
   accounts: [] as any[],
   portfolios: [] as any[],
@@ -40,6 +42,7 @@ async function syncToCloud(type: string, record: any) {
     'ledgers': 'ledgers',
     'vouchers': 'vouchers',
     'entries': 'entries',
+    'taxLots': 'tax_lots',
     'prices': 'prices',
     'investorGroups': 'investor_groups'
   };
@@ -65,6 +68,13 @@ async function syncToCloud(type: string, record: any) {
     if (newRec.groupName) { newRec.group_name = newRec.groupName; delete newRec.groupName; }
     if (newRec.familyName) { newRec.name = newRec.familyName; delete newRec.familyName; }
     if (newRec.parent) { newRec.parent_id = newRec.parent; delete newRec.parent; }
+    
+    // Tax Lots specific mappings
+    if (newRec.purchaseDate) { newRec.purchase_date = newRec.purchaseDate; delete newRec.purchaseDate; }
+    if (newRec.remainingQuantity !== undefined) { newRec.remaining_quantity = newRec.remainingQuantity; delete newRec.remainingQuantity; }
+    if (newRec.costPerUnit !== undefined) { newRec.cost_per_unit = newRec.costPerUnit; delete newRec.costPerUnit; }
+    if (newRec.costTotal !== undefined) { newRec.cost_total = newRec.costTotal; delete newRec.costTotal; }
+    if (newRec.isClosed !== undefined) { newRec.is_closed = newRec.isClosed; delete newRec.isClosed; }
     
     // Remove UI-only or unsupported fields for Supabase schema
     delete newRec.fullName;
@@ -109,6 +119,7 @@ export async function initDatabase() {
       { data: portfolios },
       { data: vouchers },
       { data: entries },
+      { data: taxLots },
       { data: prices },
       { data: investorGroups }
     ] = await Promise.all([
@@ -119,6 +130,7 @@ export async function initDatabase() {
       supabase.from('portfolios').select('*'),
       supabase.from('vouchers').select('*'),
       supabase.from('entries').select('*'),
+      supabase.from('tax_lots').select('*'),
       supabase.from('prices').select('*'),
       supabase.from('investor_groups').select('*')
     ]);
@@ -148,6 +160,18 @@ export async function initDatabase() {
       credit: Number(e.credit) || 0,
       quantity: Number(e.quantity) || 0,
       price: Number(e.price) || 0
+    }));
+
+    state.taxLots = (taxLots || []).map(tl => ({
+      ...tl,
+      voucherId: tl.voucher_id,
+      portfolioId: tl.portfolio_id,
+      ledgerId: tl.ledger_id,
+      purchaseDate: tl.purchase_date,
+      quantity: Number(tl.quantity),
+      remainingQuantity: Number(tl.remaining_quantity),
+      costPerUnit: Number(tl.cost_per_unit),
+      costTotal: Number(tl.cost_total)
     }));
     
     // Initialize prices map
@@ -200,6 +224,7 @@ export function getStoredAccounts() { return state.accounts; }
 export function getStoredPortfolios() { return state.portfolios; }
 export function getStoredInvestorGroups() { return state.investorGroups; }
 export function getStoredPrices() { return state.prices; }
+export function getStoredTaxLots() { return state.taxLots; }
 
 export async function saveMasterRecord(type: 'families'|'accounts'|'portfolios'|'investorGroups', record: any) {
   const collection = state[type];
@@ -283,6 +308,90 @@ export async function createVoucher(data: any) {
     price: Number(l.price) || 0,
     narration: l.narration 
   }));
+
+  // --- CAPITAL GAINS LOGIC ---
+  const extraEntries: any[] = [];
+  
+  for (const entry of [...entries]) {
+    const ledger = state.ledgers.find(l => l.id === entry.ledgerId);
+    if (!ledger) continue;
+
+    // Check if it's an investment group
+    const isInvestment = state.groups.some(g => {
+      if (g.id !== ledger.groupId) return false;
+      let curr: any = g;
+      while (curr) {
+        if (curr.id === 'investments') return true;
+        curr = state.groups.find(pg => pg.id === curr.parent);
+      }
+      return false;
+    });
+
+    if (!isInvestment) continue;
+
+    if (entry.debit > 0) {
+      // BUY Transaction -> Create Tax Lot
+      const taxLot = {
+        id: 'tl_' + Math.random().toString(36).substr(2, 9),
+        voucherId: data.id,
+        portfolioId: data.portfolioId,
+        ledgerId: entry.ledgerId,
+        purchaseDate: data.date,
+        quantity: entry.quantity,
+        remainingQuantity: entry.quantity,
+        costPerUnit: entry.price || (entry.debit / entry.quantity),
+        costTotal: entry.debit,
+        isClosed: false
+      };
+      state.taxLots.push(taxLot);
+      await syncToCloud('taxLots', taxLot);
+    } else if (entry.credit > 0) {
+      // SELL Transaction -> Calculate Gain & Adjust Entries
+      const results = calculateCapitalGains(
+        entry.ledgerId,
+        data.portfolioId,
+        data.date,
+        entry.price || (entry.credit / entry.quantity),
+        entry.quantity,
+        state.taxLots
+      );
+
+      // 1. Update the exhausted tax lots in cloud
+      for (const lot of state.taxLots.filter(tl => tl.ledgerId === entry.ledgerId && tl.portfolioId === data.portfolioId)) {
+        await syncToCloud('taxLots', lot);
+      }
+
+      // 2. Determine Capital Gain Type (STCG vs LTCG)
+      // For simplicity, we use the first lot's holding period to decide type if mixed.
+      // A more complex implementation would split the gain across multiple ledgers.
+      const totalGain = results.ltcg + results.stcg;
+      if (totalGain !== 0) {
+        const isLTCG = results.ltcg > results.stcg;
+        const groupType = isLTCG ? 'ltcg_equity' : 'stcg_equity'; // Defaulting to equity for now
+        const gainLedger = await ensureLedgerExists(isLTCG ? 'LTCG Listed Equity' : 'STCG Listed Equity', groupType);
+
+        // ADJUSTMENT: We want the investment ledger to be credited with COST only.
+        // Currently 'entry' is credited with SALE PRICE.
+        // Adjustment: entry.credit = results.costBasis;
+        // Addition: credit totalGain to gainLedger.
+        
+        const originalCredit = entry.credit;
+        entry.credit = results.costBasis;
+        
+        extraEntries.push({
+          id: Math.random().toString(36).substr(2, 9),
+          voucherId: data.id,
+          ledgerId: gainLedger.id,
+          debit: totalGain < 0 ? Math.abs(totalGain) : 0,
+          credit: totalGain > 0 ? totalGain : 0,
+          narration: `CG on sale of ${ledger.name} (${isLTCG ? 'LT' : 'ST'})`
+        });
+      }
+    }
+  }
+  
+  entries.push(...extraEntries);
+  // --- END CAPITAL GAINS LOGIC ---
 
   state.vouchers.push(voucher);
   state.entries.push(...entries);
