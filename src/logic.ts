@@ -123,19 +123,36 @@ export async function initDatabase() {
       supabase.from('investor_groups').select('*')
     ]);
 
-    // Map back from snake_case to camelCase
+    // Map back from snake_case to camelCase and enforce Numeric types
     state.groups = (groups || []).map(g => ({ ...g, parent: g.parent_id }));
-    state.ledgers = (ledgers || []).map(l => ({ ...l, groupId: l.group_id, openingBalance: l.opening_balance, openingType: l.opening_type }));
+    state.ledgers = (ledgers || []).map(l => ({ 
+      ...l, 
+      groupId: l.group_id, 
+      openingBalance: Number(l.opening_balance) || 0, 
+      openingType: l.opening_type 
+    }));
     state.families = (families || []).map(f => ({ ...f, familyName: f.name }));
     state.accounts = (accounts || []).map(a => ({ ...a, familyId: a.family_id, accountName: a.account_name }));
     state.portfolios = (portfolios || []).map(p => ({ ...p, accountId: p.account_id, portfolioName: p.portfolio_name }));
-    state.vouchers = (vouchers || []).map(v => ({ ...v, accountId: v.account_id || v.accountId, portfolioId: v.portfolio_id || v.portfolioId, voucherNo: v.voucher_no || v.voucherNo }));
-    state.entries = (entries || []).map(e => ({ ...e, voucherId: e.voucher_id || e.voucherId, ledgerId: e.ledger_id || e.ledgerId }));
-    state.investorGroups = (investorGroups || []).map(ig => ({ ...ig, groupName: ig.group_name || ig.groupName, portfolioIds: ig.portfolio_ids || ig.portfolioIds }));
+    state.vouchers = (vouchers || []).map(v => ({ 
+      ...v, 
+      accountId: v.account_id || v.accountId, 
+      portfolioId: v.portfolio_id || v.portfolioId, 
+      voucherNo: v.voucher_no || v.voucherNo 
+    }));
+    state.entries = (entries || []).map(e => ({ 
+      ...e, 
+      voucherId: e.voucher_id || e.voucherId, 
+      ledgerId: e.ledger_id || e.ledgerId,
+      debit: Number(e.debit) || 0,
+      credit: Number(e.credit) || 0,
+      quantity: Number(e.quantity) || 0,
+      price: Number(e.price) || 0
+    }));
     
     // Initialize prices map
     const pMap: Record<string, number> = {};
-    (prices || []).forEach(p => { pMap[p.ledger_id] = p.price; });
+    (prices || []).forEach(p => { pMap[p.ledger_id] = Number(p.price) || 0; });
     state.prices = pMap;
 
     // Final Fallback to Defaults if cloud is empty
@@ -646,12 +663,12 @@ export function getHoldings(portfolioIds: string[], assetGroupId?: string | stri
   });
   const vIds = new Set(relevantVouchers.map(v => v.id));
   
-  if (relevantVouchers.length === 0 && portfolioIds.length > 0) {
-    console.warn("getHoldings: No vouchers found for portfolios:", portfolioIds);
-  }
+  console.log(`[getHoldings] portfolioIds:`, portfolioIds);
+  console.log(`[getHoldings] found ${relevantVouchers.length} vouchers`);
 
   // 2. Get all entries for these vouchers
   const relevantEntries = state.entries.filter(e => vIds.has(e.voucherId));
+  console.log(`[getHoldings] found ${relevantEntries.length} entries`);
 
   // 3. Process entries to calculate quantity and cost
   relevantEntries.forEach(entry => {
