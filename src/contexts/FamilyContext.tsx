@@ -16,26 +16,29 @@ interface FamilyContextType {
 const FamilyContext = createContext<FamilyContextType | undefined>(undefined);
 
 export const FamilyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // DB is already initialized before FamilyProvider mounts (App.tsx gates on initDatabase)
+  // So getStoredFamilies() is populated and safe to use in the initializer
   const [activeFamilyId, setActiveFamilyId] = useState<string | null>(() => {
-    return localStorage.getItem('activeFamilyId');
+    const stored = localStorage.getItem('activeFamilyId');
+    if (stored) return stored;
+    // Auto-select first available family
+    const families = getStoredFamilies();
+    return families.length > 0 ? families[0].id : null;
   });
 
   const families = getStoredFamilies();
 
-  // Auto-select: restore from localStorage OR pick the first family
+  // Fallback: if still no family selected after render, pick first
   useEffect(() => {
-    if (!activeFamilyId) {
-      const stored = localStorage.getItem('activeFamilyId');
-      if (stored) {
-        setActiveFamilyId(stored);
-      } else if (families.length > 0) {
-        setActiveFamilyId(families[0].id);
-      }
+    if (!activeFamilyId && families.length > 0) {
+      setActiveFamilyId(families[0].id);
     }
-  }, [families.length]);
+  }, [families.length, activeFamilyId]);
 
-  const activeFamily = families.find(f => f.id === activeFamilyId) || null;
+  const activeFamily = families.find(f => f.id === activeFamilyId) ||
+                       (families.length > 0 ? families[0] : null);
 
+  // Persist selection
   useEffect(() => {
     if (activeFamilyId) {
       localStorage.setItem('activeFamilyId', activeFamilyId);
