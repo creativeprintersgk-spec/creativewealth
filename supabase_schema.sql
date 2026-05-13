@@ -102,4 +102,18 @@ CREATE POLICY "Allow all access" ON portfolios FOR ALL USING (true);
 CREATE POLICY "Allow all access" ON groups FOR ALL USING (true);
 CREATE POLICY "Allow all access" ON ledgers FOR ALL USING (true);
 CREATE POLICY "Allow all access" ON vouchers FOR ALL USING (true);
-CREATE POLICY "Allow all access" ON entries FOR ALL USING (true);
+-- 9. INVESTOR GROUPS (Consolidated Views)
+CREATE TABLE investor_groups (
+  id TEXT PRIMARY KEY,
+  group_name TEXT NOT NULL,
+  portfolio_ids TEXT[], -- Array of portfolio IDs
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE investor_groups ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access" ON investor_groups FOR ALL USING (true);
+
+-- Temporary: Allow all access for prices
+ALTER TABLE prices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access" ON prices FOR ALL USING (true);
