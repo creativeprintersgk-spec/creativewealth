@@ -155,6 +155,8 @@ export async function initDatabase() {
     (prices || []).forEach(p => { pMap[p.ledger_id] = Number(p.price) || 0; });
     state.prices = pMap;
 
+    state.investorGroups = (investorGroups || []).map(ig => ({ ...ig, groupName: ig.group_name || ig.groupName, portfolioIds: ig.portfolio_ids || ig.portfolioIds }));
+    
     // Final Fallback to Defaults if cloud is empty
     if (state.ledgers.length === 0) state.ledgers = DEFAULT_LEDGERS;
     if (state.groups.length === 0) state.groups = defaultGroups;
