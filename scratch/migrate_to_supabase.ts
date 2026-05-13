@@ -97,6 +97,18 @@ async function migrate() {
     if (error) console.error(`Error in entry chunk ${i}:`, error.message);
   }
 
+  console.log("  - Migrating Investor Groups...");
+  if (db.investorGroups) {
+    for (const ig of db.investorGroups) {
+      const { error } = await supabase.from('investor_groups').upsert({
+        id: ig.id,
+        group_name: ig.groupName,
+        portfolio_ids: ig.portfolioIds
+      });
+      if (error) console.error(`Error in investor group ${ig.id}:`, error.message);
+    }
+  }
+
   console.log("✅ Migration Complete!");
 }
 
