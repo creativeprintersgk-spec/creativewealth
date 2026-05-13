@@ -304,8 +304,12 @@ export async function updateVoucher(data: any) {
     fy: data.fy || existing?.fy
   };
 
+  // 1. Delete old entries from memory AND Supabase
   state.vouchers = state.vouchers.filter(v => v.id !== data.id);
   state.entries = state.entries.filter(e => e.voucherId !== data.id);
+  await supabase.from('entries').delete().eq('voucher_id', data.id);
+
+  // 2. Re-create the voucher (which will sync new entries to cloud)
   await createVoucher(updatedData);
 }
 
