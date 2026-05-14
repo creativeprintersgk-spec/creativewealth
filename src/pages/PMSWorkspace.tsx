@@ -83,19 +83,32 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function PMSWorkspace() {
   const navigate = useNavigate();
   const { activeFamily } = useFamily();
-  const [activeTab, setActiveTab] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('pms_activeTab') || 'all');
   const [activeAssetType, setActiveAssetType] = useState<string>('all');
-  const [openTabIds, setOpenTabIds] = useState<string[]>(['all']);
+  const [openTabIds, setOpenTabIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('pms_openTabs');
+    return saved ? JSON.parse(saved) : ['all'];
+  });
 
   useEffect(() => {
-    setActiveTab('all');
-    setOpenTabIds(['all']);
+    localStorage.setItem('pms_activeTab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem('pms_openTabs', JSON.stringify(openTabIds));
+  }, [openTabIds]);
+
+  useEffect(() => {
+    // Reset tabs when family changes, but maybe keep them if they are common?
+    // For now, let's keep them but ensure they are still valid
+    // setOpenTabIds(['all']);
   }, [activeFamily?.id]);
 
   const [selectedHolding, setSelectedHolding] = useState<AssetHolding | null>(null);
   const [selectedAssetForLedger, setSelectedAssetForLedger] = useState<{ id: string; name: string; portIds: string[]; } | null>(null);
   const [isFamilySelectorOpen, setIsFamilySelectorOpen] = useState(false);
   const [isSelectorOpen, setIsSelectorOpen] = useState<'port' | 'group' | null>(null);
+  const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
   const [incomeAsset, setIncomeAsset] = useState<{ id: string; name: string; portIds: string[] } | null>(null);
@@ -347,15 +360,75 @@ export default function PMSWorkspace() {
         />
       )}
       {isSelectorOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }} onClick={() => setIsSelectorOpen(null)}>
-          <div className="modal-box" style={{ padding: '24px' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '20px' }}>Select {isSelectorOpen === 'port' ? 'Portfolio' : 'Investor Group'}</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {(isSelectorOpen === 'port' ? portfolios : groups).map((item: any) => (
-                <button key={item.id} onClick={() => { handleOpenContext(isSelectorOpen === 'port' ? 'port-' + item.id : 'group-' + item.id); setIsSelectorOpen(null); }} className="pms-selector-item">
-                  {isSelectorOpen === 'port' ? item.portfolioName : item.groupName}
-                </button>
-              ))}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }} onClick={() => { setIsSelectorOpen(null); setTempSelectedIds([]); }}>
+          <div className="modal-box" style={{ padding: '24px', width: '400px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Select {isSelectorOpen === 'port' ? 'Portfolios' : 'Investor Groups'}</h3>
+              <button onClick={() => { setIsSelectorOpen(null); setTempSelectedIds([]); }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+              {(isSelectorOpen === 'port' ? portfolios : groups).map((item: any) => {
+                const id = isSelectorOpen === 'port' ? 'port-' + item.id : 'group-' + item.id;
+                const isChecked = tempSelectedIds.includes(id);
+                const isOpen = openTabIds.includes(id);
+
+                return (
+                  <label 
+                    key={item.id} 
+                    style={{ 
+                      display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', 
+                      background: isChecked ? '#eff6ff' : '#f8fafc', 
+                      border: isChecked ? '1px solid #3b82f6' : '1px solid #e2e8f0', 
+                      borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s'
+                    }}
+                  >
+                    <input 
+                      type="checkbox" 
+                      checked={isChecked} 
+                      onChange={(e) => {
+                        if (e.target.checked) setTempSelectedIds(prev => [...prev, id]);
+                        else setTempSelectedIds(prev => prev.filter(tid => tid !== id));
+                      }} 
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: isChecked ? '#2563eb' : '#1e293b' }}>
+                        {isSelectorOpen === 'port' ? item.portfolioName : item.groupName}
+                      </div>
+                      {isOpen && <div style={{ fontSize: '10px', color: '#10b981', fontWeight: 700 }}>ALREADY OPEN</div>}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={() => { setIsSelectorOpen(null); setTempSelectedIds([]); }} 
+                className="btn-secondary" style={{ flex: 1, height: '40px' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (tempSelectedIds.length > 0) {
+                    const newIds = [...openTabIds];
+                    tempSelectedIds.forEach(id => {
+                      if (!newIds.includes(id)) newIds.push(id);
+                    });
+                    setOpenTabIds(newIds);
+                    setActiveTab(tempSelectedIds[0]);
+                  }
+                  setIsSelectorOpen(null);
+                  setTempSelectedIds([]);
+                }} 
+                className="btn-primary" 
+                style={{ flex: 1, height: '40px' }}
+                disabled={tempSelectedIds.length === 0}
+              >
+                Open Selected ({tempSelectedIds.length})
+              </button>
             </div>
           </div>
         </div>

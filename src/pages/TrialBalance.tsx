@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Download, Calculator, Users } from 'lucide-react';
 import { getTrialBalance, getStoredAccounts } from '../logic';
 import { useFamily } from '../contexts/FamilyContext';
+import { useFY } from '../FYContext';
 
 export default function TrialBalance() {
   const navigate = useNavigate();
@@ -17,7 +18,27 @@ export default function TrialBalance() {
     }
   }, [accounts, selectedAccountId]);
 
-  const data = getTrialBalance(undefined, selectedAccountId);
+  const { selectedFY, reportFilter, customRange } = useFY();
+
+  const getDatesForFY = (fyStr: string) => {
+    const [start] = fyStr.split("-")
+    return { start: `${start}-04-01`, end: `${parseInt(start) + 1}-03-31` }
+  }
+
+  const effectiveDates = (() => {
+    if (reportFilter === 'current') return getDatesForFY(selectedFY)
+    if (reportFilter === 'last') {
+      const [s, e] = selectedFY.split("-")
+      return getDatesForFY(`${parseInt(s)-1}-${parseInt(e)-1}`)
+    }
+    if (reportFilter === 'previous') {
+      const [s, e] = selectedFY.split("-")
+      return getDatesForFY(`${parseInt(s)-2}-${parseInt(e)-2}`)
+    }
+    return customRange
+  })()
+
+  const data = getTrialBalance(effectiveDates.end, selectedAccountId);
   
   const totalDebit = data.reduce((sum, row) => sum + row.debit, 0);
   const totalCredit = data.reduce((sum, row) => sum + row.credit, 0);
@@ -131,7 +152,7 @@ export default function TrialBalance() {
         </div>
         <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #f59e0b' }}>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>As of Date</div>
-          <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>{new Date(effectiveDates.end).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
         </div>
       </div>
     </div>
