@@ -24,7 +24,7 @@ function getHint(type: LedgerType, isDebit: boolean): string {
   return `${label} ${effect === 'increase' ? '▲' : '▼'}`
 }
 
-const emptyRow = (): VoucherLine => ({ id: uuid(), ledgerId: null, ledgerName: "", debit: 0, credit: 0, narration: "" })
+const emptyRow = (): VoucherLine => ({ id: uuid(), ledgerId: null, ledgerName: "", debit: 0, credit: 0, quantity: 0, price: 0, narration: "" })
 
 export default function VoucherGrid({
   ledgers,
@@ -60,6 +60,7 @@ export default function VoucherGrid({
       const updated = prev.map(r => {
         if (r.id !== id) return r
         const newRow = { ...r, [field]: value }
+
         if (field === "debit" && value > 0) newRow.credit = 0
         if (field === "credit" && value > 0) newRow.debit = 0
         return newRow
@@ -83,7 +84,7 @@ export default function VoucherGrid({
     })
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent, rowId: string, field: 'ledger' | 'debit' | 'credit') => {
+  const handleKeyDown = (e: React.KeyboardEvent, rowId: string, field: 'ledger' | 'debit' | 'credit' | 'quantity' | 'price') => {
     // Tab / Enter navigation
     if (e.key === 'Tab' || e.key === 'Enter') {
       if (activeDropdown === rowId && filteredLedgers.length > 0) {
@@ -94,13 +95,38 @@ export default function VoucherGrid({
         updateRow(rowId, "ledgerName", selected.name)
         setActiveDropdown(null)
         setSearchQuery("")
-        // Move focus to debit
-        setTimeout(() => inputRefs.current[`${rowId}-debit`]?.focus(), 50)
+        
+        // Move focus to next logical field
+        const ledger = ledgers.find(l => l.id === selected.id)
+        const isInvestment = ledger?.accountingType === 'ASSET' && 
+          (ledger.id.includes('stock') || ledger.name.toLowerCase().includes('stock') || ledger.name.toLowerCase().includes('equity') || ledger.name.toLowerCase().includes('mf'))
+        
+        setTimeout(() => {
+          if (isInvestment) inputRefs.current[`${rowId}-quantity`]?.focus()
+          else inputRefs.current[`${rowId}-debit`]?.focus()
+        }, 50)
+        return
+      }
+      if (field === 'quantity') {
+        e.preventDefault()
+        inputRefs.current[`${rowId}-price`]?.focus()
+        return
+      }
+      if (field === 'price') {
+        e.preventDefault()
+        inputRefs.current[`${rowId}-debit`]?.focus()
         return
       }
       if (field === 'debit') {
-        e.preventDefault()
-        inputRefs.current[`${rowId}-credit`]?.focus()
+        if ((rows.find(r => r.id === rowId)?.debit || 0) > 0) {
+           e.preventDefault()
+           const idx = rows.findIndex(r => r.id === rowId)
+           const nextRow = rows[idx + 1]
+           if (nextRow) inputRefs.current[`${nextRow.id}-ledger`]?.focus()
+        } else {
+          e.preventDefault()
+          inputRefs.current[`${rowId}-credit`]?.focus()
+        }
         return
       }
       if (field === 'credit') {
@@ -129,14 +155,18 @@ export default function VoucherGrid({
     <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "visible", background: "white" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <colgroup>
-          <col style={{ width: "52%" }} />
-          <col style={{ width: "20%" }} />
-          <col style={{ width: "20%" }} />
+          <col style={{ width: "35%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
           <col style={{ width: "32px" }} />
         </colgroup>
         <thead>
           <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
             <th style={{ padding: "16px 12px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Ledger Account</th>
+            <th style={{ padding: "16px 12px", textAlign: "right", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Qty</th>
+            <th style={{ padding: "16px 12px", textAlign: "right", fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Price</th>
             <th style={{ padding: "16px 12px", textAlign: "right", fontSize: "11px", fontWeight: 700, color: "#059669", textTransform: "uppercase", letterSpacing: "0.06em" }}>Debit (Dr)</th>
             <th style={{ padding: "16px 12px", textAlign: "right", fontSize: "11px", fontWeight: 700, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.06em" }}>Credit (Cr)</th>
             <th></th>
@@ -153,6 +183,8 @@ export default function VoucherGrid({
             const isDebit = (row.debit || 0) > 0
             const effect = (ledgerMeta && hasEntry) ? getEffect(ledgerMeta.accountingType as LedgerType, isDebit) : ''
             const hint = (ledgerMeta && hasEntry) ? getHint(ledgerMeta.accountingType as LedgerType, isDebit) : ''
+            const isInvestment = ledgerMeta?.accountingType === 'ASSET' && 
+              (ledgerMeta.id.includes('stock') || ledgerMeta.name.toLowerCase().includes('stock') || ledgerMeta.name.toLowerCase().includes('equity') || ledgerMeta.name.toLowerCase().includes('mf'))
 
             return (
               <tr
@@ -197,7 +229,14 @@ export default function VoucherGrid({
                               updateRow(row.id, "ledgerName", l.name)
                               setActiveDropdown(null)
                               setSearchQuery("")
-                              setTimeout(() => inputRefs.current[`${row.id}-debit`]?.focus(), 50)
+                              
+                              const isInv = l.accountingType === 'ASSET' && 
+                                (l.id.includes('stock') || l.name.toLowerCase().includes('stock') || l.name.toLowerCase().includes('equity') || l.name.toLowerCase().includes('mf'))
+                              
+                              setTimeout(() => {
+                                if (isInv) inputRefs.current[`${row.id}-quantity`]?.focus()
+                                else inputRefs.current[`${row.id}-debit`]?.focus()
+                              }, 50)
                             }}
                             style={{
                               padding: "8px 14px", cursor: "pointer", fontSize: "13px",
@@ -245,6 +284,46 @@ export default function VoucherGrid({
                       );
                     })()}
                   </div>
+                </td>
+
+                {/* Quantity */}
+                <td style={{ padding: "6px 10px", verticalAlign: "top" }}>
+                  <input
+                    ref={el => { inputRefs.current[`${row.id}-quantity`] = el }}
+                    type="number"
+                    placeholder="0"
+                    value={row.quantity || ""}
+                    onChange={e => updateRow(row.id, "quantity", parseFloat(e.target.value) || 0)}
+                    onKeyDown={e => handleKeyDown(e, row.id, 'quantity')}
+                    disabled={!isInvestment}
+                    style={{
+                      width: "100%", padding: "6px 10px", textAlign: "right",
+                      border: "1px solid #e2e8f0", borderRadius: "5px",
+                      fontSize: "13px", fontWeight: 600, color: "#64748b",
+                      outline: "none", background: isInvestment ? "white" : "#f8fafc",
+                      opacity: isInvestment ? 1 : 0.4
+                    }}
+                  />
+                </td>
+
+                {/* Price */}
+                <td style={{ padding: "6px 10px", verticalAlign: "top" }}>
+                  <input
+                    ref={el => { inputRefs.current[`${row.id}-price`] = el }}
+                    type="number"
+                    placeholder="0.00"
+                    value={row.price || ""}
+                    onChange={e => updateRow(row.id, "price", parseFloat(e.target.value) || 0)}
+                    onKeyDown={e => handleKeyDown(e, row.id, 'price')}
+                    disabled={!isInvestment}
+                    style={{
+                      width: "100%", padding: "6px 10px", textAlign: "right",
+                      border: "1px solid #e2e8f0", borderRadius: "5px",
+                      fontSize: "13px", fontWeight: 600, color: "#64748b",
+                      outline: "none", background: isInvestment ? "white" : "#f8fafc",
+                      opacity: isInvestment ? 1 : 0.4
+                    }}
+                  />
                 </td>
 
                 {/* Debit */}
@@ -305,9 +384,11 @@ export default function VoucherGrid({
       {/* Footer: Totals + Difference — aligned under columns */}
       <table style={{ width: "100%", borderCollapse: "collapse", borderTop: "2px solid #e2e8f0", background: "#f8fafc" }}>
         <colgroup>
-          <col style={{ width: "52%" }} />
-          <col style={{ width: "20%" }} />
-          <col style={{ width: "20%" }} />
+          <col style={{ width: "35%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "18%" }} />
           <col style={{ width: "32px" }} />
         </colgroup>
         <tbody>
@@ -321,6 +402,8 @@ export default function VoucherGrid({
                 }}
               >+ Add Row</button>
             </td>
+            <td></td>
+            <td></td>
             <td style={{ padding: "10px 12px", textAlign: "right" }}>
               <span style={{ fontSize: "13px", fontWeight: 800, color: "#059669" }}>
                 ₹{totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -350,7 +433,7 @@ export default function VoucherGrid({
           </tr>
           {!isBalanced && totalDebit > 0 && (
             <tr>
-              <td colSpan={4} style={{ padding: "4px 12px 8px", textAlign: "right" }}>
+              <td colSpan={6} style={{ padding: "4px 12px 8px", textAlign: "right" }}>
                 <span style={{ fontSize: "11px", fontWeight: 700, color: "#f59e0b" }}>
                   Diff: ₹{Math.abs(difference).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
@@ -359,7 +442,7 @@ export default function VoucherGrid({
           )}
           {isBalanced && (
             <tr>
-              <td colSpan={4} style={{ padding: "4px 12px 8px", textAlign: "right" }}>
+              <td colSpan={6} style={{ padding: "4px 12px 8px", textAlign: "right" }}>
                 <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669" }}>✓ BALANCED</span>
               </td>
             </tr>

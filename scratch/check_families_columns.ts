@@ -14,15 +14,17 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-async function inspectData() {
-  const { data: families } = await supabase.from('families').select('*');
-  console.log('Families:', families);
-  
-  const { data: accounts } = await supabase.from('accounts').select('*');
-  console.log('Accounts:', accounts);
-
-  const { data: ledgers } = await supabase.from('ledgers').select('*');
-  console.log('Ledgers:', ledgers?.map(l => ({ id: l.id, name: l.name, group: l.group_id })));
+async function checkSchema() {
+  const { data, error } = await supabase.from('families').select('*').limit(1);
+  if (error) {
+    console.error('Error fetching families:', error.message);
+    return;
+  }
+  if (data && data.length > 0) {
+    console.log('Columns in families:', Object.keys(data[0]));
+  } else {
+    console.log('No data in families table to check columns.');
+  }
 }
 
-inspectData();
+checkSchema();

@@ -316,16 +316,20 @@ export async function createVoucher(data: any) {
     const ledger = state.ledgers.find(l => l.id === entry.ledgerId);
     if (!ledger) continue;
 
-    // Check if it's an investment group
-    const isInvestment = state.groups.some(g => {
-      if (g.id !== ledger.groupId) return false;
-      let curr: any = g;
-      while (curr) {
-        if (curr.id === 'investments') return true;
-        curr = state.groups.find(pg => pg.id === curr.parent);
+    // Check if it's an investment group and determine asset category
+    let isInvestment = false;
+    let assetCategory = 'equity'; // Default
+
+    let currGroup = state.groups.find(g => g.id === ledger.groupId);
+    while (currGroup) {
+      if (currGroup.id === 'investments') {
+        isInvestment = true;
       }
-      return false;
-    });
+      if (currGroup.id === 'mf_debt' || currGroup.id === 'fds' || currGroup.id === 'traded_bonds' || currGroup.id === 'ncd_debentures') {
+        assetCategory = 'debt';
+      }
+      currGroup = state.groups.find(pg => pg.id === currGroup?.parent);
+    }
 
     if (!isInvestment) continue;
 
@@ -356,26 +360,26 @@ export async function createVoucher(data: any) {
         state.taxLots
       );
 
-      // 1. Update the exhausted tax lots in cloud
-      for (const lot of state.taxLots.filter(tl => tl.ledgerId === entry.ledgerId && tl.portfolioId === data.portfolioId)) {
+      // 1. Update the updated tax lots in cloud (those modified by calculateCapitalGains)
+      // Note: calculateCapitalGains modifies the objects in state.taxLots in-place
+      const affectedLots = state.taxLots.filter(tl => tl.ledgerId === entry.ledgerId && tl.portfolioId === data.portfolioId);
+      for (const lot of affectedLots) {
         await syncToCloud('taxLots', lot);
       }
 
       // 2. Determine Capital Gain Type (STCG vs LTCG)
-      // For simplicity, we use the first lot's holding period to decide type if mixed.
-      // A more complex implementation would split the gain across multiple ledgers.
       const totalGain = results.ltcg + results.stcg;
       if (totalGain !== 0) {
         const isLTCG = results.ltcg > results.stcg;
-        const groupType = isLTCG ? 'ltcg_equity' : 'stcg_equity'; // Defaulting to equity for now
-        const gainLedger = await ensureLedgerExists(isLTCG ? 'LTCG Listed Equity' : 'STCG Listed Equity', groupType);
+        const groupType = isLTCG ? `ltcg_${assetCategory}` : `stcg_${assetCategory}`;
+        const gainLedgerName = isLTCG 
+          ? (assetCategory === 'equity' ? 'LTCG Listed Equity' : 'LTCG Debt/Other')
+          : (assetCategory === 'equity' ? 'STCG Listed Equity' : 'STCG Debt/Other');
+          
+        const gainLedger = await ensureLedgerExists(gainLedgerName, groupType);
 
         // ADJUSTMENT: We want the investment ledger to be credited with COST only.
         // Currently 'entry' is credited with SALE PRICE.
-        // Adjustment: entry.credit = results.costBasis;
-        // Addition: credit totalGain to gainLedger.
-        
-        const originalCredit = entry.credit;
         entry.credit = results.costBasis;
         
         extraEntries.push({
@@ -771,10 +775,19 @@ export function getHoldings(portfolioIds: string[], assetGroupId?: string | stri
 
   // 1. Get all vouchers for these portfolios (or accounts owning these portfolios)
   const relevantVouchers = state.vouchers.filter(v => {
-    if (v.portfolioId && portfolioIds.includes(v.portfolioId)) return true;
-    // Fallback: If no portfolioId on voucher, check if it belongs to an account that owns these portfolios
-    const accountPortfolios = state.portfolios.filter(p => p.accountId === v.accountId).map(p => p.id);
-    return accountPortfolios.some(pid => portfolioIds.includes(pid));
+    // If voucher explicitly has a portfolioId, it must be in our requested list
+    if (v.portfolioId) return portfolioIds.includes(v.portfolioId);
+    
+    // If no portfolioId on voucher, check if it belongs to an account that owns these portfolios
+    const accountPortfolios = state.portfolios.filter(p => p.accountId === v.accountId);
+    const accountPortIds = accountPortfolios.map(p => p.id);
+    
+    // If this account has multiple portfolios, we cannot safely assume this "orphan" voucher 
+    // belongs to the requested portfolio(s) UNLESS we are requesting ALL portfolios of this account.
+    const isRequestingAllForAccount = accountPortIds.every(pid => portfolioIds.includes(pid));
+    const hasOnlyOnePortfolio = accountPortIds.length === 1;
+
+    return isRequestingAllForAccount || (hasOnlyOnePortfolio && portfolioIds.includes(accountPortIds[0]));
   });
   const vIds = new Set(relevantVouchers.map(v => v.id));
   

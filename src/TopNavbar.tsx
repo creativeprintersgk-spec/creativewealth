@@ -8,11 +8,16 @@ import VoucherModal from './VoucherModal';
 
 export default function TopNavbar() {
   const navigate = useNavigate();
-  const { selectedFY, reportFilter, setReportFilter, customRange, setCustomRange } = useFY();
+  const { selectedFY, setSelectedFY, reportFilter, setReportFilter, customRange, setCustomRange } = useFY();
   
   const [showActions, setShowActions] = useState(false);
   const [showReports, setShowReports] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+
+  const years = [
+    "2020-2021", "2021-2022", "2022-2023", "2023-2024", "2024-2025", 
+    "2025-2026", "2026-2027", "2027-2028", "2028-2029", "2029-2030", "2030-2031"
+  ];
 
 
   const getLastFY = (fyStr: string) => {
@@ -82,8 +87,18 @@ export default function TopNavbar() {
       </div>
 
       {/* Middle: Period Engine */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
         <Calendar size={16} color="#64748b" style={{ marginLeft: '8px' }} />
+        
+        {/* Anchor Year Selector */}
+        <select 
+          value={selectedFY} 
+          onChange={(e) => setSelectedFY(e.target.value)}
+          style={{ padding: '6px 8px', border: 'none', background: 'white', borderRadius: '4px', outline: 'none', fontSize: '13px', fontWeight: 700, color: '#1d4ed8', cursor: 'pointer', borderRight: '1px solid #e2e8f0' }}
+        >
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+
         <select 
           value={reportFilter} 
           onChange={(e) => setReportFilter(e.target.value as any)}

@@ -8,13 +8,14 @@ import type { VoucherType } from "./voucherValidation";
  */
 export interface TaxLot {
   id: string;
-  transactionId: string; // Voucher ID that created the lot (buy transaction)
+  voucherId: string; // Voucher ID that created the lot (buy transaction)
   portfolioId: string;
-  assetId: string; // Ledger ID representing the asset
+  ledgerId: string; // Ledger ID representing the asset
   purchaseDate: string; // ISO date string
-  quantity: number; // Remaining quantity in the lot
+  quantity: number; // Initial quantity
+  remainingQuantity: number; // Remaining quantity in the lot
   costPerUnit: number; // Cost per unit (including charges)
-  costTotal: number; // quantity * costPerUnit
+  costTotal: number; // initial quantity * costPerUnit
   // Optional sale fields - filled when the lot (or part of it) is sold
   saleDate?: string;
   salePrice?: number;
@@ -57,7 +58,7 @@ export function getNextVoucherNo(
  * Returns Short-Term CG, Long-Term CG, holding period (max days among lots used) and total cost basis.
  */
 export function calculateCapitalGains(
-  assetId: string,
+  ledgerId: string,
   portfolioId: string,
   saleDate: string,
   salePrice: number,
@@ -66,18 +67,18 @@ export function calculateCapitalGains(
 ): { stcg: number; ltcg: number; holdingPeriodDays: number; costBasis: number } {
   // Filter relevant, open lots and sort by purchase date (FIFO)
   const sortedLots = taxLots
-    .filter((lot) => lot.assetId === assetId && lot.portfolioId === portfolioId && !lot.isClosed)
+    .filter((lot) => lot.ledgerId === ledgerId && lot.portfolioId === portfolioId && !lot.isClosed)
     .sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime());
 
-  let remainingQty = quantity;
+  let remainingQtyToSell = quantity;
   let totalCostBasis = 0;
   let stcg = 0;
   let ltcg = 0;
   let maxHoldingDays = 0;
 
   for (const lot of sortedLots) {
-    if (remainingQty <= 0) break;
-    const sellQty = Math.min(remainingQty, lot.quantity);
+    if (remainingQtyToSell <= 0) break;
+    const sellQty = Math.min(remainingQtyToSell, lot.remainingQuantity);
     const costBasis = sellQty * lot.costPerUnit;
     const gain = (salePrice - lot.costPerUnit) * sellQty;
     const daysHeld = Math.floor(
@@ -85,16 +86,22 @@ export function calculateCapitalGains(
     );
 
     totalCostBasis += costBasis;
-    remainingQty -= sellQty;
+    remainingQtyToSell -= sellQty;
+    
     if (daysHeld > 365) {
       ltcg += gain;
     } else {
       stcg += gain;
     }
+    
     if (daysHeld > maxHoldingDays) maxHoldingDays = daysHeld;
+    
     // Update lot quantity - in a real implementation this would be persisted
-    lot.quantity -= sellQty;
-    if (lot.quantity === 0) lot.isClosed = true;
+    lot.remainingQuantity -= sellQty;
+    if (lot.remainingQuantity <= 0) {
+      lot.remainingQuantity = 0;
+      lot.isClosed = true;
+    }
   }
 
   return { stcg, ltcg, holdingPeriodDays: maxHoldingDays, costBasis: totalCostBasis };

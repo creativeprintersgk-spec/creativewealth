@@ -52,6 +52,8 @@ export default function VoucherModal({
   // Simple mode (payment/receipt)
   const [simpleAccount, setSimpleAccount] = useState("");
   const [simpleAmount, setSimpleAmount] = useState("");
+  const [simpleQuantity, setSimpleQuantity] = useState("");
+  const [simplePrice, setSimplePrice] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -118,6 +120,8 @@ export default function VoucherModal({
           if (other) {
             setSimpleAccount(other.ledgerName);
             setSimpleAmount(String(other.debit || other.credit || ""));
+            setSimpleQuantity(String(other.quantity || ""));
+            setSimplePrice(String(other.price || ""));
           }
         }
       }
@@ -145,9 +149,11 @@ export default function VoucherModal({
     let finalLines: any[] = [];
     if (isSimpleMode) {
       const otherLedgerId = mappedLedgers.find(l => l.name === simpleAccount)?.id || simpleAccount;
+      const qty = parseFloat(simpleQuantity) || 0;
+      const prc = parseFloat(simplePrice) || 0;
       finalLines = type === "payment"
-        ? [{ ledgerId: otherLedgerId, debit: amt, credit: 0 }, { ledgerId: mainAccount, debit: 0, credit: amt }]
-        : [{ ledgerId: mainAccount, debit: amt, credit: 0 }, { ledgerId: otherLedgerId, debit: 0, credit: amt }];
+        ? [{ ledgerId: otherLedgerId, debit: amt, credit: 0, quantity: qty, price: prc }, { ledgerId: mainAccount, debit: 0, credit: amt }]
+        : [{ ledgerId: mainAccount, debit: amt, credit: 0 }, { ledgerId: otherLedgerId, debit: 0, credit: amt, quantity: qty, price: prc }];
     } else {
       finalLines = voucherLines.filter(r => r.ledgerId && (r.debit > 0 || r.credit > 0));
     }
@@ -379,6 +385,38 @@ export default function VoucherModal({
                     </div>
                   )}
                 </div>
+                {counterMeta && (counterMeta.accountingType === 'ASSET' && (counterMeta.id.includes('stock') || counterMeta.name.toLowerCase().includes('stock') || counterMeta.name.toLowerCase().includes('equity') || counterMeta.name.toLowerCase().includes('mf'))) && (
+                  <>
+                    <div style={{ width: "100px" }}>
+                      <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px", color: "#64748b", letterSpacing: "0.06em" }}>Qty</label>
+                      <input
+                        type="number"
+                        value={simpleQuantity}
+                        onChange={e => {
+                          const q = e.target.value;
+                          setSimpleQuantity(q);
+                          if (simplePrice && q) setSimpleAmount(String(parseFloat(q) * parseFloat(simplePrice)));
+                        }}
+                        placeholder="0"
+                        style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", textAlign: "right", fontSize: "13px", fontWeight: 600 }}
+                      />
+                    </div>
+                    <div style={{ width: "100px" }}>
+                      <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px", color: "#64748b", letterSpacing: "0.06em" }}>Price</label>
+                      <input
+                        type="number"
+                        value={simplePrice}
+                        onChange={e => {
+                          const p = e.target.value;
+                          setSimplePrice(p);
+                          if (simpleQuantity && p) setSimpleAmount(String(parseFloat(simpleQuantity) * parseFloat(p)));
+                        }}
+                        placeholder="0.00"
+                        style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", textAlign: "right", fontSize: "13px", fontWeight: 600 }}
+                      />
+                    </div>
+                  </>
+                )}
                 <div style={{ width: "130px" }}>
                   <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px", color: "#64748b", letterSpacing: "0.06em" }}>Amount (₹)</label>
                   <input

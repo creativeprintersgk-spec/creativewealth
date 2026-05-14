@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -14,15 +13,12 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-async function inspectData() {
-  const { data: families } = await supabase.from('families').select('*');
-  console.log('Families:', families);
-  
-  const { data: accounts } = await supabase.from('accounts').select('*');
-  console.log('Accounts:', accounts);
-
-  const { data: ledgers } = await supabase.from('ledgers').select('*');
-  console.log('Ledgers:', ledgers?.map(l => ({ id: l.id, name: l.name, group: l.group_id })));
+async function inspectGroups() {
+  const { data: groups } = await supabase.from('groups').select('*');
+  console.log('Groups:', groups?.length);
+  if (groups && groups.length > 0) {
+    console.log(groups.slice(0, 5));
+  }
 }
 
-inspectData();
+inspectGroups();
