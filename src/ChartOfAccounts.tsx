@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Folder, FileText, Plus, Edit2, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 import { type Ledger, deleteLedger } from "./logic";
 import LedgerModal from "./LedgerModal";
-import { getAll } from "./db/helpers";
+import { getStoredGroups, getStoredLedgers } from "./logic";
 
 export default function ChartOfAccounts() {
   const [groups, setGroups] = useState<any[]>([]);
@@ -15,8 +15,8 @@ export default function ChartOfAccounts() {
 
   const loadData = async () => {
     setLoading(true);
-    const g = await getAll("groups");
-    const l = await getAll("ledgers");
+    const g = getStoredGroups();
+    const l = getStoredLedgers();
     console.log("✅ Loaded groups:", g.length);
     console.log("UI groups count:", g.length);
     setGroups(g);

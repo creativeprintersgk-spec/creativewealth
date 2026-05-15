@@ -1,11 +1,11 @@
-import * as db from "../db/helpers";
+import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, getStoredPortfolios } from "../logic";
 
 export async function getBalanceSheet(_startDate: string, endDate: string, accountId?: string) {
 
-  const groups  = await db.getAll("groups")
-  const ledgers = await db.getAll("ledgers")
-  const entries = await db.getAll("entries")
-  const vouchers = await db.getAll("vouchers")
+  const groups  = getStoredGroups()
+  const ledgers = getStoredLedgers()
+  const entries = getStoredEntries()
+  const vouchers = getStoredVouchers()
 
   // Walk up parent chain to find the root type of a group
   const getGroupType = (groupId: string): string => {
@@ -25,7 +25,7 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
   })
 
   // Filter portfolios if accountId is provided
-  const allPortfolios = await db.getAll("portfolios");
+  const allPortfolios = getStoredPortfolios();
   const portfolioIds = accountId ? allPortfolios.filter((p: any) => p.accountId === accountId).map((p: any) => p.id) : null;
 
   const getLedgerBalance = (ledger: any, groupType: string): number => {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Plus, RefreshCw, FileDown, FileUp, Calendar, FileText } from 'lucide-react';
 import { useFY } from './FYContext';
 import { handleYearClose, getStoredVouchers, getStoredEntries, getStoredLedgers } from './logic';
-import { save as dbSave } from './db/helpers';
+// import { save as dbSave } from './db/helpers';
 import VoucherModal from './VoucherModal';
 
 export default function TopNavbar() {
@@ -42,21 +42,7 @@ export default function TopNavbar() {
   };
 
   const handleImport = async () => {
-    const json = prompt('Paste your backup JSON here:');
-    if (!json) return;
-    try {
-      const data = JSON.parse(json);
-      const ledgers = data.l || data.ledgers || [];
-      const vouchers = data.v || data.vouchers || [];
-      const entries = data.e || data.entries || [];
-      for (const l of ledgers) await dbSave('ledgers', l);
-      for (const v of vouchers) await dbSave('vouchers', v);
-      for (const e of entries) await dbSave('entries', e);
-      alert(`✅ Restored: ${ledgers.length} ledgers, ${vouchers.length} vouchers, ${entries.length} entries. Reloading...`);
-      window.location.reload();
-    } catch (err) {
-      alert('❌ Invalid JSON. Please paste the exact backup text.');
-    }
+    alert('Import is temporarily disabled in Cloud Mode.');
   };
 
   return (

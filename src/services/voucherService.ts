@@ -1,43 +1,26 @@
-import { getAll, save, remove } from "../db/helpers"
-import { dbPromise } from "../db/database"
+// voucherService.ts — Cloud-backed via logic.ts (Supabase)
+import { getStoredVouchers, getStoredEntries, createVoucher, updateVoucher, deleteVoucher } from '../logic';
 
-export async function getVouchers() {
-  return await getAll("vouchers")
+export function getVouchers() {
+  return getStoredVouchers();
+}
+
+export function getEntries() {
+  return getStoredEntries();
 }
 
 export async function saveVoucher(voucher: any) {
-  const db = await dbPromise;
-  console.log("➡️ Saving voucher:", voucher);
-
-  const tx = db.transaction("vouchers", "readwrite");
-  const store = tx.objectStore("vouchers");
-  await store.put(voucher);
-  await tx.done;
-
-  console.log("✅ Voucher saved");
-
-  const all = await db.getAll("vouchers");
-  console.log("📦 DB now has:", all.length);
+  return await createVoucher(voucher);
 }
 
-export async function deleteVoucher(id: string) {
-  const db = await dbPromise;
-  await db.delete("vouchers", id);
+export async function updateVoucherRecord(voucher: any) {
+  return await updateVoucher(voucher);
 }
 
-export async function getEntries() {
-  return await getAll("entries")
+export async function deleteVoucherRecord(id: string) {
+  return await deleteVoucher(id);
 }
 
-export async function saveEntry(entry: any) {
-  return await save("entries", entry)
-}
-
-export async function deleteEntriesByVoucher(voucherId: string) {
-  const entries = await getEntries();
-  for (const e of entries) {
-    if (e.voucherId === voucherId) {
-      await remove("entries", e.id);
-    }
-  }
+export async function deleteEntriesByVoucher(_voucherId: string) {
+  // Entries are deleted automatically when the voucher is deleted via deleteVoucher
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, FolderOpen } from 'lucide-react';
 import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, getStoredAccounts } from '../../logic';
 import { useFamily } from '../../contexts/FamilyContext';
-import { searchAssets, AssetMaster } from '../../services/assetMasterService';
+import { searchAssets, type AssetMaster } from '../../services/assetMasterService';
 
 interface Props {
   voucherId: string;

@@ -1,13 +1,14 @@
-import { getAll, save, remove } from "../db/helpers"
+// ledgerService.ts — Cloud-backed via logic.ts (Supabase)
+import { getStoredLedgers, saveLedger, deleteLedger } from '../logic';
 
-export async function getLedgers() {
-  return await getAll("ledgers")
+export function getLedgers() {
+  return getStoredLedgers();
 }
 
-export async function saveLedger(ledger: any) {
-  return await save("ledgers", ledger)
+export async function saveLedgerRecord(ledger: any) {
+  return await saveLedger(ledger);
 }
 
-export async function deleteLedger(id: string) {
-  return await remove("ledgers", id)
+export async function deleteLedgerRecord(id: string) {
+  return await deleteLedger(id);
 }

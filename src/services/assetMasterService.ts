@@ -52,7 +52,7 @@ export async function searchAssets(
 
   let q = supabase
     .from('asset_master')
-    .select('amid, name, asset_type, asset_type_name, exchange_group, bse_code, amfi_code, ticker')
+    .select('amid, name, asset_type, asset_type_name, exchange_group, bse_code, amfi_code, nse_symbol, ticker')
     .ilike('name', `%${query.trim()}%`)
     .limit(20);
 
