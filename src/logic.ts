@@ -203,7 +203,7 @@ export async function ensureLedgerExists(name: string, groupId: string) {
   if (existing) return existing;
 
   const newLedger = {
-    id: 'l_' + Math.random().toString(36).substr(2, 9),
+    id: 'l_' + crypto.randomUUID(),
     name,
     groupId,
     openingBalance: 0,
@@ -299,7 +299,7 @@ export async function createVoucher(data: any) {
   };
 
   const entries = data.lines.map((l: any) => ({
-    id: l.id || Math.random().toString(36).substr(2, 9),
+    id: l.id || crypto.randomUUID(),
     voucherId: data.id,
     ledgerId: l.ledgerId,
     debit: Number(l.debit) || 0,
@@ -336,7 +336,7 @@ export async function createVoucher(data: any) {
     if (entry.debit > 0) {
       // BUY Transaction -> Create Tax Lot
       const taxLot = {
-        id: 'tl_' + Math.random().toString(36).substr(2, 9),
+        id: 'tl_' + crypto.randomUUID(),
         voucherId: data.id,
         portfolioId: data.portfolioId,
         ledgerId: entry.ledgerId,
@@ -383,7 +383,7 @@ export async function createVoucher(data: any) {
         entry.credit = results.costBasis;
         
         extraEntries.push({
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           voucherId: data.id,
           ledgerId: gainLedger.id,
           debit: totalGain < 0 ? Math.abs(totalGain) : 0,
@@ -735,7 +735,7 @@ export async function handleYearClose(selectedFY: string, onSuccess?: () => void
   const closeDate = `${endYear}-03-31`
 
   await createVoucher({
-    id: Math.random().toString(36).substr(2, 9),
+    id: crypto.randomUUID(),
     date: closeDate,
     type: "journal",
     narration: `Year End Closing Entry — FY ${selectedFY}`,
@@ -764,6 +764,7 @@ export interface AssetHolding {
     quantity: number;
     amtInvested: number;
   }>;
+  priceNotSet?: boolean;
 }
 
 /**
@@ -898,7 +899,8 @@ export function getHoldings(portfolioIds: string[], assetGroupId?: string | stri
        if (storedPrice !== undefined) {
          h.currentPrice = storedPrice;
        } else {
-         h.currentPrice = h.avgPrice * 1.1; // Default 10% gain if no price set
+         h.currentPrice = 0; // Default to 0 if no price set
+         h.priceNotSet = true;
        }
        
        h.currentValue = h.quantity * h.currentPrice;

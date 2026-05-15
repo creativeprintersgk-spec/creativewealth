@@ -93,7 +93,10 @@ export default function TopNavbar() {
         {/* Anchor Year Selector */}
         <select 
           value={selectedFY} 
-          onChange={(e) => setSelectedFY(e.target.value)}
+          onChange={(e) => {
+            setSelectedFY(e.target.value);
+            setReportFilter('current');
+          }}
           style={{ padding: '6px 8px', border: 'none', background: 'white', borderRadius: '4px', outline: 'none', fontSize: '13px', fontWeight: 700, color: '#1d4ed8', cursor: 'pointer', borderRight: '1px solid #e2e8f0' }}
         >
           {years.map(y => <option key={y} value={y}>{y}</option>)}

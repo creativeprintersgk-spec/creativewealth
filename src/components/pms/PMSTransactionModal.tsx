@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, FolderOpen } from 'lucide-react';
 import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, getStoredAccounts } from '../../logic';
 import { useFamily } from '../../contexts/FamilyContext';
+import { searchAssets, AssetMaster } from '../../services/assetMasterService';
 
 interface Props {
   voucherId: string;
@@ -34,6 +35,12 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
   const [portfolioName, setPortfolioName] = useState('Unknown Portfolio');
   const [assetType, setAssetType] = useState<'EQ' | 'MF'>('EQ');
   const [narration, setNarration] = useState('');
+
+  // Asset Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<AssetMaster[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const { activeFamily } = useFamily();
   const allAccounts = getStoredAccounts();
@@ -105,6 +112,66 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
       }
     }
   }, [voucherId]);
+
+  useEffect(() => {
+    if (voucherId === 'new' && searchQuery.trim().length >= 2) {
+      setIsSearching(true);
+      const timer = setTimeout(() => {
+        searchAssets(searchQuery, assetType === 'EQ' ? 50 : 60).then(results => {
+          setSearchResults(results);
+          setIsSearching(false);
+          setShowDropdown(true);
+        });
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setSearchResults([]);
+      setShowDropdown(false);
+    }
+  }, [searchQuery, assetType, voucherId]);
+
+  const handleSelectAsset = (asset: AssetMaster) => {
+    setAssetName(asset.name);
+    setSearchQuery(asset.name);
+    setShowDropdown(false);
+  };
+
+  const renderAssetPicker = () => (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <input
+        type="text"
+        value={voucherId === 'new' ? searchQuery : assetName}
+        onChange={e => {
+          setSearchQuery(e.target.value);
+          setAssetName(e.target.value);
+        }}
+        onFocus={() => { if (searchQuery.length >= 2) setShowDropdown(true); }}
+        onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+        placeholder="Type Asset Name (min 2 chars)..."
+        style={{ width: '100%', padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: 600, outline: 'none', background: voucherId === 'new' ? '#fff' : '#f1f5f9' }}
+        disabled={voucherId !== 'new'}
+      />
+      {showDropdown && searchResults.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '250px', overflowY: 'auto', marginTop: '4px' }}>
+          {searchResults.map(asset => (
+            <div
+              key={asset.amid}
+              onClick={() => handleSelectAsset(asset)}
+              style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+              onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+            >
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>{asset.name}</span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>{asset.asset_type_name} {asset.ticker ? `• ${asset.ticker}` : ''}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {isSearching && (
+        <div style={{ position: 'absolute', right: '12px', top: '10px', fontSize: '12px', color: '#94a3b8' }}>Searching...</div>
+      )}
+    </div>
+  );
 
   const handleSave = async () => {
     if (!originalVoucher) return;
@@ -242,18 +309,9 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
             <div style={{ marginBottom: '24px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>MF Name</label>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <select value={assetName} onChange={e => setAssetName(e.target.value)} style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', color: '#0f172a', outline: 'none', background: '#fff', fontWeight: 600 }}>
-                  <option value={assetName}>{assetName}</option>
-                  {ledgers.map(l => {
-                    // Quick check if ledger belongs to an MF group (simplified for UI)
-                    const g = groups.find(g => g.id === l.groupId);
-                    const isMf = g && (g.id.startsWith('mf') || g.name.toLowerCase().includes('mutual fund'));
-                    if (isMf && l.name !== assetName) {
-                      return <option key={l.id} value={l.name}>{l.name}</option>;
-                    }
-                    return null;
-                  })}
-                </select>
+                <div style={{ flex: 1 }}>
+                  {renderAssetPicker()}
+                </div>
                 <button style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>New</button>
               </div>
             </div>
@@ -418,11 +476,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
                 <tbody>
                   <tr>
                     <td style={{ padding: '16px', fontWeight: 700, color: '#0f172a' }}>
-                      {voucherId === 'new' ? (
-                        <input type="text" value={assetName} onChange={e => setAssetName(e.target.value)} placeholder="Type Asset Name..." style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', fontWeight: 600, outline: 'none' }} />
-                      ) : (
-                        assetName
-                      )}
+                      {renderAssetPicker()}
                     </td>
                     <td style={{ padding: '16px', textAlign: 'center' }}>
                       <select value={type} onChange={e => setType(e.target.value as any)} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 700, color: type === 'BUY' ? '#16a34a' : '#dc2626', background: type === 'BUY' ? '#f0fdf4' : '#fef2f2', outline: 'none' }}>
