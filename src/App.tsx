@@ -12,7 +12,7 @@ import { initDatabase, getStoredGroups, getStoredLedgers, getStoredVouchers } fr
 import { FYProvider } from "./FYContext"
 import { FamilyProvider, useFamily } from "./contexts/FamilyContext"
 import TopNavbar from "./TopNavbar"
-import FamilySelectorModal from "./components/FamilySelectorModal"
+import AppShell from "./AppShell"
 
 function AppContent() {
   const [ready, setReady] = React.useState(false);
@@ -30,25 +30,27 @@ function AppContent() {
 
   return (
     <FamilyProvider>
-      <div className="app-layout">
-        <Sidebar />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-          <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>
-            <Routes>
-              <Route path="/" element={<Navigate to="/pms" replace />} />
-              <Route path="/pms" element={<PMSWorkspace />} />
-              {/* Accounting routes - we will add TopNavbar here or in the components */}
-              <Route path="/ledger" element={<><TopNavbar /><LedgerPage /></>} />
-              <Route path="/ledger/:ledgerId" element={<><TopNavbar /><LedgerPage /></>} />
-              <Route path="/balance-sheet" element={<><TopNavbar /><BalanceSheet /></>} />
-              <Route path="/group/:groupId" element={<><TopNavbar /><GroupPage /></>} />
-              <Route path="/trial-balance" element={<><TopNavbar /><TrialBalance /></>} />
-              <Route path="/coa" element={<><TopNavbar /><ChartOfAccounts /></>} />
-              <Route path="/master-entry" element={<MasterEntry />} />
-            </Routes>
-          </main>
+      <AppShell>
+        <div className="app-layout">
+          <Sidebar />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+            <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/pms" replace />} />
+                <Route path="/pms" element={<PMSWorkspace />} />
+                {/* Accounting routes - we will add TopNavbar here or in the components */}
+                <Route path="/ledger" element={<><TopNavbar /><LedgerPage /></>} />
+                <Route path="/ledger/:ledgerId" element={<><TopNavbar /><LedgerPage /></>} />
+                <Route path="/balance-sheet" element={<><TopNavbar /><BalanceSheet /></>} />
+                <Route path="/group/:groupId" element={<><TopNavbar /><GroupPage /></>} />
+                <Route path="/trial-balance" element={<><TopNavbar /><TrialBalance /></>} />
+                <Route path="/coa" element={<><TopNavbar /><ChartOfAccounts /></>} />
+                <Route path="/master-entry" element={<MasterEntry />} />
+              </Routes>
+            </main>
+          </div>
         </div>
-      </div>
+      </AppShell>
     </FamilyProvider>
   );
 }
