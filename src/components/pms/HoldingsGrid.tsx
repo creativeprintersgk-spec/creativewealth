@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { getPortfolioPrices } from '../../services/priceService';
 
 type Row = {
   assetId: string;
   assetName: string;
+  amid?: number;
   groupId: string;
   quantity: number;
   avgPrice: number;
@@ -47,6 +49,40 @@ const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
 
 export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = false, categoryLabels = {} }: Props) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [enrichedData, setEnrichedData] = useState<Row[]>(data);
+
+  useEffect(() => {
+    setEnrichedData(data);
+    
+    const fetchPrices = async () => {
+      const pricesMap = await getPortfolioPrices(data);
+      if (pricesMap.size === 0) return;
+      
+      setEnrichedData(prev => prev.map(row => {
+        const live = row.amid ? pricesMap.get(row.amid) : null;
+        if (live) {
+          const newPrice = live.price;
+          const newValue = row.quantity * newPrice;
+          const newGain = newValue - row.amtInvested;
+          const tGain = live.change * row.quantity;
+          
+          return {
+            ...row,
+            currentPrice: newPrice,
+            currentValue: newValue,
+            overallGain: newGain,
+            todaysGain: tGain
+          };
+        }
+        return row;
+      }));
+    };
+    
+    fetchPrices();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchPrices, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [data]);
 
   const toggleCategory = (cat: string) =>
     setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
@@ -171,7 +207,7 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
 
   // ── Render ────────────────────────────────────────────────────────────────
   const categories = groupByCategory
-    ? [...new Set(data.map(r => r.groupId))]
+    ? [...new Set(enrichedData.map(r => r.groupId))]
     : [];
 
   return (
@@ -192,11 +228,11 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
         <tbody>
           {groupByCategory
             ? categories.map(cat => {
-                const rows = data.filter(r => r.groupId === cat);
+                const rows = enrichedData.filter(r => r.groupId === cat);
                 const label = categoryLabels[cat] || cat;
                 return renderCategoryHeader(label, rows, cat);
               })
-            : data.map((row, i) => renderRow(row, i))
+            : enrichedData.map((row, i) => renderRow(row, i))
           }
         </tbody>
       </table>

@@ -789,6 +789,7 @@ export async function handleYearClose(selectedFY: string, onSuccess?: () => void
 export interface AssetHolding {
   assetId: string;
   assetName: string;
+  amid?: number;
   groupId: string;
   quantity: number;
   avgPrice: number;
@@ -875,6 +876,7 @@ export function getHoldings(portfolioIds: string[], assetGroupId?: string | stri
       holdingsMap[ledger.id] = {
         assetId: ledger.id,
         assetName: ledger.name,
+        amid: ledger.amid,
         groupId: ledger.groupId,
         quantity: 0,
         avgPrice: 0,

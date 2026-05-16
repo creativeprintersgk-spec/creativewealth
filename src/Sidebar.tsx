@@ -2,6 +2,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, Database, Clock, Download, Upload, Calculator } from 'lucide-react';
 
 import { getStoredLedgers, getStoredVouchers, initDatabase } from './logic';
+import { getIndices } from './services/priceService';
+import React, { useState, useEffect } from 'react';
 
 export default function Sidebar() {
   const navigate = useNavigate();
@@ -11,6 +13,18 @@ export default function Sidebar() {
 
   const ledgersCount = getStoredLedgers().length;
   const vouchersCount = getStoredVouchers().length;
+
+  const [indices, setIndices] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchIndices = async () => {
+      const data = await getIndices();
+      setIndices(data);
+    };
+    fetchIndices();
+    const interval = setInterval(fetchIndices, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleBackup = async () => {
     try {
@@ -141,6 +155,26 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-bottom">
+        {/* Indices Display */}
+        <div style={{ padding: '0 12px 12px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ fontSize: '9px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.05em', marginBottom: '8px', textTransform: 'uppercase' }}>Market Indices</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {indices.map(idx => (
+              <div key={idx.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{idx.name}</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#fff' }}>{idx.price.toLocaleString('en-IN')}</div>
+                  <div style={{ fontSize: '10px', fontWeight: 600, color: idx.change_pct >= 0 ? '#4ade80' : '#f87171' }}>
+                    {idx.change_pct >= 0 ? '+' : ''}{idx.change_pct.toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            ))}
+            {indices.length === 0 && (
+              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Loading indices...</div>
+            )}
+          </div>
+        </div>
         {/* Backup & Restore Controls */}
         <div style={{ padding: '0 8px 12px', display: 'flex', gap: '8px', marginBottom: '12px' }}>
           <button onClick={handleBackup} className="sidebar-action-btn" title="Backup Data">
