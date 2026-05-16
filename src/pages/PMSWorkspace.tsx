@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFamily } from '../contexts/FamilyContext';
+import { useFY } from '../FYContext';
 import {
   getStoredAccounts,
   getStoredPortfolios,
   getStoredInvestorGroups,
-  getHoldings
+  getHoldings,
+  syncLivePrices
 } from '../logic';
 import type { AssetHolding } from '../logic';
 
@@ -83,6 +85,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function PMSWorkspace() {
   const navigate = useNavigate();
   const { activeFamily } = useFamily();
+  const { customRange } = useFY();
   const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('pms_activeTab') || 'all');
   const [activeAssetType, setActiveAssetType] = useState<string>('all');
   const [openTabIds, setOpenTabIds] = useState<string[]>(() => {
@@ -155,8 +158,8 @@ export default function PMSWorkspace() {
 
   const holdings = useMemo(() => {
     if (!currentTab) return [];
-    return getHoldings(currentTab.portfolioIds, ASSET_TYPE_MAP[activeAssetType]);
-  }, [currentTab, activeAssetType]);
+    return getHoldings(currentTab.portfolioIds, ASSET_TYPE_MAP[activeAssetType], customRange.end);
+  }, [currentTab, activeAssetType, customRange.end]);
 
   const totals = useMemo(() => {
     if (!holdings.length) return { invested: 0, today: 0, overall: 0, value: 0 };
@@ -181,7 +184,17 @@ export default function PMSWorkspace() {
           <div style={{ display: 'flex', gap: '4px' }}>
             <button className="pms-topbar-btn"><FileText size={14} /> Reports <ChevronDown size={12} /></button>
             <button className="pms-topbar-btn"><Plus size={14} /> Import</button>
-            <button className="pms-topbar-btn"><RefreshCw size={14} /> Sync</button>
+            <button 
+              className="pms-topbar-btn" 
+              onClick={async () => {
+                const btn = document.activeElement as HTMLButtonElement;
+                if (btn) btn.disabled = true;
+                await syncLivePrices();
+                window.location.reload();
+              }}
+            >
+              <RefreshCw size={14} /> Sync
+            </button>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -191,6 +204,10 @@ export default function PMSWorkspace() {
             {activeFamily?.familyName || 'Select Family'}
             <ChevronDown size={12} color="#94a3b8" />
           </button>
+          <div style={{ background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#475569', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Activity size={14} color="#64748b" />
+            As of: {new Date(customRange.end).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </div>
         </div>
       </div>
 

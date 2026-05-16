@@ -13,14 +13,15 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-async function inspectEntries() {
+async function inspectData() {
   const { data: entries } = await supabase.from('entries').select('*');
   console.log("Total entries:", entries?.length);
-  const withQuantity = entries?.filter(e => e.quantity > 0);
-  console.log("Entries with quantity:", withQuantity?.length);
-  if (withQuantity && withQuantity.length > 0) {
-    console.log(withQuantity.slice(0, 3));
+  
+  const { data: ledgers } = await supabase.from('ledgers').select('*').limit(1);
+  if (ledgers && ledgers.length > 0) {
+    console.log("Ledger Sample:", ledgers[0]);
+    console.log("Ledger Columns:", Object.keys(ledgers[0]));
   }
 }
 
-inspectEntries();
+inspectData();

@@ -20,6 +20,7 @@ export type Ledger = {
   openingType: 'DR' | 'CR'
   currentBalance: number
   currentType: 'DR' | 'CR'
+  amid?: number // Link to Asset Master
 }
 
 export type Voucher = {

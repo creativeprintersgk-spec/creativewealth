@@ -1,6 +1,7 @@
 import { defaultGroups } from "./logic_defaults.ts";
 import { supabase } from "./supabase.ts";
 import { calculateCapitalGains, applyTaxRules } from "./accounting-engine/voucherEngine.ts";
+import { getLivePricesBatch, getAssetByAmid } from "./services/assetMasterService";
 
 // Types
 export type { Group, Ledger, Voucher, Entry, VoucherLine } from "./logic_defaults";
@@ -68,6 +69,7 @@ async function syncToCloud(type: string, record: any) {
     if (newRec.groupName) { newRec.group_name = newRec.groupName; delete newRec.groupName; }
     if (newRec.familyName) { newRec.name = newRec.familyName; delete newRec.familyName; }
     if (newRec.parent) { newRec.parent_id = newRec.parent; delete newRec.parent; }
+    if (newRec.amid) { newRec.amid = newRec.amid; } // Keep amid as is
     
     // Tax Lots specific mappings
     if (newRec.purchaseDate) { newRec.purchase_date = newRec.purchaseDate; delete newRec.purchaseDate; }
@@ -141,7 +143,8 @@ export async function initDatabase() {
       ...l, 
       groupId: l.group_id, 
       openingBalance: Number(l.opening_balance) || 0, 
-      openingType: l.opening_type 
+      openingType: l.opening_type,
+      amid: l.amid
     }));
     state.families = (families || []).map(f => ({ ...f, familyName: f.name }));
     state.accounts = (accounts || []).map(a => ({ ...a, familyId: a.family_id, accountName: a.account_name }));
@@ -198,16 +201,52 @@ export async function updateAssetPrice(assetId: string, price: number) {
   await syncToCloud('prices', { ledger_id: assetId, price, date: new Date().toISOString().split('T')[0] });
 }
 
-export async function ensureLedgerExists(name: string, groupId: string) {
-  const existing = state.ledgers.find(l => l.name === name || l.id === name);
-  if (existing) return existing;
+export async function syncLivePrices() {
+  console.log("🔄 Starting Live Price Sync...");
+  const ledgersWithAmid = state.ledgers.filter(l => l.amid);
+  if (ledgersWithAmid.length === 0) {
+    console.log("No ledgers with Asset Master link found.");
+    return;
+  }
+
+  // 1. Fetch AssetMaster objects for these amids
+  const assets: any[] = [];
+  for (const l of ledgersWithAmid) {
+    const asset = await getAssetByAmid(l.amid);
+    if (asset) assets.push(asset);
+  }
+
+  // 2. Fetch live prices in batch
+  const livePrices = await getLivePricesBatch(assets);
+  
+  // 3. Update state and cloud
+  for (const l of ledgersWithAmid) {
+    const lp = livePrices.get(l.amid);
+    if (lp) {
+      console.log(`Updating ${l.name}: ${lp.price}`);
+      await updateAssetPrice(l.id, lp.price);
+    }
+  }
+  console.log("✅ Live Price Sync Complete");
+}
+
+export async function ensureLedgerExists(name: string, groupId: string, amid?: number) {
+  const existing = state.ledgers.find(l => (l.name === name || l.id === name) || (amid && l.amid === amid));
+  if (existing) {
+    if (amid && !existing.amid) {
+       existing.amid = amid;
+       await syncToCloud('ledgers', existing);
+    }
+    return existing;
+  }
 
   const newLedger = {
     id: 'l_' + crypto.randomUUID(),
     name,
     groupId,
     openingBalance: 0,
-    openingType: 'DR'
+    openingType: 'DR',
+    amid
   };
   state.ledgers.push(newLedger);
   await syncToCloud('ledgers', newLedger);
@@ -771,11 +810,14 @@ export interface AssetHolding {
  * Calculates holdings for a set of portfolios.
  * This is the core logic that the user was worried about.
  */
-export function getHoldings(portfolioIds: string[], assetGroupId?: string | string[]): AssetHolding[] {
+export function getHoldings(portfolioIds: string[], assetGroupId?: string | string[], asOfDate?: string): AssetHolding[] {
   const holdingsMap: Record<string, AssetHolding> = {};
 
   // 1. Get all vouchers for these portfolios (or accounts owning these portfolios)
   const relevantVouchers = state.vouchers.filter(v => {
+    // Date filtering
+    if (asOfDate && v.date > asOfDate) return false;
+
     // If voucher explicitly has a portfolioId, it must be in our requested list
     if (v.portfolioId) return portfolioIds.includes(v.portfolioId);
     

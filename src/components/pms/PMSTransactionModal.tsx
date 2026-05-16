@@ -41,6 +41,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
   const [searchResults, setSearchResults] = useState<AssetMaster[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedAmid, setSelectedAmid] = useState<number | undefined>(undefined);
 
   const { activeFamily } = useFamily();
   const allAccounts = getStoredAccounts();
@@ -133,6 +134,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
   const handleSelectAsset = (asset: AssetMaster) => {
     setAssetName(asset.name);
     setSearchQuery(asset.name);
+    setSelectedAmid(asset.amid);
     setShowDropdown(false);
   };
 
@@ -199,7 +201,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
     }
 
     // 2. Resolve Asset Ledger
-    const assetLedger = await ensureLedgerExists(assetName, assetType === 'EQ' ? 'stocks' : 'mf_equity');
+    const assetLedger = await ensureLedgerExists(assetName, assetType === 'EQ' ? 'stocks' : 'mf_equity', selectedAmid);
 
     // 3. Build Lines
     const lines = [];
