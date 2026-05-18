@@ -106,19 +106,32 @@ export async function getAssetByAmid(amid: number): Promise<AssetMaster | null> 
 
 // ─── Live Price Fetching ──────────────────────────────────────────────────────
 
-/**
- * Fetch live NAV for a Mutual Fund from mfapi.in
- * Free, no API key needed. Returns today's NAV.
- */
-async function fetchMFNav(amfiCode: number): Promise<{ price: number; date: string } | null> {
+async function fetchMFNav(amfiCode: number): Promise<{ price: number; change: number; change_pct: number; date: string } | null> {
   try {
-    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}/latest`);
+    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}`);
     if (!res.ok) return null;
     const data = await res.json();
-    if (!data?.data?.[0]) return null;
+    const today = data?.data?.[0];
+    const yesterday = data?.data?.[1];
+    if (!today) return null;
+
+    function parseDate(d: string): string {
+      const [dd, mm, yyyy] = d.split('-');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    const todayDate = parseDate(today.date);
+    const todayNav = parseFloat(today.nav);
+    const yesterdayNav = yesterday ? parseFloat(yesterday.nav) : todayNav;
+
+    const change = todayNav - yesterdayNav;
+    const change_pct = yesterdayNav > 0 ? (change / yesterdayNav) * 100 : 0;
+
     return {
-      price: parseFloat(data.data[0].nav),
-      date: data.data[0].date
+      price: todayNav,
+      change: parseFloat(change.toFixed(4)),
+      change_pct: parseFloat(change_pct.toFixed(2)),
+      date: todayDate
     };
   } catch {
     return null;
@@ -126,30 +139,45 @@ async function fetchMFNav(amfiCode: number): Promise<{ price: number; date: stri
 }
 
 /**
- * Fetch live price for a Stock from Yahoo Finance (BSE)
- * Uses BSE code with .BO suffix e.g. "500002.BO" for Reliance
- * Free, no API key needed.
+ * Fetch live price for a Stock from Yahoo Finance.
+ * Supports NSE/BSE symbols.
  */
-async function fetchStockPrice(bseCode: number): Promise<{ price: number; change: number; change_pct: number; date: string } | null> {
+async function fetchStockPrice(symbol: string): Promise<{ price: number; change: number; change_pct: number; date: string } | null> {
   try {
-    const symbol = `${bseCode}.BO`;
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`;
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      }
     });
     if (!res.ok) return null;
     const data = await res.json();
     const meta = data?.chart?.result?.[0]?.meta;
+    const closeArr = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
     if (!meta) return null;
-    const price = meta.regularMarketPrice ?? meta.previousClose;
-    const prev = meta.previousClose ?? price;
+
+    let price = meta.regularMarketPrice > 0 ? meta.regularMarketPrice : 0;
+    let prev = meta.previousClose ?? meta.chartPreviousClose ?? price;
+
+    if (closeArr && closeArr.length >= 2) {
+      const validCloses = closeArr.filter((c: number | null) => c !== null && c > 0);
+      if (validCloses.length >= 2) {
+        price = validCloses[validCloses.length - 1];
+        prev = validCloses[validCloses.length - 2];
+      } else if (validCloses.length === 1) {
+        price = validCloses[0];
+        prev = validCloses[0];
+      }
+    }
+
     const change = price - prev;
     const change_pct = prev > 0 ? (change / prev) * 100 : 0;
     return {
       price: parseFloat(price.toFixed(2)),
       change: parseFloat(change.toFixed(2)),
       change_pct: parseFloat(change_pct.toFixed(2)),
-      date: new Date(meta.regularMarketTime * 1000).toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0]
     };
   } catch {
     return null;
@@ -178,17 +206,23 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
         amid: asset.amid,
         name: asset.name,
         price: nav.price,
-        change: 0,       // mfapi doesn't give previous NAV in /latest
-        change_pct: 0,
+        change: nav.change,
+        change_pct: nav.change_pct,
         as_of: nav.date,
         source: 'mfapi'
       };
     }
   }
 
-  // Stock — use Yahoo Finance BSE
-  if (asset.asset_type === 50 && asset.bse_code) {
-    const quote = await fetchStockPrice(asset.bse_code);
+  // Stock — prefer NSE symbol then BSE code
+  if (asset.asset_type === 50) {
+    let quote = null;
+    if (asset.nse_symbol) {
+      quote = await fetchStockPrice(`${asset.nse_symbol}.NS`);
+    }
+    if (!quote && asset.bse_code) {
+      quote = await fetchStockPrice(`${asset.bse_code}.BO`);
+    }
     if (quote) {
       result = {
         amid: asset.amid,
