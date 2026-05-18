@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { getPortfolioPrices } from '../../services/priceService';
+import { supabase } from '../../supabase';
 
 type Row = {
   assetId: string;
@@ -55,27 +55,47 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
     setEnrichedData(data);
     
     const fetchPrices = async () => {
-      const pricesMap = await getPortfolioPrices(data);
-      if (pricesMap.size === 0) return;
-      
-      setEnrichedData(prev => prev.map(row => {
-        const live = row.amid ? pricesMap.get(row.amid) : null;
-        if (live) {
-          const newPrice = live.price;
-          const newValue = row.quantity * newPrice;
-          const newGain = newValue - row.amtInvested;
-          const tGain = live.change * row.quantity;
-          
-          return {
-            ...row,
-            currentPrice: newPrice,
-            currentValue: newValue,
-            overallGain: newGain,
-            todaysGain: tGain
-          };
+      // First trigger the Edge Function to refresh prices in DB
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-prices`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
         }
-        return row;
-      }));
+      )
+
+      // Then read prices from Supabase prices table
+      const ledgerIds = data.map(row => row.assetId).filter(Boolean)
+      if (!ledgerIds.length) return
+
+      // Read most recent price for each ledger (not just today)
+      const { data: priceRows } = await supabase
+        .from('prices')
+        .select('ledger_id, price, date')
+        .in('ledger_id', ledgerIds)
+        .order('date', { ascending: false })
+
+      // Take only the most recent price per ledger
+      const priceMap = new Map<string, number>()
+      priceRows?.forEach(p => {
+        if (!priceMap.has(p.ledger_id)) {
+          priceMap.set(p.ledger_id, parseFloat(String(p.price)))
+        }
+      })
+
+      setEnrichedData(prev => prev.map(row => {
+        const livePrice = priceMap.get(row.assetId)
+        if (!livePrice || livePrice === 0) return row
+        const currentPrice = livePrice
+        const currentValue = row.quantity * currentPrice
+        const overallGain = currentValue - row.amtInvested
+        const todaysGain = 0
+        return { ...row, currentPrice, currentValue, overallGain, todaysGain }
+      }))
     };
     
     fetchPrices();
