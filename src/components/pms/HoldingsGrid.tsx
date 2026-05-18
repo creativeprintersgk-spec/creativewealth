@@ -47,6 +47,18 @@ const fmtQty = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits:
 
 const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
 
+function getRefreshInterval(): number {
+  const now = new Date()
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+  const h = ist.getHours()
+  const m = ist.getMinutes()
+  const day = ist.getDay()
+  const minutes = h * 60 + m
+  const isWeekend = day === 0 || day === 6
+  const isMarketHours = !isWeekend && minutes >= 555 && minutes < 930
+  return isMarketHours ? 60 * 1000 : 15 * 60 * 1000
+}
+
 export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = false, categoryLabels = {} }: Props) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [enrichedData, setEnrichedData] = useState<Row[]>(data);
@@ -99,8 +111,7 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
     }
     
     fetchPrices();
-    // Refresh every 15 minutes
-    const interval = setInterval(fetchPrices, 15 * 60 * 1000);
+    const interval = setInterval(fetchPrices, getRefreshInterval());
     return () => clearInterval(interval);
   }, [data]);
 

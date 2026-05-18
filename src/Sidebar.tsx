@@ -5,6 +5,18 @@ import { getStoredLedgers, getStoredVouchers, initDatabase } from './logic';
 import { getIndices } from './services/priceService';
 import React, { useState, useEffect } from 'react';
 
+function getRefreshInterval(): number {
+  const now = new Date()
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+  const h = ist.getHours()
+  const m = ist.getMinutes()
+  const day = ist.getDay()
+  const minutes = h * 60 + m
+  const isWeekend = day === 0 || day === 6
+  const isMarketHours = !isWeekend && minutes >= 555 && minutes < 930
+  return isMarketHours ? 60 * 1000 : 15 * 60 * 1000
+}
+
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,7 +46,7 @@ export default function Sidebar() {
       }
     };
     fetchIndices();
-    const interval = setInterval(fetchIndices, 5 * 60 * 1000);
+    const interval = setInterval(fetchIndices, getRefreshInterval());
     return () => clearInterval(interval);
   }, []);
 
