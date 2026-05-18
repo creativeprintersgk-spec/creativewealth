@@ -202,15 +202,6 @@ export default function Sidebar() {
             )}
           </div>
         </div>
-        {/* Backup & Restore Controls */}
-        <div style={{ padding: '0 8px 12px', display: 'flex', gap: '8px', marginBottom: '12px' }}>
-          <button onClick={handleBackup} className="sidebar-action-btn" title="Backup Data">
-            <Download size={14} /> Backup
-          </button>
-          <button onClick={handleRestore} className="sidebar-action-btn" title="Restore Data">
-            <Upload size={14} /> Restore
-          </button>
-        </div>
 
         {/* Version & DB Info */}
         <div style={{ padding: '0 8px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '12px' }}>
