@@ -8,35 +8,31 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-async function fetchYahooPrice(symbol: string) {
+async function fetchYahooPrice(symbol: string): Promise<number | null> {
   try {
+    // Use 5d range to get data even on weekends/holidays
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      }
     })
     if (!res.ok) return null
     const data = await res.json()
     const meta = data?.chart?.result?.[0]?.meta
     if (!meta) return null
-    // Use regularMarketPrice, fall back to previousClose, then chartPreviousClose
-    const price = (meta.regularMarketPrice > 0 ? meta.regularMarketPrice : null)
-      ?? meta.previousClose
-      ?? meta.chartPreviousClose
-      ?? 0
-      
-    const prev = meta.previousClose ?? price
-    const change = parseFloat((price - prev).toFixed(2))
-    const change_pct = prev > 0 ? parseFloat(((change/prev)*100).toFixed(2)) : 0
 
-    return { 
-      price: price > 0 ? parseFloat(price.toFixed(2)) : null, 
-      change, 
-      change_pct 
-    }
+    // Get most recent valid price
+    const price = meta.regularMarketPrice > 0
+      ? meta.regularMarketPrice
+      : meta.previousClose ?? meta.chartPreviousClose ?? 0
+
+    return price > 0 ? parseFloat(price.toFixed(2)) : null
   } catch { return null }
 }
 
-async function fetchMFNav(amfiCode: number) {
+async function fetchMFNav(amfiCode: number): Promise<number | null> {
   try {
     const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}/latest`)
     if (!res.ok) return null
@@ -53,7 +49,7 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-  // Get all ledgers linked to asset_master
+  // Get all investment ledgers linked to asset_master
   const { data: ledgers, error } = await supabase
     .from('ledgers')
     .select(`
@@ -62,85 +58,93 @@ Deno.serve(async (req) => {
       asset_master (
         asset_type,
         bse_code,
-        amfi_code
+        amfi_code,
+        nse_symbol
       )
     `)
     .not('amid', 'is', null)
 
   if (error || !ledgers?.length) {
-    return new Response(JSON.stringify({ error: 'No linked ledgers found' }), {
+    return new Response(JSON.stringify({ error: 'No linked ledgers', detail: error }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
 
   const today = new Date().toISOString().split('T')[0]
   const results: { ledger_id: string; price: number }[] = []
+  const errors: { ledger_id: string; reason: string }[] = []
 
-  // Fetch prices in parallel
+  // Fetch all prices in parallel
   await Promise.all(ledgers.map(async (ledger: any) => {
     const am = ledger.asset_master
-    if (!am) return
+    if (!am) {
+      errors.push({ ledger_id: ledger.id, reason: 'No asset_master' })
+      return
+    }
 
     let price: number | null = null
 
     if (am.asset_type === 60 && am.amfi_code) {
+      // Mutual Fund — use mfapi.in
       price = await fetchMFNav(am.amfi_code)
-    } else if (am.asset_type === 50 && am.bse_code) {
-      const res = await fetchYahooPrice(`${am.bse_code}.BO`)
-      price = res ? res.price : null
+    } else if (am.asset_type === 50) {
+      // Stock — prefer NSE symbol, fall back to BSE code
+      if (am.nse_symbol) {
+        price = await fetchYahooPrice(`${am.nse_symbol}.NS`)
+      }
+      if (!price && am.bse_code) {
+        price = await fetchYahooPrice(`${am.bse_code}.BO`)
+      }
     }
 
     if (price !== null && price > 0) {
       results.push({ ledger_id: ledger.id, price })
+    } else {
+      errors.push({ ledger_id: ledger.id, reason: `No price fetched (type=${am.asset_type}, nse=${am.nse_symbol}, bse=${am.bse_code}, amfi=${am.amfi_code})` })
     }
   }))
 
-  // Write all prices to prices table
+  // Write all valid prices to prices table
   if (results.length > 0) {
     const rows = results.map(r => ({
       ledger_id: r.ledger_id,
       date: today,
       price: r.price,
     }))
-
-    await supabase
+    const { error: upsertError } = await supabase
       .from('prices')
       .upsert(rows, { onConflict: 'ledger_id,date' })
+    if (upsertError) {
+      errors.push({ ledger_id: 'UPSERT', reason: upsertError.message })
+    }
   }
 
-  // Also handle manual items from request body (for on-demand fetching)
+  // Handle on-demand requests from body (for index prices)
   let bodyResults: any[] = []
   try {
-    const body = await req.json()
+    const body = await req.json().catch(() => ({}))
     if (body?.items?.length) {
       bodyResults = await Promise.all(body.items.map(async (item: any) => {
-        let price = 0, change = 0, change_pct = 0
-        if (item.type === 'index' || item.type === 'nse') {
-          const res = await fetchYahooPrice(item.type === 'index' ? item.code : `${item.code}.NS`)
-          if (res) {
-            price = res.price ?? 0
-            change = res.change
-            change_pct = res.change_pct
-          }
+        let price = 0
+        if (item.type === 'index') {
+          price = await fetchYahooPrice(item.code) ?? 0
+        } else if (item.type === 'nse') {
+          price = await fetchYahooPrice(`${item.code}.NS`) ?? 0
         } else if (item.type === 'bse') {
-          const res = await fetchYahooPrice(`${item.code}.BO`)
-          if (res) {
-            price = res.price ?? 0
-            change = res.change
-            change_pct = res.change_pct
-          }
+          price = await fetchYahooPrice(`${item.code}.BO`) ?? 0
         } else if (item.type === 'mf') {
           price = await fetchMFNav(parseInt(item.code)) ?? 0
         }
-        return { id: item.id, price, change, change_pct, as_of: today }
+        return { id: item.id, price, change: 0, change_pct: 0, as_of: today }
       }))
     }
-  } catch { /* no body or not JSON */ }
+  } catch { /* no body */ }
 
   return new Response(JSON.stringify({
     synced: results.length,
-    results: bodyResults,
+    errors,
     prices: results,
+    results: bodyResults,
   }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   })
