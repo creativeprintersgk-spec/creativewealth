@@ -60,7 +60,7 @@ function getRefreshInterval(): number {
   return isMarketHours ? 60 * 1000 : 15 * 60 * 1000
 }
 
-export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = false, categoryLabels = {} }: Props) {
+export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = false, categoryLabels = {}, onDataChange }: Props) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [enrichedData, setEnrichedData] = useState<Row[]>(data);
 
