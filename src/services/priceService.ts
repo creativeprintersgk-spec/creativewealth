@@ -38,8 +38,8 @@ export async function getIndices() {
   console.log('getIndices mapped objects:', { nifty, sensex });
 
   const arr = []
-  if (nifty && nifty.price > 0) arr.push({ name: 'NIFTY 50', price: nifty.price, change_pct: nifty.change_pct || 0 })
-  if (sensex && sensex.price > 0) arr.push({ name: 'SENSEX', price: sensex.price, change_pct: sensex.change_pct || 0 })
+  if (nifty && nifty.price > 0) arr.push({ name: 'NIFTY 50', price: nifty.price, change: nifty.change || 0, change_pct: nifty.change_pct || 0 })
+  if (sensex && sensex.price > 0) arr.push({ name: 'SENSEX', price: sensex.price, change: sensex.change || 0, change_pct: sensex.change_pct || 0 })
   return arr
 }
 
