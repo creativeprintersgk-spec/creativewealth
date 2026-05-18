@@ -15,11 +15,23 @@ export default function Sidebar() {
   const vouchersCount = getStoredVouchers().length;
 
   const [indices, setIndices] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchIndices = async () => {
-      const data = await getIndices();
-      setIndices(data);
+      try {
+        const data = await getIndices();
+        if (!data || data.length === 0) {
+          setError('Market closed');
+          setIndices([]);
+        } else {
+          setIndices(data);
+          setError(null);
+        }
+      } catch (err) {
+        setError('Market closed');
+        setIndices([]);
+      }
     };
     fetchIndices();
     const interval = setInterval(fetchIndices, 5 * 60 * 1000);
@@ -170,8 +182,11 @@ export default function Sidebar() {
                 </div>
               </div>
             ))}
-            {indices.length === 0 && (
+            {indices.length === 0 && !error && (
               <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Loading indices...</div>
+            )}
+            {error && (
+              <div style={{ fontSize: '10px', color: '#f87171' }}>{error}</div>
             )}
           </div>
         </div>

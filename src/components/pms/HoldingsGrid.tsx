@@ -70,6 +70,7 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
 
       // Then read prices from Supabase prices table
       const ledgerIds = data.map(row => row.assetId).filter(Boolean)
+      console.log('fetchPrices running with ledgerIds:', ledgerIds)
       if (!ledgerIds.length) return
 
       // Read most recent price for each ledger (not just today)
