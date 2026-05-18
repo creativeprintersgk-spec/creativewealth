@@ -23,7 +23,16 @@ async function fetchYahooPrice(symbol: string) {
       ?? meta.previousClose
       ?? meta.chartPreviousClose
       ?? 0
-    return price > 0 ? parseFloat(price.toFixed(2)) : null
+      
+    const prev = meta.previousClose ?? price
+    const change = parseFloat((price - prev).toFixed(2))
+    const change_pct = prev > 0 ? parseFloat(((change/prev)*100).toFixed(2)) : 0
+
+    return { 
+      price: price > 0 ? parseFloat(price.toFixed(2)) : null, 
+      change, 
+      change_pct 
+    }
   } catch { return null }
 }
 
@@ -77,7 +86,8 @@ Deno.serve(async (req) => {
     if (am.asset_type === 60 && am.amfi_code) {
       price = await fetchMFNav(am.amfi_code)
     } else if (am.asset_type === 50 && am.bse_code) {
-      price = await fetchYahooPrice(`${am.bse_code}.BO`)
+      const res = await fetchYahooPrice(`${am.bse_code}.BO`)
+      price = res ? res.price : null
     }
 
     if (price !== null && price > 0) {
@@ -106,9 +116,19 @@ Deno.serve(async (req) => {
       bodyResults = await Promise.all(body.items.map(async (item: any) => {
         let price = 0, change = 0, change_pct = 0
         if (item.type === 'index' || item.type === 'nse') {
-          price = await fetchYahooPrice(item.type === 'index' ? item.code : `${item.code}.NS`) ?? 0
+          const res = await fetchYahooPrice(item.type === 'index' ? item.code : `${item.code}.NS`)
+          if (res) {
+            price = res.price ?? 0
+            change = res.change
+            change_pct = res.change_pct
+          }
         } else if (item.type === 'bse') {
-          price = await fetchYahooPrice(`${item.code}.BO`) ?? 0
+          const res = await fetchYahooPrice(`${item.code}.BO`)
+          if (res) {
+            price = res.price ?? 0
+            change = res.change
+            change_pct = res.change_pct
+          }
         } else if (item.type === 'mf') {
           price = await fetchMFNav(parseInt(item.code)) ?? 0
         }

@@ -27,14 +27,19 @@ export async function getIndices() {
     { id: 'index_nifty', type: 'index', code: '^NSEI' },
     { id: 'index_sensex', type: 'index', code: '^BSESN' },
   ])
+  
+  console.log('getIndices raw results from Edge:', results);
+  
   const map = Object.fromEntries(results.map((r: any) => [r.id, r]))
   
   const nifty = map['index_nifty']
   const sensex = map['index_sensex']
 
+  console.log('getIndices mapped objects:', { nifty, sensex });
+
   const arr = []
-  if (nifty && nifty.price > 0) arr.push({ name: 'NIFTY 50', price: nifty.price, change_pct: nifty.change_pct })
-  if (sensex && sensex.price > 0) arr.push({ name: 'SENSEX', price: sensex.price, change_pct: sensex.change_pct })
+  if (nifty && nifty.price > 0) arr.push({ name: 'NIFTY 50', price: nifty.price, change_pct: nifty.change_pct || 0 })
+  if (sensex && sensex.price > 0) arr.push({ name: 'SENSEX', price: sensex.price, change_pct: sensex.change_pct || 0 })
   return arr
 }
 
