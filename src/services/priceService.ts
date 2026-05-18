@@ -1,41 +1,41 @@
 import { supabase } from '../supabase';
 import { getLivePrice, type AssetMaster, type LivePrice } from './assetMasterService';
 
+export async function fetchPrices(items: any[]) {
+  try {
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-prices`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ items }),
+      }
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.results || []
+  } catch {
+    return []
+  }
+}
+
 export async function getIndices() {
-  const indices = [
-    { name: 'NIFTY 50', symbol: '^NSEI' },
-    { name: 'SENSEX', symbol: '^BSESN' }
-  ];
+  const results = await fetchPrices([
+    { id: 'index_nifty', type: 'index', code: '^NSEI' },
+    { id: 'index_sensex', type: 'index', code: '^BSESN' },
+  ])
+  const map = Object.fromEntries(results.map((r: any) => [r.id, r]))
+  
+  const nifty = map['index_nifty']
+  const sensex = map['index_sensex']
 
-  const results = await Promise.all(indices.map(async (idx) => {
-    try {
-      // Use Yahoo Finance for indices
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${idx.symbol}?interval=1d&range=1d`;
-      const res = await fetch(url, { 
-        headers: { 'User-Agent': 'Mozilla/5.0' } 
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const meta = data?.chart?.result?.[0]?.meta;
-      if (!meta) return null;
-      
-      const price = meta.regularMarketPrice ?? meta.previousClose;
-      const prev = meta.previousClose ?? price;
-      const change = price - prev;
-      const change_pct = prev > 0 ? (change / prev) * 100 : 0;
-      
-      return {
-        name: idx.name,
-        price: parseFloat(price.toFixed(2)),
-        change_pct: parseFloat(change_pct.toFixed(2))
-      };
-    } catch (e) {
-      console.error(`Error fetching index ${idx.name}:`, e);
-      return null;
-    }
-  }));
-
-  return results.filter(r => r !== null) as { name: string; price: number; change_pct: number }[];
+  const arr = []
+  if (nifty && nifty.price > 0) arr.push({ name: 'NIFTY 50', price: nifty.price, change_pct: nifty.change_pct })
+  if (sensex && sensex.price > 0) arr.push({ name: 'SENSEX', price: sensex.price, change_pct: sensex.change_pct })
+  return arr
 }
 
 export async function getPortfolioPrices(holdings: any[]): Promise<Map<number, LivePrice>> {

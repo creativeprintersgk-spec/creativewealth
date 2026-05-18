@@ -80,6 +80,9 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
         .in('ledger_id', ledgerIds)
         .order('date', { ascending: false })
 
+      console.log('Ledger IDs for price lookup:', ledgerIds)
+      console.log('Price rows from DB:', priceRows)
+
       // Take only the most recent price per ledger
       const priceMap = new Map<string, number>()
       priceRows?.forEach(p => {
