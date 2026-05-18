@@ -32,13 +32,35 @@ async function fetchYahooPrice(symbol: string): Promise<number | null> {
   } catch { return null }
 }
 
-async function fetchMFNav(amfiCode: number): Promise<number | null> {
+async function fetchMFNav(amfiCode: number, supabase: any, ledgerId: string): Promise<number | null> {
   try {
-    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}/latest`)
+    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}`)
     if (!res.ok) return null
     const data = await res.json()
-    const nav = data?.data?.[0]?.nav
-    return nav ? parseFloat(parseFloat(nav).toFixed(4)) : null
+    const today = data?.data?.[0]
+    const yesterday = data?.data?.[1]
+    if (!today) return null
+
+    function parseDate(d: string): string {
+      const [dd, mm, yyyy] = d.split('-')
+      return `${yyyy}-${mm}-${dd}`
+    }
+
+    // Store today's NAV
+    const todayDate = parseDate(today.date)
+    const todayNav = parseFloat(today.nav)
+
+    // Store yesterday's NAV
+    if (yesterday) {
+      const yDate = parseDate(yesterday.date)
+      const yNav = parseFloat(yesterday.nav)
+      await supabase.from('prices').upsert(
+        { ledger_id: ledgerId, date: yDate, price: yNav },
+        { onConflict: 'ledger_id,date' }
+      )
+    }
+
+    return todayNav
   } catch { return null }
 }
 
@@ -86,7 +108,7 @@ Deno.serve(async (req) => {
 
     if (am.asset_type === 60 && am.amfi_code) {
       // Mutual Fund — use mfapi.in
-      price = await fetchMFNav(am.amfi_code)
+      price = await fetchMFNav(am.amfi_code, supabase, ledger.id)
     } else if (am.asset_type === 50) {
       // Stock — prefer NSE symbol, fall back to BSE code
       if (am.nse_symbol) {
@@ -133,7 +155,7 @@ Deno.serve(async (req) => {
         } else if (item.type === 'bse') {
           price = await fetchYahooPrice(`${item.code}.BO`) ?? 0
         } else if (item.type === 'mf') {
-          price = await fetchMFNav(parseInt(item.code)) ?? 0
+          price = await fetchMFNav(parseInt(item.code), supabase, item.id) ?? 0
         }
         return { id: item.id, price, change: 0, change_pct: 0, as_of: today }
       }))
