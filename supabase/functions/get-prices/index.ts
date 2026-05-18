@@ -22,13 +22,24 @@ async function fetchYahooPrice(symbol: string, supabase: any, ledgerId: string):
     const data = await res.json()
     const meta = data?.chart?.result?.[0]?.meta
     const timestamp = data?.chart?.result?.[0]?.timestamp
+    const closeArr = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close
     if (!meta) return null
 
-    const price = meta.regularMarketPrice > 0
-      ? meta.regularMarketPrice
-      : meta.previousClose ?? meta.chartPreviousClose ?? 0
+    let price = meta.regularMarketPrice > 0 ? meta.regularMarketPrice : 0
+    let prevPrice = meta.previousClose ?? meta.chartPreviousClose ?? price
 
-    const prevPrice = meta.previousClose ?? meta.chartPreviousClose ?? price
+    if (closeArr && closeArr.length >= 2) {
+      // Filter out nulls
+      const validCloses = closeArr.filter((c: number | null) => c !== null && c > 0)
+      if (validCloses.length >= 2) {
+        price = validCloses[validCloses.length - 1]
+        prevPrice = validCloses[validCloses.length - 2]
+      } else if (validCloses.length === 1) {
+        price = validCloses[0]
+        prevPrice = validCloses[0]
+      }
+    }
+
     const change = parseFloat((price - prevPrice).toFixed(2))
     const change_pct = prevPrice > 0 ? parseFloat(((change / prevPrice) * 100).toFixed(2)) : 0
 
