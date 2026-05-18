@@ -27,6 +27,7 @@ interface Props {
   onHoldingClick: (holding: Row) => void;
   groupByCategory?: boolean; // when true: MProfit-style category headers
   categoryLabels?: Record<string, string>; // groupId → display label
+  onDataChange?: (enrichedData: Row[]) => void;
 }
 
 const COLS = [
@@ -115,6 +116,10 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
     const interval = setInterval(fetchPrices, getRefreshInterval());
     return () => clearInterval(interval);
   }, [data]);
+
+  useEffect(() => {
+    if (onDataChange) onDataChange(enrichedData);
+  }, [enrichedData, onDataChange]);
 
   const toggleCategory = (cat: string) =>
     setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));

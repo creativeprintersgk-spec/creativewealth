@@ -161,15 +161,21 @@ export default function PMSWorkspace() {
     return getHoldings(currentTab.portfolioIds, ASSET_TYPE_MAP[activeAssetType], customRange.end);
   }, [currentTab, activeAssetType, customRange.end]);
 
-  const totals = useMemo(() => {
-    if (!holdings.length) return { invested: 0, today: 0, overall: 0, value: 0 };
-    return holdings.reduce((acc, h) => ({
-      invested: acc.invested + h.amtInvested,
-      today: acc.today + h.todaysGain,
-      overall: acc.overall + h.overallGain,
-      value: acc.value + h.currentValue
-    }), { invested: 0, today: 0, overall: 0, value: 0 });
+  const [enrichedHoldings, setEnrichedHoldings] = useState<any[]>([]);
+
+  useEffect(() => {
+    setEnrichedHoldings(holdings);
   }, [holdings]);
+
+  const totals = useMemo(() => {
+    if (!enrichedHoldings.length) return { invested: 0, today: 0, overall: 0, value: 0 };
+    return enrichedHoldings.filter(r => !r.isGroup).reduce((acc, h) => ({
+      invested: acc.invested + (h.amtInvested || 0),
+      today: acc.today + (h.todaysGain || 0),
+      overall: acc.overall + (h.overallGain || 0),
+      value: acc.value + (h.currentValue || 0)
+    }), { invested: 0, today: 0, overall: 0, value: 0 });
+  }, [enrichedHoldings]);
 
   const handleDrilldown = (assetId: string, assetName: string, portIds: string[]) => setSelectedAssetForLedger({ id: assetId, name: assetName, portIds });
   const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -337,7 +343,7 @@ export default function PMSWorkspace() {
 
           {/* ── GRID ── */}
           <div style={{ minHeight: '500px', overflow: 'hidden' }}>
-            <HoldingsGrid data={holdings} onHoldingClick={setSelectedHolding} groupByCategory={activeAssetType === 'all'} categoryLabels={CATEGORY_LABELS} />
+            <HoldingsGrid data={holdings} onHoldingClick={setSelectedHolding} groupByCategory={activeAssetType === 'all'} categoryLabels={CATEGORY_LABELS} onDataChange={setEnrichedHoldings} />
           </div>
 
           {/* ── FOOTER ── */}
