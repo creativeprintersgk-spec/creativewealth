@@ -55,61 +55,52 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
     setEnrichedData(data);
     
     const fetchPrices = async () => {
-      // First trigger the Edge Function to refresh prices in DB
-      await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-prices`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
+      try {
+        // Read from the view that already has all current prices joined
+        const { data: priceRows, error } = await supabase
+          .from('ledger_current_prices')
+          .select('ledger_id, amid, current_price')
+
+        if (error) {
+          console.error('Price fetch error:', error.message)
+          return
         }
-      )
+        if (!priceRows?.length) return
 
-      // Then read prices from Supabase prices table
-      console.log('1. Holdings rows:', data.map(h => ({ 
-        name: h.assetName, 
-        ledgerId: h.assetId, 
-        amid: h.amid,
-        quantity: h.quantity 
-      })))
-      const ledgerIds = data.map(row => row.assetId).filter(Boolean)
-      if (!ledgerIds.length) return
+        // Build lookup map by BOTH ledger_id and amid
+        const priceByLedgerId = new Map<string, number>()
+        const priceByAmid = new Map<number, number>()
 
-      // Read most recent price for each ledger (not just today)
-      const { data: priceRows } = await supabase
-        .from('prices')
-        .select('ledger_id, price, date')
-        .in('ledger_id', ledgerIds)
-        .order('date', { ascending: false })
+        priceRows.forEach(p => {
+          if (p.current_price && p.current_price > 0) {
+            priceByLedgerId.set(p.ledger_id, parseFloat(p.current_price))
+            if (p.amid) priceByAmid.set(p.amid, parseFloat(p.current_price))
+          }
+        })
 
-      console.log('2. LedgerIds sent to price lookup:', ledgerIds)
-      console.log('3. Price rows returned:', priceRows)
+        setEnrichedData(prev => prev.map(row => {
+          // Try matching by ledgerId first, then by amid
+          const livePrice = 
+            (row.assetId ? priceByLedgerId.get(row.assetId) : null) ??
+            (row.amid ? priceByAmid.get(row.amid) : null)
 
-      // Take only the most recent price per ledger
-      const priceMap = new Map<string, number>()
-      priceRows?.forEach(p => {
-        if (!priceMap.has(p.ledger_id)) {
-          priceMap.set(p.ledger_id, parseFloat(String(p.price)))
-        }
-      })
+          if (!livePrice || livePrice === 0) return row
 
-      setEnrichedData(prev => prev.map(row => {
-        const livePrice = priceMap.get(row.assetId)
-        if (!livePrice || livePrice === 0) return row
-        const currentPrice = livePrice
-        const currentValue = row.quantity * currentPrice
-        const overallGain = currentValue - row.amtInvested
-        const todaysGain = 0
-        return { ...row, currentPrice, currentValue, overallGain, todaysGain }
-      }))
-    };
+          const currentPrice = livePrice
+          const currentValue = (row.quantity ?? 0) * currentPrice
+          const overallGain = currentValue - (row.amtInvested ?? 0)
+          const todaysGain = 0
+
+          return { ...row, currentPrice, currentValue, overallGain, todaysGain }
+        }))
+      } catch (err) {
+        console.error('fetchPrices error:', err)
+      }
+    }
     
     fetchPrices();
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchPrices, 5 * 60 * 1000);
+    // Refresh every 15 minutes
+    const interval = setInterval(fetchPrices, 15 * 60 * 1000);
     return () => clearInterval(interval);
   }, [data]);
 
