@@ -71,7 +71,7 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
         // Read from the view that already has all current prices joined
         const { data: priceRows, error } = await supabase
           .from('ledger_current_prices')
-          .select('ledger_id, amid, current_price')
+          .select('ledger_id, amid, current_price, prev_price')
 
         if (error) {
           console.error('Price fetch error:', error.message)
@@ -80,28 +80,29 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
         if (!priceRows?.length) return
 
         // Build lookup map by BOTH ledger_id and amid
-        const priceByLedgerId = new Map<string, number>()
-        const priceByAmid = new Map<number, number>()
+        const priceByLedgerId = new Map<string, any>()
+        const priceByAmid = new Map<number, any>()
 
         priceRows.forEach(p => {
           if (p.current_price && p.current_price > 0) {
-            priceByLedgerId.set(p.ledger_id, parseFloat(p.current_price))
-            if (p.amid) priceByAmid.set(p.amid, parseFloat(p.current_price))
+            priceByLedgerId.set(p.ledger_id, p)
+            if (p.amid) priceByAmid.set(p.amid, p)
           }
         })
 
         setEnrichedData(prev => prev.map(row => {
           // Try matching by ledgerId first, then by amid
-          const livePrice = 
+          const priceRow = 
             (row.assetId ? priceByLedgerId.get(row.assetId) : null) ??
             (row.amid ? priceByAmid.get(row.amid) : null)
 
-          if (!livePrice || livePrice === 0) return row
+          if (!priceRow || !priceRow.current_price || priceRow.current_price === 0) return row
 
-          const currentPrice = livePrice
+          const currentPrice = parseFloat(priceRow.current_price)
           const currentValue = (row.quantity ?? 0) * currentPrice
           const overallGain = currentValue - (row.amtInvested ?? 0)
-          const todaysGain = 0
+          const prevPrice = priceRow.prev_price ? parseFloat(priceRow.prev_price) : currentPrice
+          const todaysGain = (currentPrice - prevPrice) * (row.quantity ?? 0)
 
           return { ...row, currentPrice, currentValue, overallGain, todaysGain }
         }))
