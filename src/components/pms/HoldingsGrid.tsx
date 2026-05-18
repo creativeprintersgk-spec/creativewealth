@@ -69,9 +69,13 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
       )
 
       // Then read prices from Supabase prices table
-      console.log('Holdings data:', data.map(h => ({ name: h.assetName, ledgerId: h.assetId, amid: h.amid })))
+      console.log('1. Holdings rows:', data.map(h => ({ 
+        name: h.assetName, 
+        ledgerId: h.assetId, 
+        amid: h.amid,
+        quantity: h.quantity 
+      })))
       const ledgerIds = data.map(row => row.assetId).filter(Boolean)
-      console.log('Price lookup ledgerIds:', ledgerIds)
       if (!ledgerIds.length) return
 
       // Read most recent price for each ledger (not just today)
@@ -81,8 +85,8 @@ export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = f
         .in('ledger_id', ledgerIds)
         .order('date', { ascending: false })
 
-      console.log('Ledger IDs for price lookup:', ledgerIds)
-      console.log('Price rows from DB:', priceRows)
+      console.log('2. LedgerIds sent to price lookup:', ledgerIds)
+      console.log('3. Price rows returned:', priceRows)
 
       // Take only the most recent price per ledger
       const priceMap = new Map<string, number>()
