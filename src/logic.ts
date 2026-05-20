@@ -814,53 +814,16 @@ export interface AssetHolding {
 export function getHoldings(portfolioIds: string[], assetGroupId?: string | string[], asOfDate?: string): AssetHolding[] {
   const holdingsMap: Record<string, AssetHolding> = {};
 
-  // 1. Get all vouchers for these portfolios (or accounts owning these portfolios)
-  const relevantVouchers = state.vouchers.filter(v => {
-    // Date filtering
-    if (asOfDate && v.date > asOfDate) return false;
+  const lots = state.taxLots.filter(tl => 
+    portfolioIds.includes(tl.portfolioId) &&
+    tl.remainingQuantity > 0 &&
+    (!asOfDate || tl.purchaseDate <= asOfDate)
+  );
 
-    // If voucher explicitly has a portfolioId, it must be in our requested list
-    if (v.portfolioId) return portfolioIds.includes(v.portfolioId);
-    
-    // If no portfolioId on voucher, check if it belongs to an account that owns these portfolios
-    const accountPortfolios = state.portfolios.filter(p => p.accountId === v.accountId);
-    const accountPortIds = accountPortfolios.map(p => p.id);
-    
-    // If this account has multiple portfolios, we cannot safely assume this "orphan" voucher 
-    // belongs to the requested portfolio(s) UNLESS we are requesting ALL portfolios of this account.
-    const isRequestingAllForAccount = accountPortIds.every(pid => portfolioIds.includes(pid));
-    const hasOnlyOnePortfolio = accountPortIds.length === 1;
-
-    return isRequestingAllForAccount || (hasOnlyOnePortfolio && portfolioIds.includes(accountPortIds[0]));
-  });
-  const vIds = new Set(relevantVouchers.map(v => v.id));
-  
-  console.log(`[getHoldings] portfolioIds:`, portfolioIds);
-  console.log(`[getHoldings] found ${relevantVouchers.length} vouchers`);
-
-  // 2. Get all entries for these vouchers
-  const relevantEntries = state.entries.filter(e => vIds.has(e.voucherId));
-  console.log(`[getHoldings] found ${relevantEntries.length} entries`);
-
-  // 3. Process entries to calculate quantity and cost
-  relevantEntries.forEach(entry => {
-    const ledger = state.ledgers.find(l => l.id === entry.ledgerId);
+  lots.forEach(lot => {
+    const ledger = state.ledgers.find(l => l.id === lot.ledgerId);
     if (!ledger) return;
 
-    // Only process "Asset" ledgers (Investments, Stocks, etc.)
-    const isInvestment = state.groups.some(g => {
-      if (g.id !== ledger.groupId) return false;
-      // Walk up to see if it's under 'investments' or 'fixed_assets'
-      let current: any = g;
-      while (current) {
-        if (current.id === 'investments' || current.id === 'fixed_assets') return true;
-        current = state.groups.find(pg => pg.id === current.parent);
-      }
-      return false;
-    });
-
-    if (!isInvestment) return;
-    
     if (assetGroupId) {
       if (Array.isArray(assetGroupId)) {
         if (!assetGroupId.includes(ledger.groupId)) return;
@@ -868,9 +831,6 @@ export function getHoldings(portfolioIds: string[], assetGroupId?: string | stri
         if (ledger.groupId !== assetGroupId) return;
       }
     }
-
-    const voucher = relevantVouchers.find(v => v.id === entry.voucherId);
-    if (!voucher) return;
 
     if (!holdingsMap[ledger.id]) {
       holdingsMap[ledger.id] = {
@@ -881,7 +841,7 @@ export function getHoldings(portfolioIds: string[], assetGroupId?: string | stri
         quantity: 0,
         avgPrice: 0,
         amtInvested: 0,
-        currentPrice: 0, // Will be fetched/mocked
+        currentPrice: 0,
         todaysGain: 0,
         overallGain: 0,
         currentValue: 0,
@@ -890,66 +850,42 @@ export function getHoldings(portfolioIds: string[], assetGroupId?: string | stri
     }
 
     const holding = holdingsMap[ledger.id];
+    holding.quantity += lot.remainingQuantity;
     
-    // Logic: Debit increases quantity (Buy), Credit decreases quantity (Sell)
-    if (entry.debit > 0) {
-      holding.quantity += (entry.quantity || 0);
-      holding.amtInvested += entry.debit;
-    } else if (entry.credit > 0) {
-      // For sells, we reduce quantity proportionally or based on entry quantity
-      const sellQty = entry.quantity || 0;
-      if (holding.quantity > 0) {
-        // Average cost reduction
-        const costPerUnit = holding.amtInvested / holding.quantity;
-        holding.amtInvested -= (sellQty * costPerUnit);
-      }
-      holding.quantity -= sellQty;
-    }
+    const costForRemaining = lot.remainingQuantity * lot.costPerUnit;
+    holding.amtInvested += costForRemaining;
 
-    // Update Portfolio Split
-    let split = holding.portfolioSplits.find(s => s.portfolioId === voucher.portfolioId);
+    let split = holding.portfolioSplits.find(s => s.portfolioId === lot.portfolioId);
     if (!split) {
-      const port = state.portfolios.find(p => p.id === voucher.portfolioId);
+      const port = state.portfolios.find(p => p.id === lot.portfolioId);
       split = { 
-        portfolioId: voucher.portfolioId, 
+        portfolioId: lot.portfolioId, 
         portfolioName: port?.portfolioName || 'Unknown', 
         quantity: 0, 
         amtInvested: 0 
       };
       holding.portfolioSplits.push(split);
     }
-    
-    if (entry.debit > 0) {
-      split.quantity += (entry.quantity || 0);
-      split.amtInvested += entry.debit;
-    } else if (entry.credit > 0) {
-      const sellQty = entry.quantity || 0;
-      if (split.quantity > 0) {
-        const costPerUnit = split.amtInvested / split.quantity;
-        split.amtInvested -= (sellQty * costPerUnit);
-      }
-      split.quantity -= sellQty;
-    }
+    split.quantity += lot.remainingQuantity;
+    split.amtInvested += costForRemaining;
   });
 
-  // 4. Finalize calculations (Avg Price, Market Value, Gains)
   return Object.values(holdingsMap)
-    .filter(h => Math.abs(h.quantity) > 0.0001) // Filter out zero holdings
+    .filter(h => Math.abs(h.quantity) > 0.0001)
     .map(h => {
        h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : 0;
        
-       // Current price logic: use stored price or fallback to mock
        const storedPrice = state.prices[h.assetId];
        if (storedPrice !== undefined) {
          h.currentPrice = storedPrice;
        } else {
-         h.currentPrice = 0; // Default to 0 if no price set
+         h.currentPrice = 0;
          h.priceNotSet = true;
        }
        
        h.currentValue = h.quantity * h.currentPrice;
        h.overallGain = h.currentValue - h.amtInvested;
-       h.todaysGain = 0; // We don't have daily change logic yet
+       h.todaysGain = 0;
        
        return h;
      });
