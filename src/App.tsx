@@ -6,8 +6,10 @@ import BalanceSheet from "./pages/BalanceSheet"
 import GroupPage from "./pages/GroupPage"
 import MasterEntry from "./pages/MasterEntry"
 import PMSWorkspace from "./pages/PMSWorkspace"
+import Dashboard from "./pages/Dashboard"
 import TrialBalance from "./pages/TrialBalance"
 import ChartOfAccounts from "./ChartOfAccounts"
+import CapitalGainsPage from "./pages/CapitalGainsPage"
 import { initDatabase, getStoredGroups, getStoredLedgers, getStoredVouchers } from "./logic"
 import { FYProvider } from "./FYContext"
 import { FamilyProvider, useFamily } from "./contexts/FamilyContext"
@@ -36,7 +38,8 @@ function AppContent() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
             <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>
               <Routes>
-                <Route path="/" element={<Navigate to="/pms" replace />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<><TopNavbar /><Dashboard /></>} />
                 <Route path="/pms" element={<PMSWorkspace />} />
                 {/* Accounting routes - we will add TopNavbar here or in the components */}
                 <Route path="/ledger" element={<><TopNavbar /><LedgerPage /></>} />
@@ -45,6 +48,7 @@ function AppContent() {
                 <Route path="/group/:groupId" element={<><TopNavbar /><GroupPage /></>} />
                 <Route path="/trial-balance" element={<><TopNavbar /><TrialBalance /></>} />
                 <Route path="/coa" element={<><TopNavbar /><ChartOfAccounts /></>} />
+                <Route path="/capital-gains" element={<><TopNavbar /><CapitalGainsPage /></>} />
                 <Route path="/master-entry" element={<MasterEntry />} />
               </Routes>
             </main>

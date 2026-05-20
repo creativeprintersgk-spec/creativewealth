@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, Database, Clock, Download, Upload, Calculator } from 'lucide-react';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, Database, Clock, Download, Upload, Calculator, FileText } from 'lucide-react';
 
 import { getStoredLedgers, getStoredVouchers, initDatabase } from './logic';
 import { getIndices } from './services/priceService';
@@ -112,6 +112,12 @@ export default function Sidebar() {
           <div className="sidebar-section-label">Wealth Workspace</div>
           <div className="sidebar-group-items">
             <button 
+              className={`sidebar-nav-item ${isActive('/dashboard') ? 'active' : ''}`}
+              onClick={() => navigate('/dashboard')}
+            >
+              <LayoutDashboard /> Dashboard
+            </button>
+            <button 
               className={`sidebar-nav-item ${isActive('/pms') ? 'active' : ''}`}
               onClick={() => navigate('/pms')}
             >
@@ -154,6 +160,12 @@ export default function Sidebar() {
               onClick={() => navigate('/balance-sheet')}
             >
               <Scale /> Balance Sheet
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/capital-gains') ? 'active' : ''}`}
+              onClick={() => navigate('/capital-gains')}
+            >
+              <FileText /> Capital Gains
             </button>
             <button 
               className="sidebar-nav-item"
