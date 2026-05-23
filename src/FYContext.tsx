@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getAvailableFYs } from './logic';
 
 export const FYContext = createContext<any>(null);
 
 export function FYProvider({ children }: { children: React.ReactNode }) {
+  const [availableFYs, setAvailableFYs] = useState<any[]>([]);
   const today = new Date();
   const currentYear = today.getFullYear();
   const startYear = today.getMonth() >= 3 ? currentYear : currentYear - 1;
@@ -12,8 +14,21 @@ export function FYProvider({ children }: { children: React.ReactNode }) {
   const [reportFilter, setReportFilter] = useState<'current' | 'last' | 'previous' | 'custom'>('current');
   const [customRange, setCustomRange] = useState({ start: `${startYear}-04-01`, end: todayStr });
 
+  useEffect(() => {
+    const checkFYs = () => {
+      const fys = getAvailableFYs();
+      if (fys && fys.length > 0) {
+        setAvailableFYs(fys);
+        // Do not clear interval immediately, logic might reload
+      }
+    };
+    checkFYs();
+    const interval = setInterval(checkFYs, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <FYContext.Provider value={{ selectedFY, setSelectedFY, reportFilter, setReportFilter, customRange, setCustomRange }}>
+    <FYContext.Provider value={{ selectedFY, setSelectedFY, reportFilter, setReportFilter, customRange, setCustomRange, availableFYs }}>
       {children}
     </FYContext.Provider>
   );

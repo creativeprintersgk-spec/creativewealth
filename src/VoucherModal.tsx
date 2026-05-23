@@ -1,4 +1,4 @@
-import { X, Trash2, Save, Copy } from "lucide-react";
+﻿import { X, Trash2, Save, Copy } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import {
   createVoucher,
@@ -118,7 +118,7 @@ export default function VoucherModal({
         if (nonZeroLines.length >= 2) {
           const other = nonZeroLines.find(l => l.ledgerId !== mainAccount) || nonZeroLines[1];
           if (other) {
-            setSimpleAccount(other.ledgerName);
+            setSimpleAccount(other.ledgerName ?? "");
             setSimpleAmount(String(other.debit || other.credit || ""));
             setSimpleQuantity(String(other.quantity || ""));
             setSimplePrice(String(other.price || ""));
@@ -193,7 +193,7 @@ export default function VoucherModal({
     const currentBalance = !Array.isArray(bal) ? bal.closingBalance : 0;
     return (
       <span style={{ fontSize: "10px", color: "#94a3b8", marginLeft: "8px" }}>
-        ₹{Math.abs(currentBalance).toLocaleString("en-IN")} {currentBalance >= 0 ? "Dr" : "Cr"}
+        â‚¹{Math.abs(currentBalance).toLocaleString("en-IN")} {currentBalance >= 0 ? "Dr" : "Cr"}
       </span>
     );
   };
@@ -217,7 +217,7 @@ export default function VoucherModal({
     <div className="modal-overlay" style={{ zIndex: 2000 }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-box" style={{ width: 860, maxHeight: "90vh", display: "flex", flexDirection: "column", borderRadius: "14px", overflow: "hidden" }}>
 
-        {/* ── Accounting Toolbar Header ── */}
+        {/* â”€â”€ Accounting Toolbar Header â”€â”€ */}
         <div style={{ display: "flex", alignItems: "center", gap: 0, borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
           {VOUCHER_TYPES.map(t => (
             <button
@@ -285,7 +285,7 @@ export default function VoucherModal({
           </button>
         </div>
 
-        {/* ── Body ── */}
+        {/* â”€â”€ Body â”€â”€ */}
         <div className="modal-body" style={{ padding: "16px 20px", flex: 1, overflowY: "auto" }}>
           {isSimpleMode ? (
             <div style={{ background: "#f8fafc", padding: "18px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
@@ -324,14 +324,14 @@ export default function VoucherModal({
                   </span>
                   {simpleAmt > 0 && (
                     <>
-                      <span style={{ fontSize: "13px", color: "#94a3b8" }}>→</span>
+                      <span style={{ fontSize: "13px", color: "#94a3b8" }}>â†’</span>
                       <span style={{ fontSize: "13px", fontWeight: 800, color: mainAfter >= 0 ? "#0f766e" : "#b91c1c" }}>{fmtBal(mainAfter)}</span>
                       <span style={{
                         fontSize: "11px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px",
                         background: type === "receipt" ? "#dcfce7" : "#fee2e2",
                         color: type === "receipt" ? "#15803d" : "#b91c1c"
                       }}>
-                        {type === "receipt" ? `+₹${simpleAmt.toLocaleString("en-IN")}` : `-₹${simpleAmt.toLocaleString("en-IN")}`}
+                        {type === "receipt" ? `+â‚¹${simpleAmt.toLocaleString("en-IN")}` : `-â‚¹${simpleAmt.toLocaleString("en-IN")}`}
                       </span>
                     </>
                   )}
@@ -371,14 +371,14 @@ export default function VoucherModal({
                       </span>
                       {simpleAmt > 0 && (
                         <>
-                          <span style={{ fontSize: "13px", color: "#94a3b8" }}>→</span>
+                          <span style={{ fontSize: "13px", color: "#94a3b8" }}>â†’</span>
                           <span style={{ fontSize: "13px", fontWeight: 800, color: counterAfter >= 0 ? "#0f766e" : "#b91c1c" }}>{fmtBal(counterAfter)}</span>
                           <span style={{
                             fontSize: "11px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px",
                             background: type === "payment" ? "#dcfce7" : "#fee2e2",
                             color: type === "payment" ? "#15803d" : "#b91c1c"
                           }}>
-                            {type === "payment" ? `+₹${simpleAmt.toLocaleString("en-IN")}` : `-₹${simpleAmt.toLocaleString("en-IN")}`}
+                            {type === "payment" ? `+â‚¹${simpleAmt.toLocaleString("en-IN")}` : `-â‚¹${simpleAmt.toLocaleString("en-IN")}`}
                           </span>
                         </>
                       )}
@@ -418,7 +418,7 @@ export default function VoucherModal({
                   </>
                 )}
                 <div style={{ width: "130px" }}>
-                  <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px", color: "#64748b", letterSpacing: "0.06em" }}>Amount (₹)</label>
+                  <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px", color: "#64748b", letterSpacing: "0.06em" }}>Amount (â‚¹)</label>
                   <input
                     type="number"
                     value={simpleAmount}
@@ -445,12 +445,12 @@ export default function VoucherModal({
             />
           </div>
 
-          {error && <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px", fontWeight: 600 }}>⚠ {error}</div>}
+          {error && <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px", fontWeight: 600 }}>âš  {error}</div>}
         </div>
 
-        {/* ── Footer ── */}
+        {/* â”€â”€ Footer â”€â”€ */}
         <div style={{ padding: "12px 20px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: "11px", color: "#94a3b8" }}>Ctrl+S to save · Esc to close</span>
+          <span style={{ fontSize: "11px", color: "#94a3b8" }}>Ctrl+S to save Â· Esc to close</span>
           <button
             className="btn-primary"
             onClick={handleSave}
@@ -464,3 +464,4 @@ export default function VoucherModal({
     </div>
   );
 }
+

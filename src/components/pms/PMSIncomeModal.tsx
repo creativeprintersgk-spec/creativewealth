@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, FolderOpen } from 'lucide-react';
 import { getStoredPortfolios, getStoredLedgers, createVoucher, updateVoucher, deleteVoucher, getVoucherById, ensureLedgerExists, getStoredGroups } from '../../logic';
 
@@ -56,7 +56,7 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
     let finalBankId = bankLedgerId;
     if (!finalBankId) {
       const bankLedger = ledgers.find(l => l.name.toLowerCase().includes('bank')) || await ensureLedgerExists('Bank', 'bank');
-      finalBankId = bankLedger.id;
+      finalBankId = bankLedger?.id ?? "";
     }
 
     let tdsLedger = ledgers.find(l => l.name === 'TDS Receivable');
@@ -223,3 +223,4 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
     </div>
   );
 }
+

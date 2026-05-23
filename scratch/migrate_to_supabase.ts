@@ -59,7 +59,17 @@ async function migrate() {
   }
 
   console.log("  - Migrating Ledgers...");
-  for (const l of db.ledgers) {
+  const ledgersToMigrate = [...db.ledgers];
+  if (!ledgersToMigrate.some(l => l.id === 'TDS_Receivable')) {
+    ledgersToMigrate.push({
+      id: 'TDS_Receivable',
+      groupId: 'current_assets',
+      name: 'TDS Receivable',
+      openingBalance: 0,
+      openingType: 'DR'
+    });
+  }
+  for (const l of ledgersToMigrate) {
     const { error } = await supabase.from('ledgers').upsert({ id: l.id, group_id: l.groupId, name: l.name, opening_balance: l.openingBalance, opening_type: l.openingType });
     if (error) console.error(`Error in ledger ${l.id}:`, error.message);
   }

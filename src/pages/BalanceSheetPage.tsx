@@ -14,8 +14,12 @@ export default function BalanceSheetPage() {
   const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
   
   useEffect(() => {
-    if (!selectedAccountId && accounts.length > 0) {
-      setSelectedAccountId(accounts[0].id);
+    if (accounts.length > 0) {
+      if (!accounts.some(a => a.id === selectedAccountId)) {
+        setSelectedAccountId(accounts[0].id);
+      }
+    } else {
+      setSelectedAccountId('');
     }
   }, [accounts, selectedAccountId]);
 

@@ -1,28 +1,40 @@
-
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.VITE_SUPABASE_ANON_KEY!
+);
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-async function inspectData() {
-  const { data: families } = await supabase.from('families').select('*');
-  console.log('Families:', families);
+async function run() {
+  const { data, error } = await supabase
+    .from('capital_gains_summary')
+    .select('portfolio_id, gain_type, gain_loss')
+    .limit(10);
   
-  const { data: accounts } = await supabase.from('accounts').select('*');
-  console.log('Accounts:', accounts);
+  if (error) {
+    console.error(error);
+  } else {
+    console.log("Sample capital gains rows:", data);
+  }
 
-  const { data: ledgers } = await supabase.from('ledgers').select('*');
-  console.log('Ledgers:', ledgers?.map(l => ({ id: l.id, name: l.name, group: l.group_id })));
+  // Get count per portfolio_id
+  const { data: counts, error: countErr } = await supabase
+    .from('capital_gains_summary')
+    .select('portfolio_id');
+  
+  if (countErr) {
+    console.error(countErr);
+  } else {
+    const portfolioCounts: Record<string, number> = {};
+    counts.forEach((c: any) => {
+      portfolioCounts[c.portfolio_id] = (portfolioCounts[c.portfolio_id] || 0) + 1;
+    });
+    console.log("Capital Gains rows count per portfolio_id:", portfolioCounts);
+  }
 }
 
-inspectData();
+run().catch(console.error);

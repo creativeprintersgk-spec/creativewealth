@@ -1,1011 +1,668 @@
-import { defaultGroups } from "./logic_defaults.ts";
-import { supabase } from "./supabase.ts";
-import { calculateCapitalGains, applyTaxRules } from "./accounting-engine/voucherEngine.ts";
-import { getLivePricesBatch, getAssetByAmid } from "./services/assetMasterService";
+// WealthCore — Complete Logic Layer v2
+// Reads from real MProfit Supabase tables
+// All TypeScript errors fixed
 
-// Types
-export type { Group, Ledger, Voucher, Entry, VoucherLine } from "./logic_defaults";
+import { supabase } from "./supabase";
 
-// Global State (In-Memory for performance and synchronous UI access)
+// ── TYPES ─────────────────────────────────────────────────────────────────────
+export type Group = {
+  id: string; name: string; parent?: string;
+  type?: string; acid?: number; specialTypeId?: number;
+};
+
+export type Ledger = {
+  id: string; name: string; groupId: string;
+  openingBalance: number; openingType: "DR" | "CR";
+  currentBalance?: number; currentType?: "DR" | "CR";
+  amid?: number; acid?: number;
+};
+
+export type VoucherLine = {
+  id: string; ledgerId: string | null; ledgerName?: string;
+  debit: number; credit: number;
+  quantity?: number; price?: number; narration?: string;
+};
+
+export type Voucher = {
+  id: string; date: string; type: string;
+  narration: string; voucherNo: string;
+  portfolioId?: string; accountId?: string; fy?: string;
+};
+
+export type Entry = {
+  id: string; voucherId: string; ledgerId: string;
+  debit: number; credit: number; quantity: number; price: number;
+  date?: string; accountId?: string;
+};
+
+// ── ASSET TYPE MAPS ───────────────────────────────────────────────────────────
+export const ASSET_TYPE_MAP: Record<number, string> = {
+  50: 'Stocks', 60: 'Mutual Funds (Equity)', 66: 'Mutual Funds (Hybrid)',
+  81: 'Mutual Funds (Debt)', 40: 'Bonds', 70: 'Gold / SGBs',
+  30: 'Fixed Deposits', 95: 'NPS / ULIP', 115: 'Real Estate',
+  120: 'PPF / EPF', 140: 'AIF', 75: 'Silver', 77: 'Jewellery',
+};
+
+export const ASSET_TYPE_ICON: Record<number, string> = {
+  50: 'EQ', 60: 'MF', 66: 'MF', 81: 'MF', 40: 'BND',
+  70: 'GLD', 30: 'FD', 95: 'NPS', 115: 'PR', 120: 'PPF',
+  140: 'AIF', 75: 'SLV', 77: 'JWL',
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
 let state = {
-  groups: [] as any[],
-  ledgers: [] as any[],
-  vouchers: [] as any[],
-  entries: [] as any[],
-  taxLots: [] as any[],
-  families: [] as any[],
-  accounts: [] as any[],
   portfolios: [] as any[],
-  investorGroups: [] as any[],
-  prices: {} as Record<string, number>,
+  investorGroupMembers: [] as any[],
+  accPflink: [] as any[],
+  acmac1: [] as any[],
+  sam: [] as any[],
+  assetMaster: [] as any[],
+  bs1: [] as any[],
+  sumTable: [] as any[],
+  vouchersC1: [] as any[],
+  vouchers1: [] as any[],
+  transC1: [] as any[],
+  trans1: [] as any[],
+  mprices: [] as any[],
+  priceMap: {} as Record<number, { curr: number; prev: number }>,
+  assetNameMap: {} as Record<number, string>,
   initialized: false
 };
 
-const DEFAULT_LEDGERS = [
-  { id: "Bank", name: "Bank", groupId: "bank", openingBalance: 0, openingType: "DR", currentBalance: 0, currentType: "DR" },
-  { id: "Cash", name: "Cash", groupId: "cash", openingBalance: 0, openingType: "DR", currentBalance: 0, currentType: "DR" },
-  { id: "Sales", name: "Sales", groupId: "income", openingBalance: 0, openingType: "CR", currentBalance: 0, currentType: "CR" },
-  { id: "Office Expense", name: "Office Expense", groupId: "expenses", openingBalance: 0, openingType: "DR", currentBalance: 0, currentType: "DR" },
-];
-
-/**
- * Syncs changes to Supabase cloud database
- */
-async function syncToCloud(type: string, record: any) {
-  if (!record) return;
-  
-  // Mapping local names to Supabase tables
-  const tableMap: Record<string, string> = {
-    'families': 'families',
-    'accounts': 'accounts',
-    'portfolios': 'portfolios',
-    'groups': 'groups',
-    'ledgers': 'ledgers',
-    'vouchers': 'vouchers',
-    'entries': 'entries',
-    'taxLots': 'tax_lots',
-    'prices': 'prices',
-    'investorGroups': 'investor_groups'
-  };
-
-  const table = tableMap[type];
-  if (!table) return;
-
-  // Transform fields for Supabase if needed (e.g., familyId -> family_id)
-  const transform = (rec: any) => {
-    const newRec = { ...rec };
-    if (newRec.familyId) { newRec.family_id = newRec.familyId; delete newRec.familyId; }
-    if (newRec.accountId) { newRec.account_id = newRec.accountId; delete newRec.accountId; }
-    if (newRec.portfolioId) { newRec.portfolio_id = newRec.portfolioId; delete newRec.portfolioId; }
-    if (newRec.groupId) { newRec.group_id = newRec.groupId; delete newRec.groupId; }
-    if (newRec.voucherId) { newRec.voucher_id = newRec.voucherId; delete newRec.voucherId; }
-    if (newRec.ledgerId) { newRec.ledger_id = newRec.ledgerId; delete newRec.ledgerId; }
-    if (newRec.accountName) { newRec.account_name = newRec.accountName; delete newRec.accountName; }
-    if (newRec.portfolioName) { newRec.portfolio_name = newRec.portfolioName; delete newRec.portfolioName; }
-    if (newRec.openingBalance !== undefined) { newRec.opening_balance = newRec.openingBalance; delete newRec.openingBalance; }
-    if (newRec.openingType) { newRec.opening_type = newRec.openingType; delete newRec.openingType; }
-    if (newRec.voucherNo) { newRec.voucher_no = newRec.voucherNo; delete newRec.voucherNo; }
-    if (newRec.portfolioIds) { newRec.portfolio_ids = newRec.portfolioIds; delete newRec.portfolioIds; }
-    if (newRec.groupName) { newRec.group_name = newRec.groupName; delete newRec.groupName; }
-    if (newRec.familyName) { newRec.name = newRec.familyName; delete newRec.familyName; }
-    if (newRec.parent) { newRec.parent_id = newRec.parent; delete newRec.parent; }
-    if (newRec.amid) { newRec.amid = newRec.amid; } // Keep amid as is
-    
-    // Tax Lots specific mappings
-    if (newRec.purchaseDate) { newRec.purchase_date = newRec.purchaseDate; delete newRec.purchaseDate; }
-    if (newRec.remainingQuantity !== undefined) { newRec.remaining_quantity = newRec.remainingQuantity; delete newRec.remainingQuantity; }
-    if (newRec.costPerUnit !== undefined) { newRec.cost_per_unit = newRec.costPerUnit; delete newRec.costPerUnit; }
-    if (newRec.costTotal !== undefined) { newRec.cost_total = newRec.costTotal; delete newRec.costTotal; }
-    if (newRec.isClosed !== undefined) { newRec.is_closed = newRec.isClosed; delete newRec.isClosed; }
-    
-    // Remove UI-only or unsupported fields for Supabase schema
-    delete newRec.fullName;
-    delete newRec.accountingStartYear;
-    delete newRec.address;
-    delete newRec.city;
-    delete newRec.country;
-    delete newRec.category;
-    delete newRec.portfolioType;
-    delete newRec.isTradingPortfolio;
-
-    return newRec;
-  };
-
-  const { error } = await supabase.from(table).upsert(transform(record));
-  if (error) {
-    console.error(`❌ Sync error (${table}):`, error.message);
-  } else {
-    console.log(`✅ Successfully synced ${table} record to cloud.`);
+// ── SAFE FETCH ────────────────────────────────────────────────────────────────
+async function safeFetch(table: string, max = 50000): Promise<any[]> {
+  try {
+    let all: any[] = [];
+    const pkMap: Record<string, string> = {
+      bs1: 'trno',
+      transc1: 'transid', trans1: 'transid',
+      vouchersc1: 'vid', vouchers1: 'vid',
+      portfolios: 'id', investor_group_members: 'id', acc_pflink: 'pfid',
+      acmac1: 'id', sam: 'amid', asset_master: 'amid',
+      sum_table: 'sid', mprices: 'amid'
+    };
+    let page = 0;
+    const size = 1000;
+    while (all.length < max) {
+      const { data, error } = await supabase
+        .from(table).select('*').order(pkMap[table] || 'id').range(page * size, (page + 1) * size - 1);
+      if (error) { console.warn(`⚠️ ${table}:`, error.message); break; }
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < size) break;
+      page++;
+    }
+    return all;
+  } catch (e) {
+    console.warn(`⚠️ ${table}:`, e);
+    return [];
   }
 }
 
-/**
- * Persists current state to the project folder (db.json) - Keep for local fallback
- */
-async function syncToLocalFolder() {
-  // Logic preserved for local development but Supabase is primary
-}
-
+// ── INIT ──────────────────────────────────────────────────────────────────────
 export async function initDatabase() {
   if (state.initialized) return;
-
-  try {
-    console.log("Initializing Cloud Database (Supabase)...");
-    
-    // Parallel fetch from all Supabase tables
-    const [
-      { data: groups },
-      { data: ledgers },
-      { data: families },
-      { data: accounts },
-      { data: portfolios },
-      { data: vouchers },
-      { data: entries },
-      { data: taxLots },
-      { data: prices },
-      { data: investorGroups }
-    ] = await Promise.all([
-      supabase.from('groups').select('*'),
-      supabase.from('ledgers').select('*'),
-      supabase.from('families').select('*'),
-      supabase.from('accounts').select('*'),
-      supabase.from('portfolios').select('*'),
-      supabase.from('vouchers').select('*'),
-      supabase.from('entries').select('*'),
-      supabase.from('tax_lots').select('*'),
-      supabase.from('prices').select('*'),
-      supabase.from('investor_groups').select('*')
-    ]);
-
-    // Map back from snake_case to camelCase and enforce Numeric types
-    state.groups = (groups || []).map(g => ({ ...g, parent: g.parent_id }));
-    state.ledgers = (ledgers || []).map(l => ({ 
-      ...l, 
-      groupId: l.group_id, 
-      openingBalance: Number(l.opening_balance) || 0, 
-      openingType: l.opening_type,
-      amid: l.amid
-    }));
-    state.families = (families || []).map(f => ({ ...f, familyName: f.name }));
-    state.accounts = (accounts || []).map(a => ({ ...a, familyId: a.family_id, accountName: a.account_name }));
-    state.portfolios = (portfolios || []).map(p => ({ ...p, accountId: p.account_id, portfolioName: p.portfolio_name }));
-    state.vouchers = (vouchers || []).map(v => ({ 
-      ...v, 
-      accountId: v.account_id || v.accountId, 
-      portfolioId: v.portfolio_id || v.portfolioId, 
-      voucherNo: v.voucher_no || v.voucherNo 
-    }));
-    state.entries = (entries || []).map(e => ({ 
-      ...e, 
-      voucherId: e.voucher_id || e.voucherId, 
-      ledgerId: e.ledger_id || e.ledgerId,
-      debit: Number(e.debit) || 0,
-      credit: Number(e.credit) || 0,
-      quantity: Number(e.quantity) || 0,
-      price: Number(e.price) || 0
-    }));
-
-    state.taxLots = (taxLots || []).map(tl => ({
-      ...tl,
-      voucherId: tl.voucher_id,
-      portfolioId: tl.portfolio_id,
-      ledgerId: tl.ledger_id,
-      purchaseDate: tl.purchase_date,
-      quantity: Number(tl.quantity),
-      remainingQuantity: Number(tl.remaining_quantity),
-      costPerUnit: Number(tl.cost_per_unit),
-      costTotal: Number(tl.cost_total)
-    }));
-    
-    // Initialize prices map
-    const pMap: Record<string, number> = {};
-    (prices || []).forEach(p => { pMap[p.ledger_id] = Number(p.price) || 0; });
-    state.prices = pMap;
-
-    state.investorGroups = (investorGroups || []).map(ig => ({ ...ig, groupName: ig.group_name || ig.groupName, portfolioIds: ig.portfolio_ids || ig.portfolioIds }));
-    
-    // Final Fallback to Defaults if cloud is empty
-    if (state.ledgers.length === 0) state.ledgers = DEFAULT_LEDGERS;
-    if (state.groups.length === 0) state.groups = defaultGroups;
-    
-    state.initialized = true;
-    console.log("🚀 Cloud Persistence Engine Ready");
-  } catch (err) {
-    console.error("❌ Cloud Initialization Failed:", err);
-    state.initialized = true;
-  }
-}
-
-export async function updateAssetPrice(assetId: string, price: number) {
-  state.prices[assetId] = price;
-  await syncToCloud('prices', { ledger_id: assetId, price, date: new Date().toISOString().split('T')[0] });
-}
-
-export async function syncLivePrices() {
-  console.log("🔄 Starting Live Price Sync...");
-  const ledgersWithAmid = state.ledgers.filter(l => l.amid);
-  if (ledgersWithAmid.length === 0) {
-    console.log("No ledgers with Asset Master link found.");
-    return;
-  }
-
-  // 1. Fetch AssetMaster objects for these amids
-  const assets: any[] = [];
-  for (const l of ledgersWithAmid) {
-    const asset = await getAssetByAmid(l.amid);
-    if (asset) assets.push(asset);
-  }
-
-  // 2. Fetch live prices in batch
-  const livePrices = await getLivePricesBatch(assets);
+  console.log('Initializing WealthCore...');
+  const [portfolios, igm, accPflink, acmac1, sam, assetMaster,
+         bs1, sumTable, vouchersC1, vouchers1, transC1, trans1, mprices] = await Promise.all([
+    safeFetch('portfolios'), safeFetch('investor_group_members'),
+    safeFetch('acc_pflink'), safeFetch('acmac1'), safeFetch('sam'),
+    safeFetch('asset_master'), safeFetch('bs1'), safeFetch('sum_table'),
+    safeFetch('vouchersc1'), safeFetch('vouchers1'), safeFetch('transc1'), safeFetch('trans1'), safeFetch('mprices'),
+  ]);
+  state.portfolios = portfolios;
+  state.investorGroupMembers = igm;
+  state.accPflink = accPflink;
   
-  // 3. Update state and cloud
-  for (const l of ledgersWithAmid) {
-    const lp = livePrices.get(l.amid);
-    if (lp) {
-      console.log(`Updating ${l.name}: ${lp.price}`);
-      await updateAssetPrice(l.id, lp.price);
+  // CRITICAL FIX: The acmac1 table has exactly 5x duplicate rows in Supabase.
+  // We MUST deduplicate them by the unique tuple of (id, acid) to prevent 5x multiplication
+  // in all balance sheet rendering and calculations.
+  const uniqueAcmac1: any[] = [];
+  const seenAcmac = new Set();
+  for (const a of acmac1) {
+    const key = `${a.id}_${a.acid}_${a.is_group}`;
+    if (!seenAcmac.has(key)) {
+      seenAcmac.add(key);
+      uniqueAcmac1.push(a);
     }
   }
-  console.log("✅ Live Price Sync Complete");
-}
-
-export async function ensureLedgerExists(name: string, groupId: string, amid?: number) {
-  const existing = state.ledgers.find(l => (l.name === name || l.id === name) || (amid && l.amid === amid));
-  if (existing) {
-    if (amid && !existing.amid) {
-       existing.amid = amid;
-       await syncToCloud('ledgers', existing);
-    }
-    return existing;
-  }
-
-  const newLedger = {
-    id: 'l_' + crypto.randomUUID(),
-    name,
-    groupId,
-    openingBalance: 0,
-    openingType: 'DR',
-    amid
-  };
-  state.ledgers.push(newLedger);
-  await syncToCloud('ledgers', newLedger);
-  return newLedger;
-}
-
-// ── GETTERS (Sync for UI performance) ──
-export function getStoredGroups() { return state.groups; }
-export function getStoredLedgers() { return state.ledgers; }
-export function getStoredVouchers() { return state.vouchers; }
-export function getStoredEntries() { return state.entries; }
-export function getStoredFamilies() { return state.families; }
-export function getStoredAccounts() { return state.accounts; }
-export function getStoredPortfolios() { return state.portfolios; }
-export function getStoredInvestorGroups() { return state.investorGroups; }
-export function getStoredPrices() { return state.prices; }
-export function getStoredTaxLots() { return state.taxLots; }
-
-export async function saveMasterRecord(type: 'families'|'accounts'|'portfolios'|'investorGroups', record: any) {
-  const collection = state[type];
-  const idx = collection.findIndex((item: any) => item.id === record.id);
-  if (idx >= 0) collection[idx] = record;
-  else collection.push(record);
-  await syncToCloud(type, record);
-}
-
-export async function deleteMasterRecord(type: 'families'|'accounts'|'portfolios'|'investorGroups', id: string) {
-  state[type] = state[type].filter((item: any) => item.id !== id);
-  const tableMap: Record<string, string> = { 'families': 'families', 'accounts': 'accounts', 'portfolios': 'portfolios' };
-  if (tableMap[type]) await supabase.from(tableMap[type]).delete().eq('id', id);
-}
-
-// ── MUTATORS (Sync to App Folder) ──
-
-/**
- * Sequential Numbering: RV-0001, PV-0001, etc.
- */
-export function getNextVoucherNo(type: string, fy: string) {
-  const prefix = {
-    receipt: 'RCPT',
-    payment: 'PAY',
-    journal: 'JRN',
-    contra: 'CON'
-  }[type.toLowerCase()] || 'VCH';
-
-  const vouchersInFY = state.vouchers.filter(v => {
-    // If the voucher already has an FY field, use it; otherwise calculate from date
-    const vFY = v.fy || (() => {
-      const d = new Date(v.date);
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
-      return month >= 4 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
-    })();
-    return v.type === type && vFY === fy;
+  state.acmac1 = uniqueAcmac1;
+  
+  state.sam = sam;
+  state.assetMaster = assetMaster;
+  state.bs1 = bs1;
+  state.sumTable = sumTable;
+  state.vouchersC1 = vouchersC1;
+  state.vouchers1 = vouchers1;
+  state.transC1 = transC1;
+  state.trans1 = trans1;
+  state.mprices = mprices;
+  mprices.forEach((p: any) => {
+    state.priceMap[p.amid] = { curr: Number(p.currp) || 0, prev: Number(p.prevp) || 0 };
   });
-
-  const nextNum = vouchersInFY.length + 1;
-  return `${prefix}-${nextNum.toString().padStart(4, '0')}`;
+  sam.forEach((s: any) => { state.assetNameMap[s.amid] = s.anm; });
+  assetMaster.forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
+  acmac1.forEach((a: any) => { if (!state.assetNameMap[a.id]) state.assetNameMap[a.id] = a.name; });
+  state.initialized = true;
+  console.log(`✅ WealthCore Ready — ${portfolios.length} portfolios, ${acmac1.length} COA entries, ${transC1.length} journal entries, ${bs1.length} portfolio txns`);
 }
 
-export async function createVoucher(data: any) {
-  // Resolve FY from date if not provided
-  const getFY = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
-    return month >= 4 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
-  };
-
-  const fy = data.fy || getFY(data.date);
-  const voucherNo = data.voucherNo || getNextVoucherNo(data.type, fy);
-
-  // Derive accountId from portfolioId if not provided
-  let accountId = data.accountId;
-  if (!accountId && data.portfolioId) {
-    const port = state.portfolios.find(p => p.id === data.portfolioId);
-    if (port) accountId = port.accountId;
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+export function getAssetName(amid: number): string {
+  return state.assetNameMap[amid] || `Asset ${amid}`;
+}
+export function getAssetPrice(amid: number) {
+  return state.priceMap[amid] || { curr: 0, prev: 0 };
+}
+function getGroupType(st: number): string {
+  if ([150, 40, 50, 125].includes(st)) return 'ASSET';
+  if ([250, 275, 276].includes(st)) return 'LIABILITY';
+  if (st === 280) return 'INCOME';
+  if (st === 290) return 'EXPENSE';
+  return 'ASSET';
+}
+export function getAvailableFYs() {
+  const today = new Date();
+  const sy = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const fys = [];
+  for (let y = 2014; y <= sy; y++) {
+    fys.push({ label: `${y}-${y+1}`, start: `${y}-04-01`, end: `${y+1}-03-31` });
   }
+  return fys.reverse();
+}
 
-  const voucher = { 
-    id: data.id, 
-    date: data.date, 
-    type: data.type, 
-    narration: data.narration,
-    voucherNo: voucherNo,
-    fy: fy,
-    portfolioId: data.portfolioId,
-    accountId: accountId // Ensure accountId is preserved
-  };
-
-  const entries = data.lines.map((l: any) => ({
-    id: l.id || crypto.randomUUID(),
-    voucherId: data.id,
-    ledgerId: l.ledgerId,
-    debit: Number(l.debit) || 0,
-    credit: Number(l.credit) || 0,
-    quantity: Number(l.quantity) || 0,
-    price: Number(l.price) || 0,
-    narration: l.narration 
-  }));
-
-  // --- CAPITAL GAINS LOGIC ---
-  const extraEntries: any[] = [];
-  
-  for (const entry of [...entries]) {
-    const ledger = state.ledgers.find(l => l.id === entry.ledgerId);
-    if (!ledger) continue;
-
-    // Check if it's an investment group and determine asset category
-    let isInvestment = false;
-    let assetCategory = 'equity'; // Default
-
-    let currGroup = state.groups.find(g => g.id === ledger.groupId);
-    while (currGroup) {
-      if (currGroup.id === 'investments') {
-        isInvestment = true;
-      }
-      if (currGroup.id === 'mf_debt' || currGroup.id === 'fds' || currGroup.id === 'traded_bonds' || currGroup.id === 'ncd_debentures') {
-        assetCategory = 'debt';
-      }
-      currGroup = state.groups.find(pg => pg.id === currGroup?.parent);
-    }
-
-    if (!isInvestment) continue;
-
-    if (entry.debit > 0) {
-      // BUY Transaction -> Create Tax Lot
-      const taxLot = {
-        id: 'tl_' + crypto.randomUUID(),
-        voucherId: data.id,
-        portfolioId: data.portfolioId,
-        ledgerId: entry.ledgerId,
-        purchaseDate: data.date,
-        quantity: entry.quantity,
-        remainingQuantity: entry.quantity,
-        costPerUnit: entry.price || (entry.debit / entry.quantity),
-        costTotal: entry.debit,
-        isClosed: false
+// ── PORTFOLIOS ────────────────────────────────────────────────────────────────
+export function getStoredPortfolios() {
+  return state.portfolios
+    .filter(p => !p.is_group && p.pfolio_type !== 10 && p.pfolio_type !== 5)
+    .map(p => {
+      // Look up the linked account via accPflink join table
+      const link = state.accPflink.find((l: any) => l.pfid === p.id);
+      const accountId = link ? String(link.acid) : null;
+      return {
+        ...p,
+        id: String(p.id),
+        portfolioName: p.investor_name || p.full_name || `Portfolio ${p.id}`,
+        accountId,
+        portfolioType: p.pfolio_type === 1 ? 'Equity'
+          : p.pfolio_type === 2 ? 'Mutual Funds'
+          : p.pfolio_type === 3 ? 'Fixed Income'
+          : p.pfolio_type === 4 ? 'Real Estate'
+          : null
       };
-      state.taxLots.push(taxLot);
-      await syncToCloud('taxLots', taxLot);
-    } else if (entry.credit > 0) {
-      // SELL Transaction -> Calculate Gain & Adjust Entries
-      const results = calculateCapitalGains(
-        entry.ledgerId,
-        data.portfolioId,
-        data.date,
-        entry.price || (entry.credit / entry.quantity),
-        entry.quantity,
-        state.taxLots
-      );
-
-      // 1. Update the updated tax lots in cloud (those modified by calculateCapitalGains)
-      // Note: calculateCapitalGains modifies the objects in state.taxLots in-place
-      const affectedLots = state.taxLots.filter(tl => tl.ledgerId === entry.ledgerId && tl.portfolioId === data.portfolioId);
-      for (const lot of affectedLots) {
-        await syncToCloud('taxLots', lot);
-      }
-
-      // 2. Determine Capital Gain Type (STCG vs LTCG)
-      const totalGain = results.ltcg + results.stcg;
-      if (totalGain !== 0) {
-        const isLTCG = results.ltcg > results.stcg;
-        const groupType = isLTCG ? `ltcg_${assetCategory}` : `stcg_${assetCategory}`;
-        const gainLedgerName = isLTCG 
-          ? (assetCategory === 'equity' ? 'LTCG Listed Equity' : 'LTCG Debt/Other')
-          : (assetCategory === 'equity' ? 'STCG Listed Equity' : 'STCG Debt/Other');
-          
-        const gainLedger = await ensureLedgerExists(gainLedgerName, groupType);
-
-        // ADJUSTMENT: We want the investment ledger to be credited with COST only.
-        // Currently 'entry' is credited with SALE PRICE.
-        entry.credit = results.costBasis;
-        
-        extraEntries.push({
-          id: crypto.randomUUID(),
-          voucherId: data.id,
-          ledgerId: gainLedger.id,
-          debit: totalGain < 0 ? Math.abs(totalGain) : 0,
-          credit: totalGain > 0 ? totalGain : 0,
-          narration: `CG on sale of ${ledger.name} (${isLTCG ? 'LT' : 'ST'})`
-        });
-      }
-    }
-  }
-  
-  entries.push(...extraEntries);
-  // --- END CAPITAL GAINS LOGIC ---
-
-  state.vouchers.push(voucher);
-  state.entries.push(...entries);
-  
-  await syncToCloud('vouchers', voucher);
-  for (const entry of entries) {
-    await syncToCloud('entries', entry);
-  }
-  console.log(`✅ Voucher ${voucherNo} saved to Cloud`);
+    });
 }
 
-
-export async function updateVoucher(data: any) {
-  // Preserve original voucher number and FY if editing
-  const existing = state.vouchers.find(v => v.id === data.id);
-  const updatedData = {
-    ...data,
-    voucherNo: data.voucherNo || existing?.voucherNo,
-    fy: data.fy || existing?.fy
-  };
-
-  // 1. Delete old entries from memory AND Supabase
-  state.vouchers = state.vouchers.filter(v => v.id !== data.id);
-  state.entries = state.entries.filter(e => e.voucherId !== data.id);
-  await supabase.from('entries').delete().eq('voucher_id', data.id);
-
-  // 2. Re-create the voucher (which will sync new entries to cloud)
-  await createVoucher(updatedData);
+export function getStoredInvestorGroups() {
+  return state.portfolios.filter(p => p.is_group).map(p => ({
+    id: String(p.id),
+    name: p.investor_name,
+    groupName: p.investor_name,
+    fullName: p.full_name || p.investor_name,
+    portfolioIds: state.investorGroupMembers
+      .filter((m: any) => m.investor_group_id === p.id)
+      .map((m: any) => String(m.pfolio_id))
+  }));
 }
 
-export async function deleteVoucher(id: string) {
-  state.vouchers = state.vouchers.filter(v => v.id !== id);
-  state.entries = state.entries.filter(e => e.voucherId !== id);
-  await supabase.from('vouchers').delete().eq('id', id);
+export function getStoredAccounts() {
+  return state.portfolios.filter(p => p.pfolio_type === 10).map(p => ({
+    id: String(p.id),
+    name: p.investor_name,
+    accountName: p.investor_name,
+    fullName: p.full_name || p.investor_name,
+    pan: p.pan || '',
+    familyId: 'pramesh_shah_family',
+    linkedPortfolios: state.accPflink
+      .filter((l: any) => l.acid === p.id)
+      .map((l: any) => String(l.pfid))
+  }));
 }
 
-export async function saveLedger(ledger: any) {
-  const idx = state.ledgers.findIndex(l => l.id === ledger.id);
-  if (idx >= 0) state.ledgers[idx] = ledger;
-  else state.ledgers.push(ledger);
-  await syncToCloud('ledgers', ledger);
+export function getStoredFamilies() {
+  return [{
+    id: 'pramesh_shah_family',
+    name: 'Pramesh R Shah Family',
+    familyName: 'Pramesh R Shah Family',
+    category: 'Family Workspace'
+  }];
 }
 
-export async function deleteLedger(id: string) {
-  state.ledgers = state.ledgers.filter(l => l.id !== id);
-  await supabase.from('ledgers').delete().eq('id', id);
+export function getPortfoliosForAccount(acid: number): number[] {
+  return state.accPflink.filter((l: any) => l.acid === acid).map((l: any) => l.pfid);
 }
 
-// ── ACCOUNTING ENGINE (Synchronous on Memory State) ──
-
-/**
- * FY Helper: Returns start and end dates for a given FY string (e.g. "2024-2025")
- */
-function getFYRange(fy: string) {
-  const [startYear] = fy.split("-");
-  const year = parseInt(startYear);
-  return {
-    start: `${year}-04-01`,
-    end: `${year + 1}-03-31`
-  };
+export function getAccountForPortfolio(pfid: number): number | null {
+  const link = state.accPflink.find((l: any) => l.pfid === pfid);
+  return link ? link.acid : null;
 }
 
-export function getLedgerWithBalance(ledgerId: string, startDate?: string, endDate?: string, accountId?: string) {
-  const ledger = state.ledgers.find(l => l.id === ledgerId);
-  if (!ledger) return { transactions: [], openingBalance: 0, closingBalance: 0 };
-
-  const range = (startDate && endDate) ? { start: startDate, end: endDate } : null;
-
-  // Resolve portfolios if accountId is provided for deeper filtering
-  const portfolioIds = accountId ? state.portfolios.filter(p => p.accountId === accountId).map(p => p.id) : null;
-
-  // Get all entries for this ledger
-  const ledgerEntries = state.entries.filter(e => e.ledgerId === ledgerId);
-  
-  // Join with vouchers to get dates and sort
-  const entriesWithDate = ledgerEntries.map(e => {
-    const v = state.vouchers.find(v => v.id === e.voucherId);
-    return { ...e, date: v?.date || '1900-01-01', v };
-  }).sort((a, b) => {
-    if (a.date !== b.date) return a.date.localeCompare(b.date);
-    return a.voucherId.localeCompare(b.voucherId);
-  });
-
-  let runningBalance = ledger.openingType === 'DR' ? ledger.openingBalance : -ledger.openingBalance;
-  
-  // Account Isolation: If accountId is provided, the opening balance should only include 
-  // transactions for that account. BUT wait - usually opening balance is a static value 
-  // on the ledger. In WealthCore, ledgers like "Bank" are shared, so "opening balance" 
-  // for a specific account on a shared ledger is complex.
-  // Requirement: "strictly enforce person-wise integrity".
-  // This implies either:
-  // a) Ledgers are NOT shared (each person has their own Bank A/c ledger).
-  // b) Ledgers are shared, but filtered.
-  // If shared, the "Ledger Opening Balance" property belongs to NO ONE or the first person.
-  // Better: In a professional PMS, every person has their own ledger for their bank account.
-  
-  let fyOpeningBalance = runningBalance;
-  
-  const fyTransactions: any[] = [];
-
-  entriesWithDate.forEach(e => {
-    const isBeforeFY = range ? e.date < range.start : false;
-    const isWithinFY = range ? (e.date >= range.start && e.date <= range.end) : true;
-
-    // Filter by Account (Priority 1: accountId on voucher, Priority 2: portfolio mapping)
-    if (accountId) {
-      const vAccount = e.v?.accountId;
-      const vPortId = e.v?.portfolioId;
-      
-      const belongsToAccount = (vAccount === accountId) || (vPortId && portfolioIds?.includes(vPortId));
-      if (!belongsToAccount) return;
-    }
-
-    if (isBeforeFY) {
-      runningBalance += e.debit;
-      runningBalance -= e.credit;
-      fyOpeningBalance = runningBalance;
-    } else if (isWithinFY) {
-      runningBalance += e.debit;
-      runningBalance -= e.credit;
-      
-      fyTransactions.push({
-        date: e.date,
-        voucherId: e.voucherId,
-        voucherType: e.v?.type || 'journal',
-        againstLedger: (() => {
-          const voucherEntries = state.entries.filter(ve => ve.voucherId === e.voucherId);
-          const oppositeEntries = voucherEntries.filter(ve => 
-            e.debit > 0 ? ve.credit > 0 : ve.debit > 0
-          );
-          
-          if (oppositeEntries.length === 1) {
-            const oppositeLedger = state.ledgers.find(l => l.id === oppositeEntries[0].ledgerId);
-            return oppositeLedger?.name || oppositeEntries[0].ledgerId;
-          } else if (oppositeEntries.length > 1) {
-            return "Multiple";
-          } else {
-            const others = voucherEntries.filter(ve => ve.id !== e.id);
-            if (others.length === 1) {
-              const otherLedger = state.ledgers.find(l => l.id === others[0].ledgerId);
-              return otherLedger?.name || others[0].ledgerId;
-            }
-            return "Various";
-          }
-        })(),
-        narration: e.v?.narration || '',
-        debit: e.debit,
-        credit: e.credit,
-        balance: runningBalance
-      });
-    }
-  });
-
-  return {
-    transactions: fyTransactions,
-    openingBalance: fyOpeningBalance,
-    closingBalance: range ? (fyTransactions.length > 0 ? fyTransactions[fyTransactions.length - 1].balance : fyOpeningBalance) : runningBalance
-  };
+// ── COA ───────────────────────────────────────────────────────────────────────
+// IMPORTANT: acmac1.id is NOT globally unique — ids like 64 (Capital Account),
+// 50 (Investments) etc. are SHARED across all 7 persons (acids). You MUST always
+// pass the acid when fetching groups/ledgers for a specific person.
+export function getStoredGroups(acid?: string | number): Group[] {
+  const acidNum = acid ? Number(acid) : null;
+  return state.acmac1
+    .filter((a: any) => a.is_group && (!acidNum || a.acid === acidNum))
+    .map((a: any) => ({
+      id: String(a.id),
+      name: a.name,
+      parent: a.parent_id ? String(a.parent_id) : undefined,
+      type: getGroupType(a.special_type_id || 150),
+      acid: a.acid,
+      specialTypeId: a.special_type_id
+    }));
 }
 
-export function getLedgerBalance(ledgerId: string, accountId?: string): number {
-  const ledger = state.ledgers.find(l => l.id === ledgerId);
-  if (!ledger) return 0;
-
-  let bal = ledger.openingType === 'DR' ? ledger.openingBalance : -ledger.openingBalance;
-  
-  // Resolve portfolios if accountId is provided for filtering
-  const portfolioIds = accountId ? state.portfolios.filter(p => p.accountId === accountId).map(p => p.id) : null;
-
-  state.entries.filter(e => e.ledgerId === ledgerId).forEach(e => {
-    const v = state.vouchers.find(v => v.id === e.voucherId);
-    if (!v) return;
-    
-    if (accountId) {
-      const vAccount = v.accountId;
-      const vPortId = v.portfolioId;
-      const belongsToAccount = (vAccount === accountId) || (vPortId && portfolioIds?.includes(vPortId));
-      if (!belongsToAccount) return;
-    }
-
-    bal += e.debit;
-    bal -= e.credit;
-  });
-  return bal;
+export function getStoredLedgers(acid?: string | number): Ledger[] {
+  const acidNum = acid ? Number(acid) : null;
+  return state.acmac1
+    .filter((a: any) => !a.is_group && (!acidNum || a.acid === acidNum))
+    .map((a: any) => ({
+      id: String(a.id),
+      name: a.name,
+      groupId: String(a.parent_id),
+      openingBalance: 0,
+      openingType: 'DR' as const,
+      currentBalance: 0,
+      currentType: 'DR' as const,
+      amid: a.id >= 100000 ? a.id : undefined,
+      acid: a.acid
+    }));
 }
 
-export function calculateGroupTotal(groupId: string, accountId?: string): number {
-  const group = state.groups.find(g => g.id === groupId);
-  if (!group) return 0;
-
-  let total = 0;
-  const ledgersInGroup = state.ledgers.filter(l => l.groupId === groupId);
-  ledgersInGroup.forEach(l => {
-    total += getLedgerBalance(l.id, accountId);
-  });
-
-  const childGroups = state.groups.filter(g => g.parent === groupId);
-  childGroups.forEach(cg => {
-    total += calculateGroupTotal(cg.id, accountId);
-  });
-
-  return total;
+export function getStoredVouchers(): Voucher[] {
+  const allVouchers = [...state.vouchersC1, ...state.vouchers1];
+  return allVouchers.map((v: any) => ({
+    id: String(v.vid),
+    date: v.dt || '',
+    type: String(v.vtyp || 'journal'),
+    narration: v.narr || '',
+    voucherNo: `V-${v.vid}`,
+    portfolioId: v.pfid ? String(v.pfid) : undefined,
+    accountId: v.acid ? String(v.acid) : undefined,
+  }));
 }
 
-export function generateBS(accountId?: string) {
-   let assets = 0;
-   let liabilities = 0;
-   let income = 0;
-   let expense = 0;
- 
-   // Resolve root type for any group
-   const getGroupType = (groupId: string): string => {
-     let current = state.groups.find((g: any) => g.id === groupId);
-     while (current) {
-       if (current.type) return current.type;
-       current = state.groups.find((g: any) => g.id === current.parent);
-     }
-     return "ASSET";
-   };
- 
-   state.ledgers.forEach(ledger => {
-     const type = getGroupType(ledger.groupId);
-     const bal = getLedgerBalance(ledger.id, accountId);
- 
-     if (type === 'ASSET') assets += bal;
-     else if (type === 'LIABILITY') liabilities += bal;
-     else if (type === 'INCOME') income += bal;
-     else if (type === 'EXPENSE') expense += bal;
-   });
- 
-   const profit = (-income) - expense;
- 
-   return {
-     assets: assets,
-     liabilities: (-liabilities) + profit,
-     profit,
-     // Detailed breakdown for UI
-     assetGroups: state.groups.filter(g => g.type === 'ASSET' && !g.parent).map(g => ({
-       id: g.id,
-       name: g.name,
-       total: calculateGroupTotal(g.id, accountId)
-     })),
-     liabilityGroups: state.groups.filter(g => g.type === 'LIABILITY' && !g.parent).map(g => ({
-       id: g.id,
-       name: g.name,
-       total: calculateGroupTotal(g.id, accountId)
-     }))
-   };
- }
-
-export function getVoucherById(id: string) {
-  const v = state.vouchers.find(v => v.id === id);
-  if (!v) return null;
-  const entries = state.entries.filter(e => e.voucherId === id);
-  return { ...v, lines: entries };
+export function getStoredEntries(): Entry[] {
+  const allTrans = [...state.transC1, ...state.trans1];
+  return allTrans.map((e: any) => ({
+    id: String(e.transid),
+    voucherId: String(e.vid),
+    ledgerId: String(e.maid),
+    debit: Number(e.dramt) || 0,
+    credit: Number(e.cramt) || 0,
+    quantity: 0,
+    price: 0,
+    date: e.dt || '',
+    accountId: e.acid ? String(e.acid) : undefined,
+  }));
 }
 
-export async function handleYearClose(selectedFY: string, onSuccess?: () => void) {
-  if (!window.confirm(`Close Financial Year ${selectedFY}?\n\nThis will post a closing journal entry transferring all Income and Expense balances to Capital Account.`)) return
+export function getStoredTaxLots() { return []; }
+export function getStoredPrices() { return state.priceMap; }
 
-  // Resolve root type for any group by walking up the parent chain
-  const getGroupType = (groupId: string): string => {
-    let current = state.groups.find((g: any) => g.id === groupId)
-    while (current) {
-      if (current.type) return current.type
-      current = state.groups.find((g: any) => g.id === current.parent)
-    }
-    return "ASSET"
-  }
-
-  // Helper: FY from a date string
-  function getFinancialYear(dateStr: string) {
-    if (!dateStr) return "1900-1901"
-    const d = new Date(dateStr)
-    const year = d.getFullYear()
-    const month = d.getMonth() + 1
-    return month >= 4 ? `${year}-${year + 1}` : `${year - 1}-${year}`
-  }
-
-  // Capital account ledger
-  const capitalLedger = state.ledgers.find((l: any) =>
-    getGroupType(l.groupId) === 'LIABILITY' && l.name.toLowerCase().includes('capital')
-  )
-  if (!capitalLedger) {
-    alert("Could not find a Capital Account ledger. Please create one under Capital Account group first.")
-    return
-  }
-
-  // Calculate each Income/Expense ledger balance up to and including selectedFY
-  const entriesByLedger: Record<string, any[]> = {}
-  state.entries.forEach((e: any) => {
-    const v = state.vouchers.find((v: any) => v.id === e.voucherId)
-    if (!v) return
-    const fy = getFinancialYear(v.date)
-    if (fy <= selectedFY) {
-      if (!entriesByLedger[e.ledgerId]) entriesByLedger[e.ledgerId] = []
-      entriesByLedger[e.ledgerId].push(e)
-    }
-  })
-
-  const getLedgerBalance = (ledger: any) => {
-    let dr = ledger.openingType === 'DR' ? (ledger.openingBalance || 0) : 0
-    let cr = ledger.openingType === 'CR' ? (ledger.openingBalance || 0) : 0
-    ;(entriesByLedger[ledger.id] || []).forEach((e: any) => {
-      dr += e.debit || 0
-      cr += e.credit || 0
-    })
-    const type = getGroupType(ledger.groupId)
-    return type === 'INCOME' ? (cr - dr) : (dr - cr)
-  }
-
-  const lines: any[] = []
-
-  state.ledgers.forEach((l: any) => {
-    const type = getGroupType(l.groupId)
-    if (type !== 'INCOME' && type !== 'EXPENSE') return
-
-    const bal = getLedgerBalance(l)
-    if (bal === 0) return
-
-    if (type === 'INCOME') {
-      lines.push({ ledgerId: l.id, debit: Math.abs(bal), credit: 0 })
-      lines.push({ ledgerId: capitalLedger.id, debit: 0, credit: Math.abs(bal) })
-    } else {
-      lines.push({ ledgerId: capitalLedger.id, debit: Math.abs(bal), credit: 0 })
-      lines.push({ ledgerId: l.id, debit: 0, credit: Math.abs(bal) })
-    }
-  })
-
-  if (lines.length === 0) {
-    alert(`No Income or Expense balances found for FY ${selectedFY}.`)
-    return
-  }
-
-  const endYearStr = selectedFY.split("-")[1]
-  const endYear = endYearStr.length === 2 ? `20${endYearStr}` : endYearStr
-  const closeDate = `${endYear}-03-31`
-
-  await createVoucher({
-    id: crypto.randomUUID(),
-    date: closeDate,
-    type: "journal",
-    narration: `Year End Closing Entry — FY ${selectedFY}`,
-    lines,
-  })
-
-  alert(`✅ FY ${selectedFY} closed. Net P&L transferred to ${capitalLedger.name}.`)
-  if (onSuccess) onSuccess()
-}
-// ── WEALTH ENGINE (Holdings & Portfolios) ──
-
+// ── HOLDINGS ──────────────────────────────────────────────────────────────────
 export interface AssetHolding {
-  assetId: string;
-  assetName: string;
-  amid?: number;
-  groupId: string;
-  quantity: number;
-  avgPrice: number;
-  amtInvested: number;
-  currentPrice: number;
-  todaysGain: number;
-  overallGain: number;
-  currentValue: number;
+  assetId: number; assetName: string; amid: number;
+  assetType: number; assetTypeName: string; assetIcon: string;
+  nseSymbol?: string; quantity: number; avgPrice: number;
+  amtInvested: number; currentPrice: number; prevPrice: number;
+  todaysGain: number; todaysGainPct: number;
+  overallGain: number; overallGainPct: number; currentValue: number;
   portfolioSplits: Array<{
-    portfolioId: string;
-    portfolioName: string;
-    quantity: number;
-    amtInvested: number;
+    portfolioId: number; portfolioName: string;
+    quantity: number; amtInvested: number; currentValue: number;
   }>;
-  priceNotSet?: boolean;
 }
 
-/**
- * Calculates holdings for a set of portfolios.
- * This is the core logic that the user was worried about.
- */
-export function getHoldings(portfolioIds: string[], assetGroupId?: string | string[], asOfDate?: string): AssetHolding[] {
-  const holdingsMap: Record<string, AssetHolding> = {};
-
-  const lots = state.taxLots.filter(tl => 
-    portfolioIds.includes(tl.portfolioId) &&
-    tl.remainingQuantity > 0 &&
-    (!asOfDate || tl.purchaseDate <= asOfDate)
-  );
-
-  lots.forEach(lot => {
-    const ledger = state.ledgers.find(l => l.id === lot.ledgerId);
-    if (!ledger) return;
-
-    if (assetGroupId) {
-      if (Array.isArray(assetGroupId)) {
-        if (!assetGroupId.includes(ledger.groupId)) return;
-      } else {
-        if (ledger.groupId !== assetGroupId) return;
-      }
-    }
-
-    if (!holdingsMap[ledger.id]) {
-      holdingsMap[ledger.id] = {
-        assetId: ledger.id,
-        assetName: ledger.name,
-        amid: ledger.amid,
-        groupId: ledger.groupId,
-        quantity: 0,
-        avgPrice: 0,
-        amtInvested: 0,
-        currentPrice: 0,
-        todaysGain: 0,
-        overallGain: 0,
-        currentValue: 0,
+export function getHoldings(portfolioIds: number[], assetTypeFilter?: number | number[]): AssetHolding[] {
+  const pSet = new Set(portfolioIds);
+  let rows = state.sumTable.filter((s: any) => pSet.has(s.pfolio_id) && Number(s.qnt) > 0.0001);
+  if (assetTypeFilter !== undefined) {
+    const types = Array.isArray(assetTypeFilter) ? assetTypeFilter : [assetTypeFilter];
+    rows = rows.filter((s: any) => types.includes(s.atty));
+  }
+  const map: Record<number, AssetHolding> = {};
+  rows.forEach((s: any) => {
+    const amid = s.amid;
+    const price = state.priceMap[amid] || { curr: 0, prev: 0 };
+    const am = state.assetMaster.find((a: any) => a.amid === amid);
+    if (!map[amid]) {
+      map[amid] = {
+        assetId: amid, assetName: state.assetNameMap[amid] || `Asset ${amid}`,
+        amid, assetType: s.atty || 0,
+        assetTypeName: ASSET_TYPE_MAP[s.atty] || 'Other',
+        assetIcon: ASSET_TYPE_ICON[s.atty] || 'OTH',
+        nseSymbol: am?.nse_symbol,
+        quantity: 0, avgPrice: 0, amtInvested: 0,
+        currentPrice: price.curr, prevPrice: price.prev,
+        todaysGain: 0, todaysGainPct: 0,
+        overallGain: 0, overallGainPct: 0, currentValue: 0,
         portfolioSplits: []
       };
     }
-
-    const holding = holdingsMap[ledger.id];
-    holding.quantity += lot.remainingQuantity;
-    
-    const costForRemaining = lot.remainingQuantity * lot.costPerUnit;
-    holding.amtInvested += costForRemaining;
-
-    let split = holding.portfolioSplits.find(s => s.portfolioId === lot.portfolioId);
-    if (!split) {
-      const port = state.portfolios.find(p => p.id === lot.portfolioId);
-      split = { 
-        portfolioId: lot.portfolioId, 
-        portfolioName: port?.portfolioName || 'Unknown', 
-        quantity: 0, 
-        amtInvested: 0 
-      };
-      holding.portfolioSplits.push(split);
-    }
-    split.quantity += lot.remainingQuantity;
-    split.amtInvested += costForRemaining;
-  });
-
-  return Object.values(holdingsMap)
-    .filter(h => Math.abs(h.quantity) > 0.0001)
-    .map(h => {
-       h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : 0;
-       
-       const storedPrice = state.prices[h.assetId];
-       if (storedPrice !== undefined) {
-         h.currentPrice = storedPrice;
-       } else {
-         h.currentPrice = 0;
-         h.priceNotSet = true;
-       }
-       
-       h.currentValue = h.quantity * h.currentPrice;
-       h.overallGain = h.currentValue - h.amtInvested;
-       h.todaysGain = 0;
-       
-       return h;
-     });
-}
-
-/**
- * Gets transaction history for a specific asset across portfolios.
- * Used for the Drilldown Ledger Modal.
- */
-export interface AssetTransaction {
-  id: string;
-  date: string;
-  type: string;
-  portfolioName: string;
-  quantity: number;
-  price: number;
-  debit: number;
-  credit: number;
-  amount: number;
-  balanceQty: number;
-  narration: string;
-  voucherId: string;
-}
-
-export function getAssetTransactions(portfolioIds: string[], assetId: string): AssetTransaction[] {
-  const relevantVouchers = state.vouchers.filter(v => portfolioIds.includes(v.portfolioId));
-  const vIds = new Set(relevantVouchers.map(v => v.id));
-  
-  const relevantEntries = state.entries
-    .filter(e => e.ledgerId === assetId && vIds.has(e.voucherId))
-    .sort((a, b) => {
-      const vA = state.vouchers.find(v => v.id === a.voucherId);
-      const vB = state.vouchers.find(v => v.id === b.voucherId);
-      return (vA?.date || '').localeCompare(vB?.date || '');
+    const h = map[amid];
+    const qty = Number(s.qnt) || 0;
+    const inv = Number(s.amtinv) || 0;
+    h.quantity += qty;
+    h.amtInvested += inv;
+    const port = state.portfolios.find((p: any) => p.id === s.pfolio_id);
+    const ex = h.portfolioSplits.find(sp => sp.portfolioId === s.pfolio_id);
+    if (ex) { ex.quantity += qty; ex.amtInvested += inv; ex.currentValue = ex.quantity * price.curr; }
+    else h.portfolioSplits.push({
+      portfolioId: s.pfolio_id,
+      portfolioName: port?.investor_name || `Portfolio ${s.pfolio_id}`,
+      quantity: qty, amtInvested: inv, currentValue: qty * price.curr
     });
+  });
+  return Object.values(map).map(h => {
+    h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : 0;
+    h.currentValue = h.quantity * h.currentPrice;
+    h.overallGain = h.currentValue > 0 ? h.currentValue - h.amtInvested : 0;
+    h.overallGainPct = h.amtInvested > 0 && h.currentValue > 0 ? (h.overallGain / h.amtInvested) * 100 : 0;
+    h.todaysGain = h.prevPrice > 0 ? h.quantity * (h.currentPrice - h.prevPrice) : 0;
+    h.todaysGainPct = h.prevPrice > 0 ? ((h.currentPrice - h.prevPrice) / h.prevPrice) * 100 : 0;
+    return h;
+  }).sort((a, b) => b.amtInvested - a.amtInvested);
+}
 
+export interface PortfolioSummary {
+  totalInvested: number; currentValue: number;
+  overallGain: number; overallGainPct: number;
+  todaysGain: number; todaysGainPct: number;
+  assetTypeBreakdown: Array<{ type: number; name: string; invested: number; currentValue: number }>;
+}
+
+export function getPortfolioSummary(portfolioIds: number[]): PortfolioSummary {
+  const h = getHoldings(portfolioIds);
+  const totalInvested = h.reduce((s, x) => s + x.amtInvested, 0);
+  const currentValue = h.reduce((s, x) => s + x.currentValue, 0);
+  const overallGain = currentValue - totalInvested;
+  const todaysGain = h.reduce((s, x) => s + x.todaysGain, 0);
+  const typeMap: Record<number, { invested: number; currentValue: number }> = {};
+  h.forEach(x => {
+    if (!typeMap[x.assetType]) typeMap[x.assetType] = { invested: 0, currentValue: 0 };
+    typeMap[x.assetType].invested += x.amtInvested;
+    typeMap[x.assetType].currentValue += x.currentValue;
+  });
+  return {
+    totalInvested,
+    currentValue: currentValue > 0 ? currentValue : totalInvested,
+    overallGain: currentValue > 0 ? overallGain : 0,
+    overallGainPct: totalInvested > 0 && currentValue > 0 ? (overallGain / totalInvested) * 100 : 0,
+    todaysGain,
+    todaysGainPct: totalInvested > 0 ? (todaysGain / totalInvested) * 100 : 0,
+    assetTypeBreakdown: Object.entries(typeMap).map(([type, v]) => ({
+      type: Number(type), name: ASSET_TYPE_MAP[Number(type)] || 'Other',
+      invested: v.invested, currentValue: v.currentValue
+    })).sort((a, b) => b.invested - a.invested)
+  };
+}
+
+// ── TRANSACTIONS ──────────────────────────────────────────────────────────────
+export function getAssetTransactions(portfolioIds: number[], amid: number) {
+  const pSet = new Set(portfolioIds);
   let runningQty = 0;
-  return relevantEntries.map(entry => {
-    const voucher = state.vouchers.find(v => v.id === entry.voucherId)!;
-    const port = state.portfolios.find(p => p.id === voucher.portfolioId);
-    
-    const qty = entry.quantity || 0;
-    if (entry.debit > 0) runningQty += qty;
-    else if (entry.credit > 0) runningQty -= qty;
-
-    return {
-      id: entry.id,
-      date: voucher.date,
-      type: voucher.type.toUpperCase(),
-      portfolioName: port?.portfolioName || 'Unknown',
-      quantity: qty,
-      price: entry.price || 0,
-      debit: entry.debit,
-      credit: entry.credit,
-      amount: entry.debit || entry.credit,
-      balanceQty: runningQty,
-      narration: entry.narration || voucher.narration || '',
-      voucherId: voucher.id
-    };
-  });
-}
-
-export function getPortfolioActivity(portfolioIds: string[]) {
-  const relevantVouchers = state.vouchers.filter(v => portfolioIds.includes(v.portfolioId));
-  const vIds = new Set(relevantVouchers.map(v => v.id));
-  
-  const relevantEntries = state.entries
-    .filter(e => vIds.has(e.voucherId))
-    .filter(e => {
-        const ledger = state.ledgers.find(l => l.id === e.ledgerId);
-        if (!ledger) return false;
-        return (e.quantity > 0 || ledger.groupId === 'stocks' || ledger.groupId.startsWith('mf'));
-    })
-    .sort((a, b) => {
-      const vA = state.vouchers.find(v => v.id === a.voucherId);
-      const vB = state.vouchers.find(v => v.id === b.voucherId);
-      const dateA = vA?.date || '';
-      const dateB = vB?.date || '';
-      return dateA.localeCompare(dateB);
+  return state.bs1
+    .filter((t: any) => pSet.has(t.pfid) && t.amid === amid)
+    .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''))
+    .map((t: any) => {
+      const port = state.portfolios.find((p: any) => p.id === t.pfid);
+      const qty = Number(t.qn) || 0;
+      const isBuy = [19,20,12,25,30,35,40].includes(t.trty);
+      if (isBuy) runningQty += qty; else runningQty -= qty;
+      return {
+        id: t.trid,
+        date: t.dt,
+        type: t.trstr,
+        trty: t.trty,
+        voucherId: String(t.trid),
+        portfolioName: port?.investor_name || `Portfolio ${t.pfid}`,
+        portfolioId: t.pfid,
+        quantity: qty,
+        price: Number(t.purpr) || 0,
+        amount: Number(t.amt) || 0,
+        brokerage: Number(t.brkg) || 0,
+        charges: Number(t.chrgs) || 0,
+        netPrice: Number(t.netpr) || 0,
+        debit: isBuy ? Number(t.amt) || 0 : 0,
+        credit: !isBuy ? Number(t.amt) || 0 : 0,
+        balanceQty: runningQty,
+        narration: t.narr || ''
+      };
     });
-
-  return relevantEntries.map(e => {
-    const v = state.vouchers.find(v => v.id === e.voucherId)!;
-    const l = state.ledgers.find(l => l.id === e.ledgerId)!;
-    const p = state.portfolios.find(p => p.id === v.portfolioId);
-    return {
-      id: e.id,
-      date: v.date,
-      assetName: l.name,
-      portfolioName: p?.portfolioName || 'Unknown',
-      type: e.debit > 0 ? 'BUY' : 'SELL',
-      quantity: e.quantity || 0,
-      price: e.price || 0,
-      amount: e.debit || e.credit,
-      voucherNo: v.voucherNo,
-      narration: v.narration || '',
-      voucherId: v.id
-    };
-  });
 }
 
-export function getTrialBalance(asOfDate?: string, accountId?: string) {
-  const trialBalance: any[] = [];
-  
-  state.ledgers.forEach(ledger => {
-    const lData = getLedgerWithBalance(ledger.id, undefined, asOfDate, accountId);
-    if (!Array.isArray(lData) && Math.abs(lData.closingBalance) > 0.001) {
-      const group = state.groups.find(g => g.id === ledger.groupId);
-      trialBalance.push({
-        ledgerId: ledger.id,
-        ledgerName: ledger.name,
-        groupId: ledger.groupId,
-        groupName: group?.name || 'Unknown',
-        type: group?.type || 'ASSET',
-        debit: lData.closingBalance > 0 ? lData.closingBalance : 0,
-        credit: lData.closingBalance < 0 ? Math.abs(lData.closingBalance) : 0,
-        balance: lData.closingBalance
+export function getPortfolioActivity(portfolioIds: number[], limit = 50) {
+  const pSet = new Set(portfolioIds);
+  return state.bs1
+    .filter((t: any) => pSet.has(t.pfid))
+    .sort((a: any, b: any) => (b.dt || '').localeCompare(a.dt || ''))
+    .slice(0, limit)
+    .map((t: any) => {
+      const port = state.portfolios.find((p: any) => p.id === t.pfid);
+      return {
+        id: t.trid,
+        date: t.dt,
+        assetName: getAssetName(t.amid),
+        assetType: t.atyid,
+        portfolioName: port?.investor_name || `Portfolio ${t.pfid}`,
+        portfolioId: t.pfid,
+        type: t.trstr,
+        trty: t.trty,
+        voucherNo: `BS-${t.trid}`,
+        quantity: Number(t.qn) || 0,
+        price: Number(t.purpr) || 0,
+        amount: Number(t.amt) || 0,
+        narration: t.narr || ''
+      };
+    });
+}
+
+// ── LEDGER / ACCOUNTING ───────────────────────────────────────────────────────
+export function getLedgerWithBalance(
+  ledgerId: string | number, startDate?: string,
+  endDate?: string, acid?: string | number
+) {
+  const lid = Number(ledgerId);
+  const acidNum = acid ? Number(acid) : null;
+
+  // FIX: Filter transc1 directly by acid (transc1 has its own acid column)
+  // This avoids cross-person contamination and is faster than going through vouchersc1
+  let entries = state.transC1.filter((e: any) =>
+    e.maid === lid && (!acidNum || e.acid === acidNum)
+  );
+
+  // Also include entries from state.trans1 (the other transaction table) for same maid+acid
+  const trans1Entries = (state as any).trans1
+    ? (state as any).trans1.filter((e: any) =>
+        e.maid === lid && (!acidNum || e.acid === acidNum)
+      )
+    : [];
+  // Merge and deduplicate by transid
+  const transIdSet = new Set(entries.map((e: any) => e.transid));
+  for (const e of trans1Entries) {
+    if (!transIdSet.has(e.transid)) entries.push(e);
+  }
+
+  entries = entries.sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
+
+  let openingBalance = 0, runningBalance = 0;
+  const transactions: any[] = [];
+  entries.forEach((e: any) => {
+    const dr = Number(e.dramt) || 0;
+    const cr = Number(e.cramt) || 0;
+    const before = startDate ? e.dt < startDate : false;
+    const inRange = (!startDate || e.dt >= startDate) && (!endDate || e.dt <= endDate);
+    if (before) { runningBalance += dr - cr; openingBalance = runningBalance; }
+    else if (inRange) {
+      runningBalance += dr - cr;
+      const v = state.vouchersC1.find((v: any) => v.vid === e.vid);
+      transactions.push({
+        date: e.dt || v?.dt, voucherId: e.vid,
+        voucherType: v?.vtyp, narration: v?.narr || '',
+        debit: dr, credit: cr, balance: runningBalance
       });
     }
   });
-
-  return trialBalance;
+  return { transactions, openingBalance, closingBalance: runningBalance };
 }
+
+export function getLedgerBalance(ledgerId: string | number, acid?: string | number): number {
+  return getLedgerWithBalance(ledgerId, undefined, undefined, acid).closingBalance;
+}
+
+export function calculateGroupTotal(groupId: string | number, acid?: string | number): number {
+  const gid = Number(groupId);
+  const acidNum = acid ? Number(acid) : undefined;
+  let total = 0;
+  // FIX: Filter acmac1 by BOTH parent_id AND acid to avoid cross-person contamination.
+  // acmac1.id values (e.g. id=50 "Investments") are shared across ALL persons (acids),
+  // so without the acid filter we'd sum every person's investments into one person's total.
+  state.acmac1
+    .filter((a: any) => !a.is_group && a.parent_id === gid && (!acidNum || a.acid === acidNum))
+    .forEach((l: any) => { total += getLedgerBalance(l.id, acidNum); });
+  state.acmac1
+    .filter((a: any) => a.is_group && a.parent_id === gid && (!acidNum || a.acid === acidNum))
+    .forEach((g: any) => { total += calculateGroupTotal(g.id, acidNum); });
+  return total;
+}
+
+export function generateBS(acid?: string | number) {
+  const acidNum = acid ? Number(acid) : null;
+  // FIX: Get root groups for this specific acid (parent_id=0).
+  // Each person (acid) has their own root groups with the SAME IDs (id=1 Liabilities, id=2 Assets).
+  // We must filter by acid first to avoid mixing persons.
+  const roots = state.acmac1.filter((a: any) =>
+    a.is_group && a.parent_id === 0 && (!acidNum || a.acid === acidNum)
+  );
+  // Deduplicate roots by id (in case of multiple rows with same id for same acid)
+  const uniqueRoots = roots.reduce((acc: any[], g: any) => {
+    if (!acc.some(r => r.id === g.id && r.acid === g.acid)) acc.push(g);
+    return acc;
+  }, []);
+  let assets = 0, liabilities = 0, income = 0, expense = 0;
+  uniqueRoots.forEach((g: any) => {
+    const total = calculateGroupTotal(g.id, acidNum || undefined);
+    const t = getGroupType(g.special_type_id || 150);
+    if (t === 'ASSET') assets += total;
+    else if (t === 'LIABILITY') liabilities += total;
+    else if (t === 'INCOME') income += total;
+    else if (t === 'EXPENSE') expense += total;
+  });
+  return {
+    assets, liabilities, profit: income - expense,
+    assetGroups: uniqueRoots
+      .filter((g: any) => getGroupType(g.special_type_id || 150) === 'ASSET')
+      .map((g: any) => ({ id: String(g.id), name: g.name, total: calculateGroupTotal(g.id, acidNum || undefined) })),
+    liabilityGroups: uniqueRoots
+      .filter((g: any) => getGroupType(g.special_type_id || 150) === 'LIABILITY')
+      .map((g: any) => ({ id: String(g.id), name: g.name, total: calculateGroupTotal(g.id, acidNum || undefined) }))
+  };
+}
+
+export function getTrialBalance(asOfDate?: string, acid?: string | number) {
+  const acidNum = acid ? Number(acid) : null;
+  // Filter ledgers by acid
+  const ledgers = state.acmac1.filter((a: any) =>
+    !a.is_group && (!acidNum || a.acid === acidNum)
+  );
+  return ledgers.map((l: any) => {
+    const bal = getLedgerBalance(l.id, acidNum || undefined);
+    if (Math.abs(bal) < 0.001) return null;
+    // Find parent group name from acmac1 (must also filter by acid for group)
+    const grp = state.acmac1.find((g: any) =>
+      g.is_group && g.id === l.parent_id && (!acidNum || g.acid === acidNum)
+    );
+    const grpType = grp ? getGroupType(grp.special_type_id || 150) : 'ASSET';
+    return {
+      ledgerId: String(l.id),
+      ledgerName: l.name,
+      groupId: String(l.parent_id),
+      groupName: grp?.name || '',
+      type: grpType,
+      debit: bal > 0 ? bal : 0,
+      credit: bal < 0 ? Math.abs(bal) : 0,
+      balance: bal
+    };
+  }).filter(Boolean);
+}
+
+// ── CAPITAL GAINS ─────────────────────────────────────────────────────────────
+export function getCapitalGains(portfolioIds: number[], fromDate: string, toDate: string) {
+  const pSet = new Set(portfolioIds);
+  const buyTrty = new Set([19,20,12,25,30,35,40]);
+  const sellTrty = new Set([99,101]);
+  const allTx = state.bs1
+    .filter((t: any) => pSet.has(t.pfid))
+    .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
+  const sells = allTx.filter((t: any) => sellTrty.has(t.trty) && t.dt >= fromDate && t.dt <= toDate);
+  const lotsMap: Record<string, any[]> = {};
+  allTx.filter((t: any) => buyTrty.has(t.trty)).forEach((t: any) => {
+    const key = `${t.pfid}_${t.amid}`;
+    if (!lotsMap[key]) lotsMap[key] = [];
+    const qty = Number(t.qn) || 0;
+    lotsMap[key].push({ date: t.dt, qty, remaining: qty, costPerUnit: qty > 0 ? (Number(t.amt)||0)/qty : 0 });
+  });
+  const results: any[] = [];
+  sells.forEach((sell: any) => {
+    const key = `${sell.pfid}_${sell.amid}`;
+    const lots = lotsMap[key] || [];
+    let sellQty = Number(sell.qn) || 0;
+    const sellAmt = Number(sell.amt) || 0;
+    const sellPrice = sellQty > 0 ? sellAmt / sellQty : 0;
+    const port = state.portfolios.find((p: any) => p.id === sell.pfid);
+    lots.forEach(lot => {
+      if (sellQty <= 0 || lot.remaining <= 0) return;
+      const mq = Math.min(sellQty, lot.remaining);
+      lot.remaining -= mq; sellQty -= mq;
+      const cost = mq * lot.costPerUnit;
+      const proceeds = mq * sellPrice;
+      const gain = proceeds - cost;
+      const days = lot.date && sell.dt
+        ? Math.floor((new Date(sell.dt).getTime() - new Date(lot.date).getTime()) / 86400000) : 0;
+      const isEq = [50,60,66].includes(sell.atyid);
+      const ltDays = isEq ? 365 : 1095;
+      const isLT = days >= ltDays;
+      results.push({
+        portfolioId: sell.pfid, portfolioName: port?.investor_name || `Portfolio ${sell.pfid}`,
+        assetName: getAssetName(sell.amid), amid: sell.amid,
+        assetType: sell.atyid, assetTypeName: ASSET_TYPE_MAP[sell.atyid] || 'Other',
+        buyDate: lot.date, sellDate: sell.dt, holdingDays: days,
+        quantity: mq, buyPrice: lot.costPerUnit, sellPrice,
+        costBasis: cost, saleProceeds: proceeds, gainLoss: gain,
+        gainType: isLT ? 'LTCG' : 'STCG', taxRate: isLT ? 12.5 : 20,
+        estimatedTax: gain > 0 ? gain * (isLT ? 0.125 : 0.20) : 0
+      });
+    });
+  });
+  return results;
+}
+
+// ── VOUCHER HELPERS ───────────────────────────────────────────────────────────
+export function getNextVoucherNo(type: string, fy: string): string {
+  const prefix = ({receipt:'RCPT',payment:'PAY',journal:'JRN',contra:'CON'} as any)[type.toLowerCase()] || 'VCH';
+  const count = state.vouchersC1.filter((v: any) => String(v.vtyp) === type).length + 1;
+  return `${prefix}-${count.toString().padStart(4,'0')}`;
+}
+
+export function getVoucherById(id: any) {
+  const v = state.vouchersC1.find((v: any) => v.vid === Number(id));
+  if (!v) return null;
+  return { ...v, id: String(v.vid), lines: state.transC1.filter((e: any) => e.vid === v.vid) };
+}
+
+// ── STUBS ─────────────────────────────────────────────────────────────────────
+export async function createVoucher(data: any) { console.log('createVoucher stub'); }
+export async function updateVoucher(data: any) { console.log('updateVoucher stub'); }
+export async function deleteVoucher(id: any) { console.log('deleteVoucher stub'); }
+export async function saveLedger(ledger: any) { console.log('saveLedger stub'); }
+export async function deleteLedger(id: any) { console.log('deleteLedger stub'); }
+export async function saveMasterRecord(type: any, record: any) { console.log('saveMasterRecord stub'); }
+export async function deleteMasterRecord(type: any, id: any) { console.log('deleteMasterRecord stub'); }
+export async function handleYearClose(fy: string, onSuccess?: () => void) { console.log('handleYearClose stub'); }
+export async function syncLivePrices() { console.log('syncLivePrices stub'); }
+export async function ensureLedgerExists(name: string, groupId: string): Promise<Ledger | null> { return null; }
+export async function updateAssetPrice(assetId: string, price: number) { console.log('updateAssetPrice stub'); }

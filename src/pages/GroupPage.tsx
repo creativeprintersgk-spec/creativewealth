@@ -15,6 +15,12 @@ export default function GroupPage() {
   const groups = getStoredGroups();
   const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
+  useEffect(() => {
+    if (selectedAccountId && !accounts.some(a => a.id === selectedAccountId)) {
+      setSelectedAccountId('');
+    }
+  }, [accounts, selectedAccountId]);
+
   const group = groups.find(item => item.id === groupId);
   const subGroups = groups.filter(g => g.parent === groupId);
   const groupLedgers = ledgers.filter(l => l.groupId === groupId);

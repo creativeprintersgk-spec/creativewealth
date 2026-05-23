@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+﻿import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFamily } from '../contexts/FamilyContext';
 import { useFY } from '../FYContext';
@@ -34,52 +34,73 @@ import PMSTransactionModal from '../components/pms/PMSTransactionModal';
 import PMSIncomeModal from '../components/pms/PMSIncomeModal';
 import PMSPriceModal from '../components/pms/PMSPriceModal';
 
-const ASSET_TYPE_MAP: Record<string, string | string[] | undefined> = {
-  all: undefined,
-  stocks: 'stocks',
-  mf: ['mf_equity', 'mf_debt'], 
-  special_inv_funds: 'special_inv_funds',
-  nps: 'nps_uup',
-  insurance: 'insurance_asset',
-  private_equity: 'private_equity',
-  fds: 'fds',
-  bonds: 'traded_bonds',
-  ncd: 'ncd_debentures',
-  deposits_loans: 'deposits_loans',
-  ppf: 'ppf_epf',
-  post: 'post_office',
-  gold: 'gold',
-  silver: 'silver',
-  jewellery: 'jewellery',
-  properties: 'property',
-  art: 'art',
-  aif: 'aif',
-  loans: 'loans_asset',
+// Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
+const ASSET_TYPE_TABS = [
+  'all', 'stocks', 'mf', 'nps', 'insurance', 'private_equity',
+  'fds', 'bonds', 'ncd', 'deposits_loans', 'ppf', 'post',
+  'gold', 'silver', 'jewellery', 'properties', 'art', 'aif', 'loans', 'special_inv_funds'
+] as const;
+
+const ASSET_TAB_LABELS: Record<string, string> = {
+  all:              'All Assets',
+  stocks:           'Stocks',
+  mf:               'Mutual Funds',
+  nps:              'NPS / ULiP',
+  insurance:        'Insurance',
+  fds:              'Fixed Deposits',
+  bonds:            'Traded Bonds',
+  ncd:              'NCD / Debentures',
+  deposits_loans:   'Deposits / Loans',
+  ppf:              'PPF / EPF',
+  post:             'Post Office',
+  gold:             'Gold',
+  silver:           'Silver',
+  jewellery:        'Jewellery',
+  properties:       'Properties',
+  art:              'Art',
+  private_equity:   'Private Equity',
+  special_inv_funds:'Special Inv. Funds',
+  aif:              'AIF',
+  loans:            'Loans',
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  stocks: 'Stocks',
-  mf_equity: 'Mutual Funds (Equity)',
-  mf_debt: 'Mutual Funds (Debt)',
-  pms_aif: 'PMS / AIF',
-  aif: 'AIF',
-  nps_uup: 'NPS / ULiP',
-  insurance_asset: 'Insurance',
-  fds: 'Fixed Deposits',
-  traded_bonds: 'Traded Bonds',
-  ncd_debentures: 'NCD / Debentures',
-  deposits_loans: 'Deposits / Loans',
-  ppf_epf: 'PPF / EPF',
-  post_office: 'Post Office',
-  gold: 'Gold',
-  silver: 'Silver',
-  property: 'Properties',
-  jewellery: 'Jewellery',
-  art: 'Art',
-  private_equity: 'Private Equity',
-  special_inv_funds: 'Special Inv. Funds',
-  stock_in_trade: 'Stock in Trade',
-  loans_asset: 'Loans',
+// Category labels for HoldingsGrid grouping (based on atty numbers)
+const CATEGORY_LABELS: Record<number, string> = {
+  50:  'Stocks',
+  60:  'Mutual Funds (Equity)',
+  61:  'Mutual Funds (Debt)',
+  62:  'Mutual Funds (Other)',
+  70:  'NPS / ULiP',
+  80:  'Insurance',
+  90:  'Fixed Deposits',
+  100: 'Traded Bonds',
+  110: 'NCD / Debentures',
+  120: 'Deposits / Loans',
+  130: 'PPF / EPF',
+  140: 'Post Office',
+  150: 'Gold',
+  151: 'Silver',
+  160: 'Properties',
+  170: 'Jewellery',
+  180: 'Art',
+  190: 'Private Equity',
+  200: 'Special Inv. Funds',
+  210: 'AIF',
+  220: 'Loans',
+};
+
+const ATTY_MAP: Record<string, number[] | undefined> = {
+  stocks:             [50],
+  mf:                 [60, 66, 81],
+  nps:                [95],
+  fds:                [30],
+  bonds:              [40],
+  gold:               [70],
+  silver:             [75],
+  jewellery:          [77],
+  properties:         [115],
+  ppf:                [120],
+  aif:                [140],
 };
 
 export default function PMSWorkspace() {
@@ -102,9 +123,8 @@ export default function PMSWorkspace() {
   }, [openTabIds]);
 
   useEffect(() => {
-    // Reset tabs when family changes, but maybe keep them if they are common?
-    // For now, let's keep them but ensure they are still valid
-    // setOpenTabIds(['all']);
+    setOpenTabIds(['all']);
+    setActiveTab('all');
   }, [activeFamily?.id]);
 
   const [selectedHolding, setSelectedHolding] = useState<AssetHolding | null>(null);
@@ -130,7 +150,7 @@ export default function PMSWorkspace() {
   }, []);
 
   const accounts = useMemo(() => getStoredAccounts().filter(a => a.familyId === activeFamily?.id), [activeFamily?.id]);
-  const portfolios = useMemo(() => getStoredPortfolios().filter(p => accounts.some(acc => acc.id === p.accountId)), [accounts]);
+  const portfolios = useMemo(() => getStoredPortfolios().filter(p => String(p.client_id) === activeFamily?.id), [activeFamily?.id]);
   const groups = useMemo(() => getStoredInvestorGroups(), []);
 
   const allPossibleTabs = useMemo(() => {
@@ -158,7 +178,8 @@ export default function PMSWorkspace() {
 
   const holdings = useMemo(() => {
     if (!currentTab) return [];
-    return getHoldings(currentTab.portfolioIds, ASSET_TYPE_MAP[activeAssetType], customRange.end);
+    const filterIds = activeAssetType === 'all' ? undefined : (ATTY_MAP[activeAssetType] || []);
+    return getHoldings(currentTab.portfolioIds.map(Number), filterIds);
   }, [currentTab, activeAssetType, customRange.end]);
 
   const [enrichedHoldings, setEnrichedHoldings] = useState<any[]>([]);
@@ -178,13 +199,13 @@ export default function PMSWorkspace() {
   }, [enrichedHoldings]);
 
   const handleDrilldown = (assetId: string, assetName: string, portIds: string[]) => setSelectedAssetForLedger({ id: assetId, name: assetName, portIds });
-  const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const fmt = (n: number) => 'â‚¹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc', overflow: 'hidden' }}>
       
-      {/* ── TOP BAR ── */}
+      {/* â”€â”€ TOP BAR â”€â”€ */}
       <div style={{ height: '60px', background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 40px', justifyContent: 'space-between', flexShrink: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           <div style={{ display: 'flex', gap: '4px' }}>
@@ -219,7 +240,7 @@ export default function PMSWorkspace() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '30px 40px' }}>
         
-        {/* ── PORTFOLIO TABS (PILL CONTAINER STYLE) ── */}
+        {/* â”€â”€ PORTFOLIO TABS (PILL CONTAINER STYLE) â”€â”€ */}
         <div style={{ background: '#f1f5f9', padding: '4px', borderRadius: '8px', display: 'inline-flex', gap: '4px', marginBottom: '24px', flexWrap: 'wrap' }}>
           {tabs.map(tab => (
             <button 
@@ -236,25 +257,25 @@ export default function PMSWorkspace() {
           ))}
         </div>
 
-        {/* ── MAIN CARD ── */}
+        {/* â”€â”€ MAIN CARD â”€â”€ */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
           
-          {/* ── CARD HEADER (ASSET TYPES) ── */}
+          {/* â”€â”€ CARD HEADER (ASSET TYPES) â”€â”€ */}
           <div style={{ padding: '12px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fcfcfd' }}>
             <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-              {Object.keys(ASSET_TYPE_MAP).map(type => (
+              {ASSET_TYPE_TABS.map(type => (
                 <button 
                   key={type} 
                   onClick={() => setActiveAssetType(type)} 
                   className={activeAssetType === type ? 'asset-type-btn-active' : 'asset-type-btn'}
                 >
-                  {type === 'all' ? 'All Assets' : type.replace(/_/g, ' ')}
+                  {ASSET_TAB_LABELS[type] || type}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* ── ACTION BAR (IN-CARD) ── */}
+          {/* â”€â”€ ACTION BAR (IN-CARD) â”€â”€ */}
           <div style={{ height: '72px', background: 'white', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', padding: '0 20px', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button onClick={() => setIsSelectorOpen('port')} className="btn-primary" style={{ height: '40px', padding: '0 16px', justifyContent: 'center' }}>
@@ -297,9 +318,9 @@ export default function PMSWorkspace() {
                     <button className="dropdown-item" onClick={() => {
                       if (selectedHolding) {
                         setIncomeAsset({
-                          id: selectedHolding.assetId,
+                          id: String(selectedHolding.assetId),
                           name: selectedHolding.assetName,
-                          portIds: currentTab?.portfolioIds || []
+                          portIds: currentTab?.portfolioIds.map(String) || []
                         });
                       } else {
                         alert("Please select an asset from the grid first.");
@@ -308,7 +329,7 @@ export default function PMSWorkspace() {
                     <button className="dropdown-item" onClick={() => {
                       if (selectedHolding) {
                         setPriceAsset({
-                          id: selectedHolding.assetId,
+                          id: String(selectedHolding.assetId),
                           name: selectedHolding.assetName,
                           currentPrice: selectedHolding.currentPrice
                         });
@@ -341,12 +362,12 @@ export default function PMSWorkspace() {
             </div>
           </div>
 
-          {/* ── GRID ── */}
+          {/* â”€â”€ GRID â”€â”€ */}
           <div style={{ minHeight: '500px', overflow: 'hidden' }}>
             <HoldingsGrid data={holdings} onHoldingClick={setSelectedHolding} groupByCategory={activeAssetType === 'all'} categoryLabels={CATEGORY_LABELS} onDataChange={setEnrichedHoldings} />
           </div>
 
-          {/* ── FOOTER ── */}
+          {/* â”€â”€ FOOTER â”€â”€ */}
           <div style={{ height: '40px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 20px', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', gap: '20px', fontSize: '11px' }}>
               <div>Invested: <span style={{ fontWeight: 700 }}>{fmt(totals.invested)}</span></div>
@@ -360,7 +381,7 @@ export default function PMSWorkspace() {
         </div>
       </div>
 
-      {/* ── MODALS ── */}
+      {/* â”€â”€ MODALS â”€â”€ */}
       {selectedHolding && <HoldingBreakupModal open={!!selectedHolding} holding={selectedHolding} onClose={() => setSelectedHolding(null)} onDrilldown={handleDrilldown} />}
       {selectedAssetForLedger && (
         <AssetLedgerModal 
@@ -508,3 +529,4 @@ export default function PMSWorkspace() {
     </div>
   );
 }
+

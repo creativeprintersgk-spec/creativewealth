@@ -2,8 +2,12 @@ import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers,
 
 export async function getBalanceSheet(_startDate: string, endDate: string, accountId?: string) {
 
-  const groups  = getStoredGroups()
-  const ledgers = getStoredLedgers()
+  // CRITICAL FIX: Always pass accountId to getStoredGroups/getStoredLedgers.
+  // acmac1.id is NOT globally unique — id=64 "Capital Account" exists for every person (acid).
+  // Without this filter, all 7 persons' ledgers get attached to the same group node,
+  // causing "Capital Account" to appear 7 times with repeated identical values.
+  const groups  = getStoredGroups(accountId)
+  const ledgers = getStoredLedgers(accountId)
   const entries = getStoredEntries()
   const vouchers = getStoredVouchers()
 
@@ -17,67 +21,58 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
     return "ASSET"
   }
 
-  // Pre-group entries by voucher for performance
-  const entriesByVoucher: Record<string, any[]> = {}
-  entries.forEach((e: any) => {
-    if (!entriesByVoucher[e.voucherId]) entriesByVoucher[e.voucherId] = []
-    entriesByVoucher[e.voucherId].push(e)
-  })
+  // Build voucher map for quick lookup
+  const voucherMap: Record<string, any> = {}
+  vouchers.forEach((v: any) => voucherMap[v.id] = v)
 
-  // Filter portfolios if accountId is provided
+  // Filter portfolios if accountId is provided (for portfolio-level isolation)
   const allPortfolios = getStoredPortfolios();
-  const portfolioIds = accountId ? allPortfolios.filter((p: any) => p.accountId === accountId).map((p: any) => p.id) : null;
+  const portfolioIds = accountId
+    ? allPortfolios.filter((p: any) => p.accountId === accountId).map((p: any) => p.id)
+    : null;
 
-  const getLedgerBalance = (ledger: any, groupType: string): number => {
-    let debit = 0
-    let credit = 0
+  // Local balance calculator iterating over entries directly to handle vid=0 (opening entries)
+  const calcLedgerBal = (ledger: any, groupType: string): number => {
+    let debit = 0, credit = 0;
+    entries.forEach((e: any) => {
+      if (e.ledgerId === ledger.id) {
+        const v = voucherMap[e.voucherId]
+        const entryDate = e.date || v?.date
+        const entryAcid = e.accountId || v?.accountId
+        const entryPfid = v?.portfolioId
 
-    if (ledger.openingBalance) {
-      if (ledger.openingType === 'DR') debit  += ledger.openingBalance
-      else if (ledger.openingType === 'CR') credit += ledger.openingBalance
-    }
-
-    vouchers.forEach((v: any) => {
-      if (v.date <= endDate) {
-        // Account Isolation
-        if (accountId) {
-          const vAccount = v.accountId;
-          const vPortId = v.portfolioId;
-          const belongsToAccount = (vAccount === accountId) || (vPortId && portfolioIds?.includes(vPortId));
-          if (!belongsToAccount) return;
-        }
-
-        ;(entriesByVoucher[v.id] || []).forEach((e: any) => {
-          if (e.ledgerId === ledger.id) {
-            debit  += e.debit  || 0
-            credit += e.credit || 0
+        if (entryDate && entryDate <= endDate) {
+          if (accountId) {
+            const belongsToAccount =
+              (entryAcid === accountId) ||
+              (entryPfid && portfolioIds?.includes(entryPfid));
+            if (!belongsToAccount) return;
           }
-        })
+          debit  += e.debit  || 0;
+          credit += e.credit || 0;
+        }
       }
-    })
+    });
+    return groupType === "ASSET" ? debit - credit : credit - debit;
+  };
 
-    if (groupType === "ASSET") return debit - credit
-    return credit - debit   // LIABILITY, INCOME, EXPENSE
-  }
-
-  // Build group map — ALL groups included (P&L shows as tree in liabilities)
+  // Build group map from acid-filtered groups only
   const groupMap: Record<string, any> = {}
   groups.forEach((g: any) => {
     groupMap[g.id] = { ...g, balance: 0, children: [], ledgers: [] }
   })
 
-  // Attach ledgers to their groups
+  // Attach acid-filtered ledgers to their groups
   ledgers.forEach((l: any) => {
     if (!groupMap[l.groupId]) return
     const type = getGroupType(l.groupId)
-    const bal = getLedgerBalance(l, type)
-    // Expenses are DR-heavy → balance is negative under CR−DR convention.
-    // displayBalance is always a positive magnitude for clean rendering.
+    const bal = calcLedgerBal(l, type)
+    // Expenses are DR-heavy → displayBalance is a positive magnitude for clean rendering
     const displayBalance = type === 'EXPENSE' ? Math.abs(bal) : bal
     groupMap[l.groupId].ledgers.push({ ...l, balance: bal, displayBalance, groupType: type })
   })
 
-  // Build tree
+  // Build tree (parent-child hierarchy)
   const tree: any[] = []
   Object.values(groupMap).forEach((g: any) => {
     if (g.parent && groupMap[g.parent]) {

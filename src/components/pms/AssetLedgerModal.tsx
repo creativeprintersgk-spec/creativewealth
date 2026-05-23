@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { X, ArrowRightLeft, ChevronDown } from 'lucide-react';
 import { getAssetTransactions } from '../../logic';
 import PMSIncomeModal from './PMSIncomeModal';
@@ -26,7 +26,7 @@ export default function AssetLedgerModal({
   const [incomeModalVoucherId, setIncomeModalVoucherId] = useState<string | null>(null);
 
   const transactions = useMemo(() => {
-    return getAssetTransactions(portfolioIds, assetId);
+    return getAssetTransactions(portfolioIds.map(Number), Number(assetId));
   }, [portfolioIds, assetId, open]);
 
   return (
@@ -78,7 +78,7 @@ export default function AssetLedgerModal({
             </div>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{assetName}</h3>
-              <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>Transaction Ledger • {assetId}</p>
+              <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>Transaction Ledger â€¢ {assetId}</p>
             </div>
           </div>
 
@@ -200,9 +200,9 @@ export default function AssetLedgerModal({
                       </td>
                     <td style={{ padding: '12px 16px', color: '#475569' }}>{tx.portfolioName}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{tx.quantity.toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>₹{tx.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>â‚¹{tx.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: tx.debit > 0 ? '#0f172a' : '#16a34a' }}>
-                      ₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      â‚¹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, background: '#f8fafc' }}>
                       {tx.balanceQty.toLocaleString()}
@@ -262,3 +262,4 @@ export default function AssetLedgerModal({
     </div>
   );
 }
+

@@ -1,282 +1,285 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../../supabase';
-
-type Row = {
-  assetId: string;
-  assetName: string;
-  amid?: number;
-  groupId: string;
-  quantity: number;
-  avgPrice: number;
-  amtInvested: number;
-  currentPrice: number;
-  todaysGain: number;
-  overallGain: number;
-  currentValue: number;
-  portfolioSplits: Array<{
-    portfolioId: string;
-    portfolioName: string;
-    quantity: number;
-    amtInvested: number;
-  }>;
-};
-
+import type { AssetHolding } from '../../logic';
+ 
 interface Props {
-  data: Row[];
-  onHoldingClick: (holding: Row) => void;
-  groupByCategory?: boolean; // when true: MProfit-style category headers
-  categoryLabels?: Record<string, string>; // groupId → display label
-  onDataChange?: (enrichedData: Row[]) => void;
+  data: AssetHolding[];
+  onHoldingClick: (holding: AssetHolding) => void;
+  groupByCategory?: boolean;
+  categoryLabels?: Record<string, string>;
+  onDataChange?: (enrichedData: AssetHolding[]) => void;
 }
-
+ 
 const COLS = [
-  { label: 'Asset Name', key: 'assetName', align: 'left', width: '260px' },
-  { label: 'Quantity', key: 'quantity', align: 'right', width: '90px' },
-  { label: 'Avg Price', key: 'avgPrice', align: 'right', width: '110px' },
-  { label: 'Amt Invested', key: 'amtInvested', align: 'right', width: '130px' },
-  { label: 'Cur. Price', key: 'currentPrice', align: 'right', width: '110px' },
-  { label: "Today's Gain", key: 'todaysGain', align: 'right', width: '120px' },
-  { label: 'Overall Gain', key: 'overallGain', align: 'right', width: '130px' },
-  { label: 'Cur. Value', key: 'currentValue', align: 'right', width: '130px' },
+  { label: 'Asset Name',   key: 'assetName',    align: 'left',  width: '260px' },
+  { label: 'Quantity',     key: 'quantity',      align: 'right', width: '90px'  },
+  { label: 'Avg Price',    key: 'avgPrice',      align: 'right', width: '110px' },
+  { label: 'Amt Invested', key: 'amtInvested',   align: 'right', width: '130px' },
+  { label: 'Cur. Price',   key: 'currentPrice',  align: 'right', width: '110px' },
+  { label: "Today's Gain", key: 'todaysGain',    align: 'right', width: '120px' },
+  { label: 'Overall Gain', key: 'overallGain',   align: 'right', width: '130px' },
+  { label: 'Cur. Value',   key: 'currentValue',  align: 'right', width: '130px' },
 ];
-
+ 
 const fmt = (n: number, decimals = 2) =>
-  '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-
-const fmtQty = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits: 3 });
-
+  '₹' + (n || 0).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+const fmtQty = (n: number) => (n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 });
 const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
-
+ 
 function getRefreshInterval(): number {
-  const now = new Date()
-  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
-  const h = ist.getHours()
-  const m = ist.getMinutes()
-  const day = ist.getDay()
-  const minutes = h * 60 + m
-  const isWeekend = day === 0 || day === 6
-  const isMarketHours = !isWeekend && minutes >= 555 && minutes < 930
-  return isMarketHours ? 60 * 1000 : 15 * 60 * 1000
+  const now = new Date();
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const h = ist.getHours(), m = ist.getMinutes(), day = ist.getDay();
+  const mins = h * 60 + m;
+  const isWeekend = day === 0 || day === 6;
+  const isMarketHours = !isWeekend && mins >= 555 && mins < 930;
+  return isMarketHours ? 60 * 1000 : 15 * 60 * 1000;
 }
-
+ 
 export default function HoldingsGrid({ data, onHoldingClick, groupByCategory = false, categoryLabels = {}, onDataChange }: Props) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-  const [enrichedData, setEnrichedData] = useState<Row[]>(data);
-
+  const [enrichedData, setEnrichedData] = useState<AssetHolding[]>(data);
+ 
   useEffect(() => {
     setEnrichedData(data);
-    
+ 
     const fetchPrices = async () => {
       try {
-        // Read from the view that already has all current prices joined
+        // Read live prices from mprices table (real MProfit table)
         const { data: priceRows, error } = await supabase
-          .from('ledger_current_prices')
-          .select('ledger_id, amid, current_price, prev_price')
-
+          .from('mprices')
+          .select('amid, currp, prevp');
+ 
         if (error) {
-          console.error('Price fetch error:', error.message)
-          return
+          console.warn('Price fetch error:', error.message);
+          return;
         }
-        if (!priceRows?.length) return
-
-        // Build lookup map by BOTH ledger_id and amid
-        const priceByLedgerId = new Map<string, any>()
-        const priceByAmid = new Map<number, any>()
-
-        priceRows.forEach(p => {
-          if (p.current_price && p.current_price > 0) {
-            priceByLedgerId.set(p.ledger_id, p)
-            if (p.amid) priceByAmid.set(p.amid, p)
+        if (!priceRows?.length) return;
+ 
+        // Build lookup map by amid
+        const priceByAmid = new Map<number, { curr: number; prev: number }>();
+        priceRows.forEach((p: any) => {
+          if (p.currp && p.currp > 0) {
+            priceByAmid.set(Number(p.amid), { curr: Number(p.currp), prev: Number(p.prevp) || 0 });
           }
-        })
-
-        setEnrichedData(prev => prev.map(row => {
-          // Try matching by ledgerId first, then by amid
-          const priceRow = 
-            (row.assetId ? priceByLedgerId.get(row.assetId) : null) ??
-            (row.amid ? priceByAmid.get(row.amid) : null)
-
-          if (!priceRow || !priceRow.current_price || priceRow.current_price === 0) return row
-
-          const currentPrice = parseFloat(priceRow.current_price)
-          const currentValue = (row.quantity ?? 0) * currentPrice
-          const overallGain = currentValue - (row.amtInvested ?? 0)
-          const prevPrice = priceRow.prev_price ? parseFloat(priceRow.prev_price) : currentPrice
-          const todaysGain = (currentPrice - prevPrice) * (row.quantity ?? 0)
-
-          return { ...row, currentPrice, currentValue, overallGain, todaysGain }
-        }))
+        });
+ 
+        setEnrichedData(prev => {
+          const updated = prev.map(row => {
+            const priceRow = priceByAmid.get(row.amid);
+            if (!priceRow || priceRow.curr <= 0) return row;
+ 
+            const currPrice = priceRow.curr;
+            const prevPrice = priceRow.prev;
+            const currentValue = row.quantity * currPrice;
+            const overallGain = currentValue - row.amtInvested;
+            const todaysGain = prevPrice > 0 ? row.quantity * (currPrice - prevPrice) : 0;
+ 
+            return {
+              ...row,
+              currentPrice: currPrice,
+              prevPrice,
+              currentValue,
+              overallGain,
+              overallGainPct: row.amtInvested > 0 ? (overallGain / row.amtInvested) * 100 : 0,
+              todaysGain,
+              todaysGainPct: prevPrice > 0 ? ((currPrice - prevPrice) / prevPrice) * 100 : 0,
+            };
+          });
+          onDataChange?.(updated);
+          return updated;
+        });
       } catch (err) {
-        console.error('fetchPrices error:', err)
+        console.warn('Price fetch exception:', err);
       }
-    }
-    
+    };
+ 
     fetchPrices();
     const interval = setInterval(fetchPrices, getRefreshInterval());
     return () => clearInterval(interval);
   }, [data]);
-
-  useEffect(() => {
-    if (onDataChange) onDataChange(enrichedData);
-  }, [enrichedData, onDataChange]);
-
+ 
   const toggleCategory = (cat: string) =>
     setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
-
-  const isCatOpen = (cat: string) =>
-    expandedCategories[cat] !== false; // default open
-
-  const thStyle: React.CSSProperties = {
-    borderBottom: '2px solid #e2e8f0',
-    borderRight: '1px solid #f1f5f9',
-    padding: '7px 10px',
-    fontWeight: 700,
-    fontSize: '11px',
-    color: '#64748b',
-    whiteSpace: 'nowrap',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    background: '#f8fafc',
-    position: 'sticky',
-    top: 0,
-    zIndex: 2
-  };
-
-  const renderRow = (row: Row, idx: number) => (
+ 
+  // Group by assetType if groupByCategory
+  const grouped = React.useMemo(() => {
+    if (!groupByCategory) return { ALL: enrichedData };
+    const map: Record<string, AssetHolding[]> = {};
+    enrichedData.forEach(h => {
+      const key = String(h.assetType);
+      if (!map[key]) map[key] = [];
+      map[key].push(h);
+    });
+    return map;
+  }, [enrichedData, groupByCategory]);
+ 
+  // Summary totals
+  const totals = React.useMemo(() => ({
+    invested: enrichedData.reduce((s, h) => s + h.amtInvested, 0),
+    value: enrichedData.reduce((s, h) => s + (h.currentValue || h.amtInvested), 0),
+    gain: enrichedData.reduce((s, h) => s + h.overallGain, 0),
+    todaysGain: enrichedData.reduce((s, h) => s + h.todaysGain, 0),
+  }), [enrichedData]);
+ 
+  const renderRow = (h: AssetHolding) => (
     <tr
-      key={row.assetId}
-      onClick={() => onHoldingClick(row)}
-      style={{
-        cursor: 'pointer',
-        background: idx % 2 === 0 ? '#fff' : '#fafafa',
-        transition: 'background 0.1s'
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = '#eff6ff')}
-      onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#fafafa')}
+      key={`${h.amid}-${h.assetId}`}
+      onClick={() => onHoldingClick(h)}
+      style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.1s' }}
+      onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      <td style={{ padding: '4px 10px', fontSize: '13px', fontWeight: 500, color: '#1e293b', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {row.assetName}
-      </td>
-      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
-        {fmtQty(row.quantity)}
-      </td>
-      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
-        {fmt(row.avgPrice)}
-      </td>
-      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
-        {fmt(row.amtInvested, 0)}
-      </td>
-      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
-        {fmt(row.currentPrice)}
-      </td>
-      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', color: gainColor(row.todaysGain), fontVariantNumeric: 'tabular-nums' }}>
-        <div>{fmt(row.todaysGain, 0)}</div>
-        <div style={{ fontSize: '10px', opacity: 0.8 }}>
-          {row.currentValue > 0 ? ((row.todaysGain / row.currentValue) * 100).toFixed(2) + '%' : '—'}
+      {/* Asset Name */}
+      <td style={{ padding: '10px 16px', minWidth: '260px' }}>
+        <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>{h.assetName}</div>
+        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+          {h.assetIcon} · {h.assetTypeName}
+          {h.nseSymbol ? ` · ${h.nseSymbol}` : ''}
         </div>
       </td>
-      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: 600, color: gainColor(row.overallGain), fontVariantNumeric: 'tabular-nums' }}>
-        <div>{fmt(row.overallGain, 0)}</div>
-        <div style={{ fontSize: '10px', opacity: 0.8 }}>
-          {row.amtInvested > 0 ? ((row.overallGain / row.amtInvested) * 100).toFixed(2) + '%' : '—'}
-        </div>
+      {/* Quantity + Avg Price (2-line like MProfit) */}
+      <td style={{ padding: '10px 16px', textAlign: 'right', width: '90px' }}>
+        <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>{fmtQty(h.quantity)}</div>
+        <div style={{ fontSize: '11px', color: '#64748b' }}>{fmt(h.avgPrice)}</div>
       </td>
-      <td style={{ padding: '4px 10px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
-        {fmt(row.currentValue, 0)}
+      {/* Amt Invested */}
+      <td style={{ padding: '10px 16px', textAlign: 'right', width: '130px', fontWeight: 600, fontSize: '13px', color: '#334155' }}>
+        {fmt(h.amtInvested, 0)}
+      </td>
+      {/* Current Price */}
+      <td style={{ padding: '10px 16px', textAlign: 'right', width: '110px', fontSize: '13px', color: h.currentPrice > 0 ? '#1e293b' : '#94a3b8' }}>
+        {h.currentPrice > 0 ? fmt(h.currentPrice) : '—'}
+      </td>
+      {/* Today's Gain */}
+      <td style={{ padding: '10px 16px', textAlign: 'right', width: '120px' }}>
+        <div style={{ fontWeight: 700, fontSize: '13px', color: gainColor(h.todaysGain) }}>
+          {h.todaysGain !== 0 ? fmt(h.todaysGain, 0) : '—'}
+        </div>
+        {h.todaysGainPct !== 0 && (
+          <div style={{ fontSize: '11px', color: gainColor(h.todaysGainPct) }}>
+            {h.todaysGainPct >= 0 ? '+' : ''}{h.todaysGainPct.toFixed(2)}%
+          </div>
+        )}
+      </td>
+      {/* Overall Gain */}
+      <td style={{ padding: '10px 16px', textAlign: 'right', width: '130px' }}>
+        <div style={{ fontWeight: 700, fontSize: '13px', color: gainColor(h.overallGain) }}>
+          {h.currentPrice > 0 ? fmt(h.overallGain, 0) : '—'}
+        </div>
+        {h.currentPrice > 0 && h.overallGainPct !== 0 && (
+          <div style={{ fontSize: '11px', color: gainColor(h.overallGainPct) }}>
+            {h.overallGainPct >= 0 ? '+' : ''}{h.overallGainPct.toFixed(2)}%
+          </div>
+        )}
+      </td>
+      {/* Current Value */}
+      <td style={{ padding: '10px 16px', textAlign: 'right', width: '130px', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>
+        {h.currentPrice > 0 ? fmt(h.currentValue, 0) : fmt(h.amtInvested, 0)}
       </td>
     </tr>
   );
-
-  const renderCategoryHeader = (label: string, rows: Row[], catKey: string) => {
-    const total = rows.reduce((a, r) => ({
-      invested: a.invested + r.amtInvested,
-      value: a.value + r.currentValue,
-      gain: a.gain + r.overallGain,
-      today: a.today + r.todaysGain,
-    }), { invested: 0, value: 0, gain: 0, today: 0 });
-
-    const isOpen = isCatOpen(catKey);
-
+ 
+  const renderCategoryHeader = (key: string, rows: AssetHolding[]) => {
+    const label = categoryLabels[key] || rows[0]?.assetTypeName || key;
+    const totalInvested = rows.reduce((s, h) => s + h.amtInvested, 0);
+    const totalValue = rows.reduce((s, h) => s + (h.currentValue || h.amtInvested), 0);
+    const totalGain = rows.reduce((s, h) => s + h.overallGain, 0);
+    const isExpanded = expandedCategories[key] !== false; // default expanded
+ 
     return (
-      <React.Fragment key={catKey}>
+      <React.Fragment key={key}>
         <tr
-          onClick={() => toggleCategory(catKey)}
-          style={{ cursor: 'pointer', background: '#eef2ff', userSelect: 'none' }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#e0e7ff')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#eef2ff')}
+          onClick={() => toggleCategory(key)}
+          style={{ background: '#f1f5f9', cursor: 'pointer', borderBottom: '2px solid #e2e8f0' }}
         >
-          {/* 1. Name */}
-          <td style={{ padding: '4px 10px', fontSize: '12px', fontWeight: 700, color: '#3730a3', borderBottom: '1px solid #c7d2fe', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-            {label}
-            <span style={{ fontSize: '10px', color: '#6366f1', background: '#e0e7ff', padding: '1px 6px', borderRadius: '99px', marginLeft: '4px' }}>
-              {rows.length}
-            </span>
+          <td style={{ padding: '8px 16px', fontWeight: 700, fontSize: '12px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {label} ({rows.length})
           </td>
-          {/* 2. Quantity */}
-          <td style={{ borderBottom: '1px solid #c7d2fe' }} />
-          {/* 3. Avg Price */}
-          <td style={{ borderBottom: '1px solid #c7d2fe' }} />
-          {/* 4. Amt Invested */}
-          <td style={{ padding: '4px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 700, color: '#3730a3', fontVariantNumeric: 'tabular-nums' }}>
-            {fmt(total.invested, 0)}
+          <td style={{ padding: '8px 16px', textAlign: 'right', fontSize: '12px', color: '#64748b' }} colSpan={2}>
+            {fmt(totalInvested, 0)}
           </td>
-          {/* 5. Cur Price */}
-          <td style={{ borderBottom: '1px solid #c7d2fe' }} />
-          {/* 6. Today's Gain */}
-          <td style={{ padding: '4px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', color: gainColor(total.today), fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-            {fmt(total.today, 0)}
+          <td colSpan={2} />
+          <td style={{ padding: '8px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: gainColor(totalGain) }}>
+            {totalValue > 0 ? fmt(totalGain, 0) : '—'}
           </td>
-          {/* 7. Overall Gain */}
-          <td style={{ padding: '4px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 700, color: gainColor(total.gain), fontVariantNumeric: 'tabular-nums' }}>
-            {fmt(total.gain, 0)}
-          </td>
-          {/* 8. Cur Value */}
-          <td style={{ padding: '4px 10px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #c7d2fe', fontWeight: 800, color: '#3730a3', fontVariantNumeric: 'tabular-nums' }}>
-            {fmt(total.value, 0)}
+          <td style={{ padding: '8px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
+            {fmt(totalValue > 0 ? totalValue : totalInvested, 0)}
           </td>
         </tr>
-        {isOpen && rows.map((r, i) => renderRow(r, i))}
+        {isExpanded && rows.map(renderRow)}
       </React.Fragment>
     );
   };
-
-  // ── Render ────────────────────────────────────────────────────────────────
-  const categories = groupByCategory
-    ? [...new Set(enrichedData.map(r => r.groupId))]
-    : [];
-
+ 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', tableLayout: 'fixed' }}>
-        <colgroup>
-          {COLS.map(c => <col key={c.key} style={{ width: c.width }} />)}
-        </colgroup>
-        <thead>
-          <tr>
-            {COLS.map(c => (
-              <th key={c.key} style={{ ...thStyle, textAlign: c.align as any }}>
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {groupByCategory
-            ? categories.map(cat => {
-                const rows = enrichedData.filter(r => r.groupId === cat);
-                const label = categoryLabels[cat] || cat;
-                return renderCategoryHeader(label, rows, cat);
-              })
-            : enrichedData.map((row, i) => renderRow(row, i))
-          }
-        </tbody>
-      </table>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Table */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fff', boxShadow: '0 1px 0 #e2e8f0' }}>
+            <tr>
+              {COLS.map(col => (
+                <th key={col.key} style={{
+                  padding: '10px 16px', textAlign: col.align as any,
+                  fontSize: '11px', fontWeight: 700, color: '#64748b',
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                  width: col.width, whiteSpace: 'nowrap'
+                }}>
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groupByCategory
+              ? Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0])).map(([key, rows]) => renderCategoryHeader(key, rows))
+              : enrichedData.map(renderRow)
+            }
+            {enrichedData.length === 0 && (
+              <tr>
+                <td colSpan={8} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                  No holdings found for selected portfolio
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+ 
+      {/* NET WORTH BAR — MProfit style bottom bar */}
+      <div style={{
+        borderTop: '2px solid #e2e8f0', background: '#f8fafc',
+        padding: '12px 16px', display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', flexShrink: 0
+      }}>
+        <div style={{ display: 'flex', gap: '32px' }}>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Amt Invested</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>{fmt(totals.invested, 0)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Today's Gain</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: gainColor(totals.todaysGain) }}>
+              {totals.todaysGain !== 0 ? fmt(totals.todaysGain, 0) : '—'}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Overall Gain</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: gainColor(totals.gain) }}>
+              {totals.value > 0 ? fmt(totals.gain, 0) : '—'}
+            </div>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Current Net Worth</div>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>
+            {fmt(totals.value > 0 ? totals.value : totals.invested, 0)}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -13,8 +13,12 @@ export default function TrialBalance() {
   const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
   useEffect(() => {
-    if (!selectedAccountId && accounts.length > 0) {
-      setSelectedAccountId(accounts[0].id);
+    if (accounts.length > 0) {
+      if (!accounts.some(a => a.id === selectedAccountId)) {
+        setSelectedAccountId(accounts[0].id);
+      }
+    } else {
+      setSelectedAccountId('');
     }
   }, [accounts, selectedAccountId]);
 
@@ -40,8 +44,8 @@ export default function TrialBalance() {
 
   const data = getTrialBalance(effectiveDates.end, selectedAccountId);
   
-  const totalDebit = data.reduce((sum, row) => sum + row.debit, 0);
-  const totalCredit = data.reduce((sum, row) => sum + row.credit, 0);
+  const totalDebit = data.filter(Boolean).reduce((sum, row: any) => sum + row.debit, 0);
+  const totalCredit = data.filter(Boolean).reduce((sum, row: any) => sum + row.credit, 0);
   const diff = Math.abs(totalDebit - totalCredit);
   const isBalanced = diff < 0.01;
 
@@ -102,7 +106,7 @@ export default function TrialBalance() {
           </thead>
           <tbody>
             {['ASSET', 'LIABILITY', 'EXPENSE', 'INCOME'].map(type => {
-              const rows = data.filter(r => r.type === type);
+              const rows = data.filter(Boolean).filter((r: any) => (r as any).type === type);
               if (rows.length === 0) return null;
               
               return (
@@ -110,7 +114,7 @@ export default function TrialBalance() {
                   <tr style={{ background: '#f1f5f9' }}>
                     <td colSpan={4} style={{ padding: '0.5rem 1.5rem', fontSize: '0.7rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>{type}S</td>
                   </tr>
-                  {rows.map((row, idx) => (
+                  {rows.map((row: any, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }} className="hover-row">
                       <td style={{ padding: '1rem 1.5rem', cursor: 'pointer' }} onClick={() => navigate(`/ledger/${row.ledgerId}`)}>
                         <div style={{ fontWeight: 600, color: '#1e293b' }}>{row.ledgerName}</div>

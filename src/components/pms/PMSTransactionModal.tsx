@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, FolderOpen } from 'lucide-react';
 import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, getStoredAccounts } from '../../logic';
 import { useFamily } from '../../contexts/FamilyContext';
@@ -96,7 +96,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
                 isMf = true;
                 break;
               }
-              currentGroup = groups.find(g => g.id === currentGroup.parent);
+              currentGroup = groups.find(g => g.id === currentGroup?.parent);
             }
             setAssetType(isMf ? 'MF' : 'EQ');
           } else {
@@ -164,7 +164,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
               onMouseLeave={e => e.currentTarget.style.background = '#fff'}
             >
               <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>{asset.name}</span>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>{asset.asset_type_name} {asset.ticker ? `• ${asset.ticker}` : ''}</span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>{asset.asset_type_name} {asset.ticker ? `â€¢ ${asset.ticker}` : ''}</span>
             </div>
           ))}
         </div>
@@ -186,7 +186,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
     if (!finalCounterId) {
       if (assetType === 'EQ') {
         const brokerLedger = await ensureLedgerExists(broker + " A/c", 'sundry_creditors');
-        finalCounterId = brokerLedger.id;
+        finalCounterId = brokerLedger?.id ?? "";
       } else {
         const bankLedger = ledgers.find(l => l.name.toLowerCase().includes('bank')) || ledgers[0];
         finalCounterId = bankLedger.id;
@@ -201,14 +201,14 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
     }
 
     // 2. Resolve Asset Ledger
-    const assetLedger = await ensureLedgerExists(assetName, assetType === 'EQ' ? 'stocks' : 'mf_equity', selectedAmid);
+    const assetLedger = await ensureLedgerExists(assetName, assetType === 'EQ' ? 'stocks' : 'mf_equity');
 
     // 3. Build Lines
     const lines = [];
     
     // Asset Line
     lines.push({
-      ledgerId: assetLedger.id,
+      ledgerId: assetLedger?.id ?? "",
       debit: isBuy ? tradeAmount : 0,
       credit: !isBuy ? tradeAmount : 0,
       quantity,
@@ -223,12 +223,12 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
     });
 
     // Charge Lines (Only if > 0)
-    if (stt > 0) lines.push({ ledgerId: (await ensureLedgerExists('STT', 'stt')).id, debit: stt, credit: 0 });
-    if (brokerage > 0) lines.push({ ledgerId: (await ensureLedgerExists('Brokerage', 'share_txn_charges')).id, debit: brokerage, credit: 0 });
-    if (gst > 0) lines.push({ ledgerId: (await ensureLedgerExists('GST on Charges', 'tax_charges_stocks')).id, debit: gst, credit: 0 });
-    if (stampCharges > 0) lines.push({ ledgerId: (await ensureLedgerExists('Stamp Charges', 'tax_charges_stocks')).id, debit: stampCharges, credit: 0 });
-    if (transCharges > 0) lines.push({ ledgerId: (await ensureLedgerExists('Transaction Charges', 'share_txn_charges')).id, debit: transCharges, credit: 0 });
-    if (otherCharges > 0) lines.push({ ledgerId: (await ensureLedgerExists('Other Trade Charges', 'share_txn_charges')).id, debit: otherCharges, credit: 0 });
+    if (stt > 0) lines.push({ ledgerId: (await ensureLedgerExists("STT", "stt"))?.id ?? "", debit: stt, credit: 0 });
+    if (brokerage > 0) lines.push({ ledgerId: (await ensureLedgerExists('Brokerage', 'share_txn_charges'))?.id ?? "", debit: brokerage, credit: 0 });
+    if (gst > 0) lines.push({ ledgerId: (await ensureLedgerExists('GST on Charges', 'tax_charges_stocks'))?.id ?? "", debit: gst, credit: 0 });
+    if (stampCharges > 0) lines.push({ ledgerId: (await ensureLedgerExists('Stamp Charges', 'tax_charges_stocks'))?.id ?? "", debit: stampCharges, credit: 0 });
+    if (transCharges > 0) lines.push({ ledgerId: (await ensureLedgerExists('Transaction Charges', 'share_txn_charges'))?.id ?? "", debit: transCharges, credit: 0 });
+    if (otherCharges > 0) lines.push({ ledgerId: (await ensureLedgerExists('Other Trade Charges', 'share_txn_charges'))?.id ?? "", debit: otherCharges, credit: 0 });
 
     const updatedVoucher = {
       ...originalVoucher,
@@ -351,7 +351,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>Amount</label>
                 <div style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '15px', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', display: 'flex', alignItems: 'center' }}>
-                  ₹{fmt(tradeAmount + stampCharges)}
+                  â‚¹{fmt(tradeAmount + stampCharges)}
                 </div>
               </div>
             </div>
@@ -540,7 +540,7 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
                   Total Amount ({type === 'BUY' ? 'Payable' : 'Receivable'})
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: type === 'BUY' ? '#1d4ed8' : '#15803d', letterSpacing: '-0.5px' }}>
-                  ₹{fmt(finalAmount)}
+                  â‚¹{fmt(finalAmount)}
                 </div>
               </div>
             </div>
@@ -566,3 +566,4 @@ export default function PMSTransactionModal({ voucherId, onClose, onSaved }: Pro
     </div>
   );
 }
+

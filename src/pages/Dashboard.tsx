@@ -1,17 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { LayoutDashboard, Wallet, TrendingUp, PieChart, Activity } from 'lucide-react';
-import { getStoredPortfolios } from '../logic';
+import { getStoredPortfolios, getHoldings } from '../logic';
 
 export default function Dashboard() {
   const [portfolios, setPortfolios] = useState<any[]>([]);
   const [totalValue, setTotalValue] = useState(0);
+  const [todaysGain, setTodaysGain] = useState(0);
 
   useEffect(() => {
-    // In a real application, this would fetch the actual current value from ledger_current_prices
-    // and aggregate it across portfolios.
-    setPortfolios(getStoredPortfolios());
-    setTotalValue(7226966); // Hardcoded from the project status report for preview
+    const checkData = () => {
+      const pfs = getStoredPortfolios();
+      if (pfs.length > 0) {
+        setPortfolios(pfs);
+        const pfIds = pfs.map(p => Number(p.id));
+        const holdings = getHoldings(pfIds);
+        let val = 0;
+        let gain = 0;
+        holdings.forEach(h => {
+          val += h.currentValue || 0;
+          gain += h.todaysGain || 0;
+        });
+        setTotalValue(val);
+        setTodaysGain(gain);
+      }
+    };
+    checkData();
+    const interval = setInterval(checkData, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const formatCurrency = (val: number) => {
@@ -42,8 +58,8 @@ export default function Dashboard() {
           <div style={{ fontSize: '32px', fontWeight: 800, color: '#0f172a' }}>
             {formatCurrency(totalValue)}
           </div>
-          <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <TrendingUp size={14} /> +0.03% Today
+          <div style={{ fontSize: '12px', color: todaysGain >= 0 ? '#10b981' : '#ef4444', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <TrendingUp size={14} /> {todaysGain >= 0 ? '+' : ''}{formatCurrency(todaysGain)} Today
           </div>
         </div>
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useFY } from '../FYContext';
 import { Calculator, TrendingUp, AlertCircle, FileText, Download } from 'lucide-react';
-import { getStoredPortfolios } from '../logic';
+import { getStoredPortfolios, getCapitalGains } from '../logic';
 
 type CGSummaryRow = {
   portfolio_id: string;
@@ -26,21 +26,34 @@ export default function CapitalGainsPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const { data: result, error } = await supabase.rpc('get_cg_summary', {
-          from_date: customRange.start,
-          to_date: customRange.end,
-          p_portfolio: null
-        });
-        
-        if (error) {
-          console.error("Error fetching capital gains:", error);
-          setData([]);
-        } else {
-          setData(result || []);
-        }
+        const pfs = getStoredPortfolios();
+        const pfIds = pfs.map(p => Number(p.id));
+        // Use timeout to let loading state render
+        setTimeout(() => {
+          const txns = getCapitalGains(pfIds, customRange.start, customRange.end);
+          
+          const summary: Record<string, CGSummaryRow> = {};
+          txns.forEach(tx => {
+            const key = `${tx.portfolioId}_${tx.gainType}`;
+            if (!summary[key]) {
+              summary[key] = {
+                portfolio_id: String(tx.portfolioId),
+                gain_type: tx.gainType as 'STCG' | 'LTCG',
+                transactions: 0,
+                total_gain_loss: 0,
+                estimated_tax: 0
+              };
+            }
+            summary[key].transactions += 1;
+            summary[key].total_gain_loss += tx.gainLoss;
+            summary[key].estimated_tax += tx.estimatedTax;
+          });
+
+          setData(Object.values(summary));
+          setLoading(false);
+        }, 10);
       } catch (err) {
         console.error("Exception fetching CG:", err);
-      } finally {
         setLoading(false);
       }
     }

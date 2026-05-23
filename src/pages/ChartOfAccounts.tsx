@@ -1,22 +1,31 @@
 
-import React, { useMemo } from 'react';
-import { getStoredGroups, getStoredLedgers, calculateGroupTotal } from '../logic';
-import { Layers, Folder, FileText, ChevronRight, ChevronDown } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { getStoredGroups, getStoredLedgers, getStoredAccounts } from '../logic';
+import { Layers, Folder, FileText } from 'lucide-react';
 import TopNavbar from '../TopNavbar';
+import { useFamily } from '../contexts/FamilyContext';
 
 export default function ChartOfAccounts() {
-  const groups = useMemo(() => getStoredGroups(), []);
-  const ledgers = useMemo(() => getStoredLedgers(), []);
+  const { activeFamilyId } = useFamily();
+  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
+  const [selectedAcid, setSelectedAcid] = useState<string>(accounts[0]?.id || '');
 
-  const renderGroup = (groupId: string, depth: number = 0) => {
+  // Always filter by acid so each person's COA is clean and duplicate-free
+  const groups  = useMemo(() => getStoredGroups(selectedAcid),  [selectedAcid]);
+  const ledgers = useMemo(() => getStoredLedgers(selectedAcid), [selectedAcid]);
+
+  const renderGroup = (groupId: string, depth: number = 0): React.ReactElement | null => {
     const group = groups.find(g => g.id === groupId);
     if (!group) return null;
 
     const childGroups = groups.filter(g => g.parent === groupId);
     const groupLedgers = ledgers.filter(l => l.groupId === groupId);
 
+    // Key uses id + acid to guarantee uniqueness (same id exists across all persons)
+    const key = `${groupId}_${(group as any).acid}`;
+
     return (
-      <div key={groupId} style={{ marginLeft: depth * 20 }}>
+      <div key={key} style={{ marginLeft: depth * 20 }}>
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
@@ -32,7 +41,7 @@ export default function ChartOfAccounts() {
         </div>
         
         {groupLedgers.map(l => (
-          <div key={l.id} style={{ 
+          <div key={`${l.id}_${(l as any).acid}`} style={{ 
             marginLeft: 24, 
             padding: '6px 0', 
             fontSize: '12px', 
@@ -57,9 +66,18 @@ export default function ChartOfAccounts() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc' }}>
       <TopNavbar />
       <div style={{ flex: 1, overflowY: 'auto', padding: '30px 40px' }}>
-        <div style={{ marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a' }}>Chart of Accounts</h1>
-          <p style={{ color: '#64748b', fontSize: '14px' }}>Hierarchical view of all account groups and ledgers</p>
+        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a' }}>Chart of Accounts</h1>
+            <p style={{ color: '#64748b', fontSize: '14px' }}>Hierarchical view of account groups and ledgers</p>
+          </div>
+          <select
+            value={selectedAcid}
+            onChange={e => setSelectedAcid(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, color: '#0f172a', background: '#fff', cursor: 'pointer' }}
+          >
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.accountName}</option>)}
+          </select>
         </div>
 
         <div className="card" style={{ padding: '24px' }}>

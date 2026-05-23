@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+﻿import React, { useEffect, useState } from "react"
 import { getBalanceSheet } from "../services/balanceSheet"
 import { useFY } from "../FYContext"
 import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, createVoucher, getStoredAccounts } from "../logic"
@@ -18,8 +18,12 @@ export default function BalanceSheet() {
   const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
   useEffect(() => {
-    if (!selectedAccountId && accounts.length > 0) {
-      setSelectedAccountId(accounts[0].id);
+    if (accounts.length > 0) {
+      if (!accounts.some(a => a.id === selectedAccountId)) {
+        setSelectedAccountId(accounts[0].id);
+      }
+    } else {
+      setSelectedAccountId('');
     }
   }, [accounts, selectedAccountId]);
 
@@ -95,7 +99,7 @@ export default function BalanceSheet() {
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {hasChildren
-              ? <span style={{ fontSize: 9, color: '#9ca3af', display: 'inline-block', width: 12 }}>{isOpen ? '▼' : '▶'}</span>
+              ? <span style={{ fontSize: 9, color: '#9ca3af', display: 'inline-block', width: 12 }}>{isOpen ? 'â–¼' : 'â–¶'}</span>
               : <span style={{ display: 'inline-block', width: 12 }} />}
             {group.name}
           </span>
@@ -159,7 +163,7 @@ export default function BalanceSheet() {
       let current = allGroups.find((g: any) => g.id === groupId)
       while (current) {
         if (current.type) return current.type
-        current = allGroups.find((g: any) => g.id === current.parent)
+        current = allGroups.find((g: any) => g.id === current?.parent)
       }
       return "ASSET"
     }
@@ -240,11 +244,11 @@ export default function BalanceSheet() {
       id: uuid(),
       date: closeDate,
       type: "journal",
-      narration: `Year End Closing Entry — FY ${selectedFY}`,
+      narration: `Year End Closing Entry â€” FY ${selectedFY}`,
       lines,
     })
 
-    alert(`✅ FY ${selectedFY} closed. Net P&L transferred to ${capitalLedger.name}.`)
+    alert(`âœ… FY ${selectedFY} closed. Net P&L transferred to ${capitalLedger.name}.`)
     load()
   }
 
@@ -262,8 +266,8 @@ export default function BalanceSheet() {
             <h2 style={{ fontSize: "1.4rem", fontWeight: "bold", margin: 0, color: '#111827' }}>Balance Sheet</h2>
             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: 2 }}>
               {reportFilter === 'custom' ? `From ${effectiveDates.start} to ${effectiveDates.end}` : 
-               reportFilter === 'previous' ? `As at 31 March — FY ${getPreviousFY(selectedFY)}` :
-               `As at 31 March — FY ${reportFilter === 'last' ? getLastFY(selectedFY) : selectedFY}`}
+               reportFilter === 'previous' ? `As at 31 March â€” FY ${getPreviousFY(selectedFY)}` :
+               `As at 31 March â€” FY ${reportFilter === 'last' ? getLastFY(selectedFY) : selectedFY}`}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -287,7 +291,7 @@ export default function BalanceSheet() {
             </button>
             {!isBalanced && (
               <span style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', padding: '4px 10px', borderRadius: 4 }}>
-                ⚠ Unbalanced by {Math.abs(data!.totalAssets - data!.totalLiabilities).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                âš  Unbalanced by {Math.abs(data!.totalAssets - data!.totalLiabilities).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             )}
           </div>
@@ -367,3 +371,4 @@ export default function BalanceSheet() {
     </div>
   )
 }
+

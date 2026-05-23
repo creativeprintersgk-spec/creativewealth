@@ -22,6 +22,7 @@ export default function LedgerPage() {
 
   const ledgers = getStoredLedgers();
   const groups = getStoredGroups();
+  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
   useEffect(() => {
     if (paramId) {
@@ -35,6 +36,12 @@ export default function LedgerPage() {
       setSelectedLedgerId(ledgers[0].id);
     }
   }, [ledgers, selectedLedgerId]);
+
+  useEffect(() => {
+    if (selectedAccountId && !accounts.some(a => a.id === selectedAccountId)) {
+      setSelectedAccountId('');
+    }
+  }, [accounts, selectedAccountId]);
 
   const handleEdit = useCallback((id: string) => {
     setEditingVoucherId(id)
@@ -87,8 +94,6 @@ export default function LedgerPage() {
     if (reportFilter === 'previous') return getDatesForFY(getPreviousFY(selectedFY))
     return customRange
   })()
-
-  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
   const drilldownData = getLedgerWithBalance(selectedLedgerId, effectiveDates.start, effectiveDates.end, selectedAccountId)
   const data = Array.isArray(drilldownData) ? [] : drilldownData.transactions;
