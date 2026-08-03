@@ -546,11 +546,21 @@ export function MfCasTab({
 
       // Apply saved mappings
       const mappings = JSON.parse(localStorage.getItem('wealthcore_cas_mapping') || '{}');
+      
+      // First pass: resolve the best portfolioId for each PAN based on localStorage
+      for (const pan of uniquePans) {
+        if (!panMap[pan]) {
+          const tradeWithMapping = parsed.find(t => t.pan === pan && mappings[`${t.investorName || ''}_${pan}`]);
+          if (tradeWithMapping) {
+            panMap[pan] = mappings[`${tradeWithMapping.investorName || ''}_${pan}`].portfolioId;
+          }
+        }
+      }
+
       const mapped = parsed.map(t => {
-         const saved = mappings[`${t.investorName || ''}_${t.pan}`];
          return {
            ...t,
-           portfolioId: saved?.portfolioId || panMap[t.pan] || '',
+           portfolioId: panMap[t.pan] || '',
          };
       });
 
@@ -631,6 +641,10 @@ export function MfCasTab({
 
         // Ensure asset ledger exists in acmac1 (using cache)
         const assetLedgerId = await getCachedLedger(amid, trade.fundName, Number(trade.portfolioId), assetType);
+        
+        // CRITICAL FIX: The ledger ID created in acmac1 becomes the actual AMID for the voucher!
+        // Otherwise, duplicate checks fail because the hash AMID is not found in assetNameMap.
+        amid = assetLedgerId;
 
         // Get bank ledger for this account
         const ledgers = getStoredLedgers(acid);
