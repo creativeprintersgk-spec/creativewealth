@@ -182,7 +182,7 @@ export async function fetchStockPrice(symbol: string): Promise<{ price: number; 
     let price = meta.regularMarketPrice > 0 ? meta.regularMarketPrice : 0;
     let prev = meta.previousClose ?? meta.chartPreviousClose ?? price;
 
-    if (closeArr && closeArr.length >= 2) {
+    if (price === 0 && closeArr && closeArr.length >= 2) {
       const validCloses = closeArr.filter((c: number | null) => c !== null && c > 0);
       if (validCloses.length >= 2) {
         price = validCloses[validCloses.length - 1];
@@ -219,6 +219,7 @@ const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
   101684: 'HINDCOPPER.NS',    // Hindustan Copper
   101856: 'ANANTRAJ.NS',      // Anant Raj
   102647: 'SEYAIND.NS',       // Seya Industries
+  102791: 'AUROPHARMA.NS',    // Aurobindo Pharma
   104467: 'ISMTLTD.NS',       // ISMT Limited
   105468: 'ESSENTIA.NS',      // Integra Essentia
   106093: 'LLOYDSENGG.NS',    // Lloyds Engineering Works

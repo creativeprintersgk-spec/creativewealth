@@ -203,7 +203,7 @@ export default function PMSWorkspace() {
   }, [enrichedHoldings]);
 
   const handleDrilldown = (assetId: string, assetName: string, portIds: string[]) => setSelectedAssetForLedger({ id: assetId, name: assetName, portIds });
-  const fmt = (n: number) => 'â‚¹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const fmt = (n: number) => '₹ ' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
 
   return (
