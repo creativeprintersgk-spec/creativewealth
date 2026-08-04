@@ -392,9 +392,48 @@ async function runImport() {
   }
   await upsertBatch('entries', entryRows, 500);
 
-  // ═══ STEP 11: CAPITAL GAINS (FIFO from BS1.csv) ══════════════
-  console.log('\n[11/11] Skipping Capital Gains (capital_gains_summary is a view)...');
-  // (Assuming capital gains view reads from tax_lots and entries, or is handled separately)
+  // ═══ STEP 11: MARKET PRICES (from MPrices.csv) ══════════════
+  console.log('\n[11/11] Importing market prices (mprices)...');
+  const mpricesRaw = await parseCSV('MPrices.csv');
+  console.log(`    Parsed ${mpricesRaw.length} rows from MPrices.csv`);
+  
+  function formatCsvDate(d: string): string | null {
+    if (!d) return null;
+    const parts = d.trim().split('-');
+    if (parts.length === 3) {
+      const [dd, mm, yyyy] = parts;
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return null;
+  }
+
+  const mpriceRows = mpricesRaw.map(r => {
+    const date = formatCsvDate(r.Date);
+    return {
+      source_id_atyp: Number(r.SourceID_ATYP) || 0,
+      amid: Number(r.AMID) || 0,
+      currp: r.CURRP && r.CURRP.trim() !== '' ? parseFloat(r.CURRP) : null,
+      prevp: r.PREVP && r.PREVP.trim() !== '' ? parseFloat(r.PREVP) : null,
+      date: date
+    };
+  }).filter(r => r.amid > 0 && r.date !== null);
+
+  console.log(`    Clearing existing mprices...`);
+  const { error: clearErr } = await supabase.from('mprices').delete().neq('row_id', -1);
+  if (clearErr) {
+    console.warn(`    ⚠  Could not clear mprices: ${clearErr.message}`);
+  }
+
+  console.log(`    Uploading ${mpriceRows.length} prices to mprices table...`);
+  const BATCH_SIZE = 200;
+  for (let i = 0; i < mpriceRows.length; i += BATCH_SIZE) {
+    const chunk = mpriceRows.slice(i, i + BATCH_SIZE);
+    const { error: insErr } = await supabase.from('mprices').insert(chunk);
+    if (insErr) {
+      console.error(`    ❌ Error inserting mprices batch [${i} to ${i + chunk.length}]:`, insErr.message);
+    }
+  }
+  console.log('    ✅ mprices imported');
 
   // ═══ DONE ══════════════════════════════════════════════════════
   console.log('\n' + '='.repeat(50));
@@ -407,6 +446,7 @@ async function runImport() {
   console.log(`    Broker Ledgers:  ${brokerLedgerRows.length}`);
   console.log(`    Vouchers:        ${voucherRows.length}`);
   console.log(`    Entries:         ${entryRows.length}`);
+  console.log(`    Market Prices:   ${mpriceRows.length}`);
   console.log('='.repeat(50) + '\n');
 }
 

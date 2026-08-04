@@ -61,12 +61,10 @@ export default function CapitalGainsPage() {
   }, [customRange]);
 
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
+    return 'Rs. ' + (val || 0).toLocaleString('en-IN', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(val || 0);
+    });
   };
 
   // Process data for display
@@ -155,8 +153,8 @@ export default function CapitalGainsPage() {
             <thead>
               <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
                 <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Portfolio</th>
-                <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>STCG (₹)</th>
-                <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>LTCG (₹)</th>
+                <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>STCG (Rs.)</th>
+                <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>LTCG (Rs.)</th>
                 <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>Transactions</th>
               </tr>
             </thead>
@@ -195,7 +193,7 @@ export default function CapitalGainsPage() {
         <div>
           <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 700, color: '#9a3412' }}>Budget 2024 Updates Applied</h4>
           <p style={{ margin: 0, fontSize: '13px', color: '#c2410c' }}>
-            Calculations use updated tax rules: STCG is taxed at 20%. LTCG on equity is taxed at 12.5% with an annual exemption limit of ₹1.25 Lakhs. These figures are estimates based on FIFO lot matching; consult your CA for final tax filing.
+            Calculations use updated tax rules: STCG is taxed at 20%. LTCG on equity is taxed at 12.5% with an annual exemption limit of Rs. 1.25 Lakhs. These figures are estimates based on FIFO lot matching; consult your CA for final tax filing.
           </p>
         </div>
       </div>

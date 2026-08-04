@@ -1,0 +1,60 @@
+Created At: 2026-05-23T10:29:49Z
+Completed At: 2026-05-23T10:29:50Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 668
+Total Bytes: 28987
+Showing lines 179 to 230
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+179:       // Look up the linked account via accPflink join table
+180:       const link = state.accPflink.find((l: any) => l.pfid === p.id);
+181:       const accountId = link ? String(link.acid) : null;
+182:       return {
+183:         ...p,
+184:         id: String(p.id),
+185:         portfolioName: p.investor_name || p.full_name || `Portfolio ${p.id}`,
+186:         accountId,
+187:         portfolioType: p.pfolio_type === 1 ? 'Equity'
+188:           : p.pfolio_type === 2 ? 'Mutual Funds'
+189:           : p.pfolio_type === 3 ? 'Fixed Income'
+190:           : p.pfolio_type === 4 ? 'Real Estate'
+191:           : null
+192:       };
+193:     });
+194: }
+195: 
+196: export function getStoredInvestorGroups() {
+197:   return state.portfolios.filter(p => p.is_group).map(p => ({
+198:     id: String(p.id),
+199:     name: p.investor_name,
+200:     groupName: p.investor_name,
+201:     fullName: p.full_name || p.investor_name,
+202:     portfolioIds: state.investorGroupMembers
+203:       .filter((m: any) => m.investor_group_id === p.id)
+204:       .map((m: any) => String(m.pfolio_id))
+205:   }));
+206: }
+207: 
+208: export function getStoredAccounts() {
+209:   return state.portfolios.filter(p => p.pfolio_type === 10).map(p => ({
+210:     id: String(p.id),
+211:     name: p.investor_name,
+212:     accountName: p.investor_name,
+213:     fullName: p.full_name || p.investor_name,
+214:     pan: p.pan || '',
+215:     familyId: 'pramesh_shah_family',
+216:     linkedPortfolios: state.accPflink
+217:       .filter((l: any) => l.acid === p.id)
+218:       .map((l: any) => String(l.pfid))
+219:   }));
+220: }
+221: 
+222: export function getStoredFamilies() {
+223:   return [{
+224:     id: 'pramesh_shah_family',
+225:     name: 'Pramesh R Shah Family',
+226:     familyName: 'Pramesh R Shah Family',
+227:     category: 'Family Workspace'
+228:   }];
+229: }
+230: 
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

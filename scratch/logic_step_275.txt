@@ -1,0 +1,71 @@
+Created At: 2026-05-23T08:38:44Z
+Completed At: 2026-05-23T08:38:45Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 639
+Total Bytes: 27851
+Showing lines 64 to 126
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+64:   mprices: [] as any[],
+65:   priceMap: {} as Record<number, { curr: number; prev: number }>,
+66:   assetNameMap: {} as Record<number, string>,
+67:   initialized: false
+68: };
+69: 
+70: // ── SAFE FETCH ────────────────────────────────────────────────────────────────
+71: async function safeFetch(table: string, max = 50000): Promise<any[]> {
+72:   try {
+73:     let all: any[] = [];
+74:     let page = 0;
+75:     const size = 1000;
+76:     while (all.length < max) {
+77:       const { data, error } = await supabase
+78:         .from(table).select('*').range(page * size, (page + 1) * size - 1);
+79:       if (error) { console.warn(`⚠️ ${table}:`, error.message); break; }
+80:       if (!data || data.length === 0) break;
+81:       all = all.concat(data);
+82:       if (data.length < size) break;
+83:       page++;
+84:     }
+85:     return all;
+86:   } catch (e) {
+87:     console.warn(`⚠️ ${table}:`, e);
+88:     return [];
+89:   }
+90: }
+91: 
+92: // ── INIT ──────────────────────────────────────────────────────────────────────
+93: export async function initDatabase() {
+94:   if (state.initialized) return;
+95:   console.log('Initializing WealthCore...');
+96:   const [portfolios, igm, accPflink, acmac1, sam, assetMaster,
+97:          bs1, sumTable, vouchersC1, transC1, trans1, mprices] = await Promise.all([
+98:     safeFetch('portfolios'), safeFetch('investor_group_members'),
+99:     safeFetch('acc_pflink'), safeFetch('acmac1'), safeFetch('sam'),
+100:     safeFetch('asset_master'), safeFetch('bs1'), safeFetch('sum_table'),
+101:     safeFetch('vouchersc1'), safeFetch('transc1'), safeFetch('trans1'), safeFetch('mprices'),
+102:   ]);
+103:   state.portfolios = portfolios;
+104:   state.investorGroupMembers = igm;
+105:   state.accPflink = accPflink;
+106:   state.acmac1 = acmac1;
+107:   state.sam = sam;
+108:   state.assetMaster = assetMaster;
+109:   state.bs1 = bs1;
+110:   state.sumTable = sumTable;
+111:   state.vouchersC1 = vouchersC1;
+112:   state.transC1 = transC1;
+113:   state.trans1 = trans1;
+114:   state.mprices = mprices;
+115:   mprices.forEach((p: any) => {
+116:     state.priceMap[p.amid] = { curr: Number(p.currp) || 0, prev: Number(p.prevp) || 0 };
+117:   });
+118:   sam.forEach((s: any) => { state.assetNameMap[s.amid] = s.anm; });
+119:   assetMaster.forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
+120:   acmac1.forEach((a: any) => { if (!state.assetNameMap[a.id]) state.assetNameMap[a.id] = a.name; });
+121:   state.initialized = true;
+122:   console.log(`✅ WealthCore Ready — ${portfolios.length} portfolios, ${acmac1.length} COA entries, ${transC1.length} journal entries, ${bs1.length} portfolio txns`);
+123: }
+124: 
+125: // ── HELPERS ───────────────────────────────────────────────────────────────────
+126: export function getAssetName(amid: number): string {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

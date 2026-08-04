@@ -1,0 +1,58 @@
+Created At: 2026-05-23T08:38:16Z
+Completed At: 2026-05-23T08:38:16Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 639
+Total Bytes: 27851
+Showing lines 216 to 265
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+216: // IMPORTANT: acmac1.id is NOT globally unique — ids like 64 (Capital Account),
+217: // 50 (Investments) etc. are SHARED across all 7 persons (acids). You MUST always
+218: // pass the acid when fetching groups/ledgers for a specific person.
+219: export function getStoredGroups(acid?: string | number): Group[] {
+220:   const acidNum = acid ? Number(acid) : null;
+221:   return state.acmac1
+222:     .filter((a: any) => a.is_group && (!acidNum || a.acid === acidNum))
+223:     .map((a: any) => ({
+224:       id: String(a.id),
+225:       name: a.name,
+226:       parent: a.parent_id ? String(a.parent_id) : undefined,
+227:       type: getGroupType(a.special_type_id || 150),
+228:       acid: a.acid,
+229:       specialTypeId: a.special_type_id
+230:     }));
+231: }
+232: 
+233: export function getStoredLedgers(acid?: string | number): Ledger[] {
+234:   const acidNum = acid ? Number(acid) : null;
+235:   return state.acmac1
+236:     .filter((a: any) => !a.is_group && (!acidNum || a.acid === acidNum))
+237:     .map((a: any) => ({
+238:       id: String(a.id),
+239:       name: a.name,
+240:       groupId: String(a.parent_id),
+241:       openingBalance: 0,
+242:       openingType: 'DR' as "DR" | "CR",
+243:       currentBalance: 0,
+244:       currentType: 'DR' as "DR" | "CR",
+245:       amid: a.id >= 100000 ? a.id : undefined,
+246:       acid: a.acid
+247:     }));
+248: }
+249: 
+250: export function getStoredVouchers(): Voucher[] {
+251:   return state.vouchersC1.map((v: any) => ({
+252:     id: String(v.vid),
+253:     date: v.dt || '',
+254:     type: String(v.vtyp || 'journal'),
+255:     narration: v.narr || '',
+256:     voucherNo: `V-${v.vid}`,
+257:     portfolioId: v.pfid ? String(v.pfid) : undefined,
+258:     accountId: v.acid ? String(v.acid) : undefined,
+259:   }));
+260: }
+261: 
+262: export function getStoredEntries(): Entry[] {
+263:   return state.transC1.map((e: any) => ({
+264:     id: String(e.transid),
+265:     voucherId: String(e.vid),
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

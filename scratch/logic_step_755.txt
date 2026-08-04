@@ -1,0 +1,44 @@
+Created At: 2026-05-23T11:48:36Z
+Completed At: 2026-05-23T11:48:36Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 668
+Total Bytes: 28985
+Showing lines 265 to 300
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+265:       groupId: String(a.parent_id),
+266:       openingBalance: 0,
+267:       openingType: 'DR' as const,
+268:       currentBalance: 0,
+269:       currentType: 'DR' as const,
+270:       amid: a.id >= 100000 ? a.id : undefined,
+271:       acid: a.acid
+272:     }));
+273: }
+274: 
+275: export function getStoredVouchers(): Voucher[] {
+276:   const allVouchers = [...state.vouchersC1, ...state.vouchers1];
+277:   return allVouchers.map((v: any) => ({
+278:     id: String(v.vid),
+279:     date: v.dt || '',
+280:     type: String(v.vtyp || 'journal'),
+281:     narration: v.narr || '',
+282:     voucherNo: `V-${v.vid}`,
+283:     portfolioId: v.pfid ? String(v.pfid) : undefined,
+284:     accountId: v.acid ? String(v.acid) : undefined,
+285:   }));
+286: }
+287: 
+288: export function getStoredEntries(): Entry[] {
+289:   const allTrans = [...state.transC1, ...state.trans1];
+290:   return allTrans.map((e: any) => ({
+291:     id: String(e.transid),
+292:     voucherId: String(e.vid),
+293:     ledgerId: String(e.maid),
+294:     debit: Number(e.dramt) || 0,
+295:     credit: Number(e.cramt) || 0,
+296:     quantity: 0,
+297:     price: 0,
+298:     date: e.dt || '',
+299:     accountId: e.acid ? String(e.acid) : undefined,
+300:   }));
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

@@ -1,0 +1,43 @@
+Created At: 2026-05-23T08:38:36Z
+Completed At: 2026-05-23T08:38:36Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 639
+Total Bytes: 27851
+Showing lines 250 to 284
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+250: export function getStoredVouchers(): Voucher[] {
+251:   return state.vouchersC1.map((v: any) => ({
+252:     id: String(v.vid),
+253:     date: v.dt || '',
+254:     type: String(v.vtyp || 'journal'),
+255:     narration: v.narr || '',
+256:     voucherNo: `V-${v.vid}`,
+257:     portfolioId: v.pfid ? String(v.pfid) : undefined,
+258:     accountId: v.acid ? String(v.acid) : undefined,
+259:   }));
+260: }
+261: 
+262: export function getStoredEntries(): Entry[] {
+263:   return state.transC1.map((e: any) => ({
+264:     id: String(e.transid),
+265:     voucherId: String(e.vid),
+266:     ledgerId: String(e.maid),
+267:     debit: Number(e.dramt) || 0,
+268:     credit: Number(e.cramt) || 0,
+269:     quantity: 0,
+270:     price: 0,
+271:   }));
+272: }
+273: 
+274: export function getStoredTaxLots() { return []; }
+275: export function getStoredPrices() { return state.priceMap; }
+276: 
+277: // ── HOLDINGS ──────────────────────────────────────────────────────────────────
+278: export interface AssetHolding {
+279:   assetId: number; assetName: string; amid: number;
+280:   assetType: number; assetTypeName: string; assetIcon: string;
+281:   nseSymbol?: string; quantity: number; avgPrice: number;
+282:   amtInvested: number; currentPrice: number; prevPrice: number;
+283:   todaysGain: number; todaysGainPct: number;
+284:   overallGain: number; overallGainPct: number; currentValue: number;
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

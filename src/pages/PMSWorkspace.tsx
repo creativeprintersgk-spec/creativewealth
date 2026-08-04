@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFamily } from '../contexts/FamilyContext';
 import { useFY } from '../FYContext';
@@ -7,7 +7,8 @@ import {
   getStoredPortfolios,
   getStoredInvestorGroups,
   getHoldings,
-  syncLivePrices
+  syncLivePrices,
+  state
 } from '../logic';
 import type { AssetHolding } from '../logic';
 
@@ -27,6 +28,7 @@ import {
 
 import HoldingsGrid from '../components/pms/HoldingsGrid';
 import HoldingBreakupModal from '../components/pms/HoldingBreakupModal';
+import LedgerDrilldownModal from '../LedgerDrilldownModal';
 import AssetLedgerModal from '../components/pms/AssetLedgerModal';
 import FamilySelectorModal from '../components/FamilySelectorModal';
 import PortfolioActivityModal from '../components/pms/PortfolioActivityModal';
@@ -139,6 +141,8 @@ export default function PMSWorkspace() {
 
   const [isViewsMenuOpen, setIsViewsMenuOpen] = useState(false);
   const [isActivityMenuOpen, setIsActivityMenuOpen] = useState(false);
+  const [areAllExpanded, setAreAllExpanded] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'value' | 'todaysGainPct' | 'overallGainPct' | 'overallGain' | 'todaysGain'>('value');
 
   useEffect(() => {
     const handleClick = () => {
@@ -292,15 +296,17 @@ export default function PMSWorkspace() {
                 </button>
                 {isViewsMenuOpen && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', minWidth: '220px', zIndex: 100, padding: '4px' }}>
-                    <button className="dropdown-item">Collapse All</button>
+                    <button className="dropdown-item" onClick={() => setAreAllExpanded(!areAllExpanded)}>
+                      {areAllExpanded ? 'Collapse All' : 'Expand All'}
+                    </button>
                     <button className="dropdown-item">Views of Summary Table</button>
                     <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
-                    <button className="dropdown-item">Sort By Current Value</button>
-                    <button className="dropdown-item">Sort By Today's Gain %</button>
-                    <button className="dropdown-item">Sort By Overall Gain %</button>
-                    <button className="dropdown-item">Sort By Overall Gain</button>
-                    <button className="dropdown-item">Sort By Today's Gain</button>
-                    <button className="dropdown-item">Show 0 Values</button>
+                    <button className="dropdown-item" onClick={() => setSortBy('name')} style={{ fontWeight: sortBy === 'name' ? 700 : 500 }}>Sort By Name</button>
+                    <button className="dropdown-item" onClick={() => setSortBy('value')} style={{ fontWeight: sortBy === 'value' ? 700 : 500 }}>Sort By Current Value</button>
+                    <button className="dropdown-item" onClick={() => setSortBy('todaysGainPct')} style={{ fontWeight: sortBy === 'todaysGainPct' ? 700 : 500 }}>Sort By Today's Gain %</button>
+                    <button className="dropdown-item" onClick={() => setSortBy('overallGainPct')} style={{ fontWeight: sortBy === 'overallGainPct' ? 700 : 500 }}>Sort By Overall Gain %</button>
+                    <button className="dropdown-item" onClick={() => setSortBy('overallGain')} style={{ fontWeight: sortBy === 'overallGain' ? 700 : 500 }}>Sort By Overall Gain</button>
+                    <button className="dropdown-item" onClick={() => setSortBy('todaysGain')} style={{ fontWeight: sortBy === 'todaysGain' ? 700 : 500 }}>Sort By Today's Gain</button>
                   </div>
                 )}
               </div>
@@ -362,12 +368,20 @@ export default function PMSWorkspace() {
             </div>
           </div>
 
-          {/* â”€â”€ GRID â”€â”€ */}
+          {/* ── GRID ── */}
           <div style={{ minHeight: '500px', overflow: 'hidden' }}>
-            <HoldingsGrid data={holdings} onHoldingClick={setSelectedHolding} groupByCategory={activeAssetType === 'all'} categoryLabels={CATEGORY_LABELS} onDataChange={setEnrichedHoldings} />
+            <HoldingsGrid 
+              data={holdings} 
+              onHoldingClick={setSelectedHolding} 
+              groupByCategory={activeAssetType === 'all'} 
+              categoryLabels={CATEGORY_LABELS} 
+              onDataChange={setEnrichedHoldings} 
+              areAllExpanded={areAllExpanded}
+              sortBy={sortBy}
+            />
           </div>
 
-          {/* â”€â”€ FOOTER â”€â”€ */}
+          {/* ── FOOTER ── */}
           <div style={{ height: '40px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 20px', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', gap: '20px', fontSize: '11px' }}>
               <div>Invested: <span style={{ fontWeight: 700 }}>{fmt(totals.invested)}</span></div>
@@ -381,9 +395,22 @@ export default function PMSWorkspace() {
         </div>
       </div>
 
-      {/* â”€â”€ MODALS â”€â”€ */}
+      {/* ── MODALS ── */}
       {selectedHolding && <HoldingBreakupModal open={!!selectedHolding} holding={selectedHolding} onClose={() => setSelectedHolding(null)} onDrilldown={handleDrilldown} />}
-      {selectedAssetForLedger && (
+      {selectedAssetForLedger && Number(selectedAssetForLedger.id) < 0 && (
+        <div style={{ position: 'relative', zIndex: 10000 }}>
+          <LedgerDrilldownModal
+            ledgerId={String(Math.abs(Number(selectedAssetForLedger.id)))}
+            accountId={
+              String(state.accPflink.find((l: any) => l.pfid === Number(selectedAssetForLedger.portIds[0]))?.accountId)
+            }
+            onClose={() => setSelectedAssetForLedger(null)}
+            onVoucherClick={setEditingVoucherId}
+            onNewVoucher={() => {}}
+          />
+        </div>
+      )}
+      {selectedAssetForLedger && Number(selectedAssetForLedger.id) >= 0 && (
         <AssetLedgerModal 
           open={!!selectedAssetForLedger} 
           assetId={selectedAssetForLedger.id} 

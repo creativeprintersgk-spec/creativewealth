@@ -1,0 +1,886 @@
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T04:33:52Z
+Completed At: 2026-06-16T04:33:53Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 2637
+Total Bytes: 119350
+Showing lines 911 to 1710
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+911:       // Asset matching: prefer ISIN, then NSE symbol, then name
+912:       const cleanSym = symbol.toUpperCase().replace(/-EQ|-BE|-BZ/g, '').trim();
+913:       let matched: any = null;
+914:       if (isin) {
+915:         matched = state.assetMaster.find((a: any) => a.isin === isin)
+916:           || state.sam.find((s: any) => s.extstr === isin);
+917:       }
+918:       if (!matched) {
+919:         matched = state.assetMaster.find((a: any) => a.nse_symbol === cleanSym)
+920:           || state.sam.find((s: any) => s.alias === cleanSym)
+921:           || state.assetMaster.find((a: any) => a.name.toLowerCase() === symbol.toLowerCase())
+922:           || state.assetMaster.find((a: any) => !isFutOptCsv(a.name) && a.name.toLowerCase().includes(symbol.toLowerCase()))
+923:           || state.sam.find((s: any) => !isFutOptCsv(s.anm) && s.anm.toLowerCase().includes(symbol.toLowerCase()));
+924:       }
+925: 
+926:       const isDuplicate = isDuplicateTrade(
+927:         { amid: matched?.amid || -1, quantity, price, type },
+928:         Number(selectedPortfolio),
+929:         tradeDate
+930:       );
+931: 
+932:       parsedTrades.push({
+933:         id: i,
+934:         selected: !isDuplicate,
+935:         portfolioId: selectedPortfolio,
+936:         assetName: matched?.name || matched?.anm || symbol,
+937:         amid: matched?.amid || -1,
+938:         type,
+939:         quantity,
+940:         price,
+941:         gross: quantity * price,
+942:         date: tradeDate,
+943:         brokerage: 0
+944:       });
+945:     }
+946: 
+947:     if
+<truncated 34499 bytes>
+Buys + sumCharges) - totalSells;
+1673: 
+1674:         if (netPayable > 0) {
+1675:           mappedLines.push({
+1676:             ledgerId: Number(selectedBrokerLedger),
+1677:             debit: 0,
+1678:             credit: Number(netPayable.toFixed(2))
+1679:           });
+1680:         } else if (netPayable < 0) {
+1681:           mappedLines.push({
+1682:             ledgerId: Number(selectedBrokerLedger),
+1683:             debit: Number(Math.abs(netPayable).toFixed(2)),
+1684:             credit: 0
+1685:           });
+1686:         }
+1687: 
+1688:         // Rounding Off check
+1689:         const sumDebits = mappedLines.reduce((s, l) => s + (l.debit || 0), 0);
+1690:         const sumCredits = mappedLines.reduce((s, l) => s + (l.credit || 0), 0);
+1691:         const diff = sumDebits - sumCredits;
+1692:         if (Math.abs(diff) > 0 && Math.abs(diff) < 1.0) {
+1693:           const lastLine = mappedLines[mappedLines.length - 1];
+1694:           if (lastLine.credit > 0) {
+1695:             lastLine.credit = Number((lastLine.credit + diff).toFixed(2));
+1696:           } else {
+1697:             lastLine.debit = Number((lastLine.debit - diff).toFixed(2));
+1698:           }
+1699:         }
+1700: 
+1701:         const brokerName = brokerLedgers.find(b => String(b.id) === String(selectedBrokerLedger))?.name || "Broker";
+1702:         const currentPf = portfolios.find(p => p.id === pId);
+1703:         const pName = currentPf?.name || currentPf?.portfolioName || `Portfolio ${pId}`;
+1704:         const dataPayload = {
+1705:           accountId: currentPf?.accountId || 31,
+1706:           portfolioId: pId,
+1707:           date: groupDate,
+1708:           narration: `Daily trades CN (${brokerName}) - ${pName}${cnNo ? ' No: ' + cnNo : ''}`,
+1709:           type: "journal",
+1710:           lines: mappedLines,
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T07:56:04Z
+Completed At: 2026-06-16T07:56:05Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 2694
+Total Bytes: 121638
+Showing lines 1 to 30
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: import React, { useState, useRef, useEffect, useMemo } from "react";
+2: import { useNavigate } from "react-router-dom";
+3: import { FileUp, CheckCircle, AlertTriangle, ArrowRight, Upload, Play, Database, RefreshCw, ChevronRight, Edit2, Plus, Trash2, Search, CheckSquare, Square } from "lucide-react";
+4: import { supabase } from "../supabase";
+5: import { useFY } from "../FYContext";
+6: import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers } from "../logic";
+7: import { MfCasTab } from "./MfCasTab";
+8: 
+9: // Define the 12 MProfit replicated tables and their expected file names
+10: interface TableConfig {
+11:   key: string;
+12:   name: string;
+13:   filePattern: RegExp;
+14:   required: boolean;
+15:   deleteKey: string;
+16: }
+17: 
+18: const TABLE_CONFIGS: TableConfig[] = [
+19:   { key: 'portfolios', name: 'Portfolios', filePattern: /^portfolios\.csv$/i, required: true, deleteKey: 'id' },
+20:   { key: 'investor_group_members', name: 'Investor Group Members', filePattern: /^investorgroupmembers\.csv$/i, required: false, deleteKey: 'pfolio_id' },
+21:   { key: 'acc_pflink', name: 'Account Portfolio Links', filePattern: /^acc_pflink\.csv|acc_pflnk\.csv$/i, required: true, deleteKey: 'pfid' },
+22:   { key: 'acmac1', name: 'Chart of Accounts (ACMAC1)', filePattern: /^acmac1\.csv$/i, required: true, deleteKey: 'id' },
+23:   { key: 'sam', name: 'Security Asset Master (SAM)', filePattern: /^sam\.csv$/i, required: true, deleteKey: 'amid' },
+24:   { key: 'bs1', name: 'Portfolio Transactions (BS1)', filePattern: /^bs1\.csv$/i, required: true, deleteKey: 'trid' },
+25:   { key: 'sum_table', name: 'Holdings Summary (SumTable)', filePattern: /^sum_?table\.csv$/i, required: true, deleteKey: 'sid' },
+26:   { key: 'vouchersc1', name: 'Capital Vouchers (VouchersC1)', filePattern: /^vouchersc1\.csv$/i, required: true, deleteKey: 'vid' },
+27:   { key: 'vouchers1', name: 'Trading Vouchers (Vouchers1)', filePattern: /^vouchers1\.csv$/i, required: true, deleteKey: 'vid' },
+28:   { key: 'transc1', name: 'Capital Transactions (TransC1)', filePattern: /^transc1\.csv$/i, required: true, deleteKey: 'transid' },
+29:   { key: 'trans1', name: 'Trading Transactions (Trans1)', filePattern: /^trans1\.csv$/i, required: true, deleteKey: 'transid' },
+30:   { key: 'mprices', name: 'Market Prices (MPrices)', filePattern: /^mprices\.csv$/i, required: true, deleteKey: 'row_id' },
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T09:58:22Z
+Completed At: 2026-06-16T09:58:22Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 2719
+Total Bytes: 122568
+Showing lines 380 to 430
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+380:     // Broker Contract Note States
+381:   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("");
+382:   const [selectedBrokerLedger, setSelectedBrokerLedger] = useState<string>("");
+383:   const [selectedBroker, setSelectedBroker] = useState<string>("zerodha");
+384:   const [cnDate, setCnDate] = useState<string>(new Date().toISOString().split('T')[0]);
+385:   const [cnNo, setCnNo] = useState<string>("");
+386:   const [cnTrades, setCnTrades] = useState<any[]>([]);
+387:   const [hideDuplicatesCn, setHideDuplicatesCn] = useState<boolean>(false);
+388:   const [cnCharges, setCnCharges] = useState({
+389:     stt: 0,
+390:     brokerage: 0,
+391:     gst: 0,
+392:     stamp: 0,
+393:     transCharges: 0,
+394:     other: 0
+395:   });
+396: 
+397:   // Initialize DB data for selectors
+398:   useEffect(() => {
+399:     async function loadSelectors() {
+400:       if (!state.initialized) {
+401:         await forceRefreshDatabase();
+402:       }
+403:       
+404:       const ports = getStoredPortfolios();
+405:       setPortfolios(ports);
+406:       if (ports.length > 0) {
+407:         setSelectedPortfolio(String(ports[0].id));
+408:       }
+409:     }
+410:     loadSelectors().catch(console.error);
+411:   }, [refreshKey]);
+412: 
+413:   // Load broker ledgers dynamically when selectedPortfolio changes or selected broker parser changes
+414:   useEffect(() => {
+415:     if (!selectedPortfolio || portfolios.length === 0) return;
+416:     const pf = portfolios.find(p => String(p.id) === String(selectedPortfolio));
+417:     const acid = pf ? pf.accountId : null;
+418:     if (acid) {
+419:       const ledgers = getStoredLedgers(acid);
+420:       const brokers = ledgers.filter(l => l.groupId === '75' || l.groupId === '90');
+421:       setBrokerLedgers(brokers);
+422:       if (brokers.length > 0) {
+423:         // Try to match the selected broker parser to the ledger name (e.g. Zerodha, RK Global, Mirae)
+424:         const activeParser = selectedBroker.toLowerCase().replace(/[^a-z0-9]/g, "");
+425:         const matchedLedger = brokers.find(b => {
+426:           const nameLower = b.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+427:           if (activeParser === 'zerodha') return nameLower.includes('zerodha');
+428:           if (activeParser === 'rkglobal') return nameLower.includes('global') || nameLower.includes('rk');
+429:           if (activeParser === 'mirae') return nameLower.includes('mirae') || nameLower.includes('mstock');
+430:           return nameLower.includes(activeParser);
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:15:07Z
+Completed At: 2026-06-16T10:15:08Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1634
+Total Bytes: 77023
+Showing lines 620 to 645
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+620:         console.log(`Created missing ledger "${name.trim()}" with ID ${nextId}`);
+621:         state.acmac1.push({
+622:           id: nextId,
+623:           name: name.trim(),
+624:           parent_id: parentId,
+625:           acid: acid,
+626:           is_group: false
+627:         });
+628:       }
+629: 
+630:       return nextId;
+631:     };
+632: 
+633:     let totalBuys = 0;
+634:         let totalSells = 0;
+635: 
+636:         for (const t of tradesInGroup) {
+637:           const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, 50);
+638:           const gross = t.quantity * t.price;
+639: 
+640:           if (t.type === "Buy") {
+641:             totalBuys += gross;
+642:             mappedLines.push({
+643:               ledgerId,
+644:               debit: gross,
+645:               credit: 0,
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:15:24Z
+Completed At: 2026-06-16T10:15:24Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1634
+Total Bytes: 77023
+Showing lines 550 to 620
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+550:       const acid = pf ? pf.accountId || 30 : 30; // fallback to default acid
+551: 
+552:       // 1. Try to find ledger by name globally in state.acmac1
+553:       const existingByName = state.acmac1.find((a: any) =>
+554:         a.name && a.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+555:         (a.acid === acid || (a.acid === 36 && acid === 30) || (a.acid === 30 && acid === 36))
+556:       );
+557: 
+558:       let matchedLedger = existingByName;
+559: 
+560:       // 2. Try to find ledger by AMID globally in state.acmac1
+561:       if (!matchedLedger) {
+562:         const existingByAmid = state.acmac1.find((l: any) => 
+563:           l.amid !== undefined && Number(l.amid) === Number(amid) &&
+564:           (l.acid === acid || (l.acid === 36 && acid === 30) || (l.acid === 30 && acid === 36))
+565:         );
+566:         matchedLedger = existingByAmid;
+567:       }
+568: 
+569:       // 3. Fallback: Query database directly in case it was created recently but state is stale
+570:       if (!matchedLedger) {
+571:         const { data: dbByName } = await supabase.from('acmac1')
+572:           .select('*')
+573:           .ilike('name', name.trim())
+574:           .in('acid', [acid, acid === 30 ? 36 : 30])
+575:           .limit(1);
+576:         if (dbByName && dbByName.length > 0) {
+577:           matchedLedger = dbByName[0];
+578:           state.acmac1.push(matchedLedger);
+579:         }
+580:       }
+581: 
+582:       if (matchedLedger) {
+583:         console.log(`Reusing existing ledger: "${matchedLedger.name}" (ID: ${matchedLedger.id})`);
+584:         c
+<truncated 65 bytes>
+= 61 ? 200062 : (assetType === 80 ? 400000 : 200050));
+585:         const parent_id = matchedLedger.parent_id;
+586:         if (parent_id !== expectedParentId && parent_id !== -1 && (assetType === 60 || assetType === 61)) {
+587:            supabase.from('acmac1').update({ parent_id: expectedParentId }).eq('id', matchedLedger.id).then(() => {
+588:               console.log(`Updated parent_id of ${matchedLedger.name} to ${expectedParentId}`);
+589:            });
+590:         }
+591:         return Number(matchedLedger.id);
+592:       }
+593: 
+594:       // 4. Create a new ledger in Supabase
+595:       let nextId = Number(amid);
+596:       if (nextId >= 800000000 || isNaN(nextId) || nextId <= 0) {
+597:         const { data: maxIdRow } = await supabase.from('acmac1').select('id').order('id', { ascending: false }).limit(1);
+598:         nextId = (maxIdRow?.[0]?.id || 500000) + 1;
+599:       } else {
+600:         const { data: idExists } = await supabase.from('acmac1').select('id').eq('id', nextId).limit(1);
+601:         if (idExists && idExists.length > 0) {
+602:           const { data: maxIdRow } = await supabase.from('acmac1').select('id').order('id', { ascending: false }).limit(1);
+603:           nextId = (maxIdRow?.[0]?.id || 500000) + 1;
+604:         }
+605:       }
+606: 
+607:       const parentId = assetType === 60 ? 200061 : (assetType === 61 ? 200062 : (assetType === 80 ? 400000 : 200050));
+608:       
+609:       const { error } = await supabase.from('acmac1').insert([{
+610:         id: nextId,
+611:         name: name.trim(),
+612:         parent_id: parentId,
+613:         acid: acid,
+614:         is_group: false
+615:       }]);
+616: 
+617:       if (error) {
+618:         console.error('Error creating missing ledger:', error);
+619:       } else {
+620:         console.log(`Created missing ledger "${name.trim()}" with ID ${nextId}`);
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:15:46Z
+Completed At: 2026-06-16T10:15:46Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1634
+Total Bytes: 77023
+Showing lines 500 to 550
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+500:       if (['buy', 'purchase', 'sip', 'dividend reinvest', 'dividend_reinvest', 'reinvest'].includes(typeLower)) return 'buy';
+501:       if (['sell', 'redemption'].includes(typeLower)) return 'sell';
+502:       if (['dividend', 'dividend payout', 'dividend_payout'].includes(typeLower)) return 'dividend';
+503:       return typeLower;
+504:     };
+505:     for (const b of state.bs1 || []) {
+506:       const pfId = String(b.pfid || b.pfolio_id);
+507:       const amid = String(b.amid);
+508:       const date = (b.dt || b.tdate || '').substring(0, 10);
+509:       const key = `${pfId}_${amid}_${date}`;
+510:       if (!map[key]) map[key] = [];
+511:       map[key].push({
+512:         qty: Number(b.qn || b.qty),
+513:         typeStr: normalizeType(b.trstr || b.ttype || '')
+514:       });
+515:     }
+516:     return map;
+517:   }, [state.bs1]);
+518: 
+519:   // Helper to check for duplicate transactions in Supabase database cache (state.bs1)
+520:   const isDuplicateTrade = (trade: any, portfolioId: number, date: string): boolean => {
+521:     if (trade.amid === -1 || !portfolioId || !date) return false;
+522: 
+523:     const normalizeType = (t: string) => {
+524:       const typeLower = (t || '').toLowerCase();
+525:       if (['buy', 'purchase', 'sip', 'dividend reinvest', 'dividend_reinvest', 'reinvest'].includes(typeLower)) return 'buy';
+526:       if (['sell', 'redemption'].includes(typeLower)) return 'sell';
+527:       if (['dividend', 'dividend payout', 'dividend_payout'].includes(typeLower)) return 'dividend';
+528:       return typeLower;
+529:     };
+530: 
+531:     const pfId = String(portfolioId);
+532:     const amid = String(trade.amid);
+533:     const dateStr = date.substring(0, 10);
+534:     const key = `${pfId}_${amid}_${dateStr}`;
+535:     
+536:     const matches = bs1TradeMap[key];
+537:     if (!matches) return false;
+538: 
+539:     const normTradeType = normalizeType(trade.type);
+540:     const dup = matches.some(m => Math.abs(m.qty - Number(trade.quantity)) < 0.01 && m.typeStr === normTradeType);
+541:     if (dup) console.log('Duplicate trade detected:', key, trade, matches);
+542:     return dup;
+543:   };
+544: 
+545: 
+546:   // Dynamic asset mapping creator if missing
+547:   const ensureAssetLedgerExists = async (amid: number, name: string, portfolioId: number, assetType: number): Promise<number> => {
+548:       // Get active account ID for the portfolio
+549:       const pf = portfolios.find(p => String(p.id) === String(portfolioId));
+550:       const acid = pf ? pf.accountId || 30 : 30; // fallback to default acid
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:16:19Z
+Completed At: 2026-06-16T10:16:20Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1634
+Total Bytes: 77023
+Showing lines 450 to 547
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+450:       setSearchSuggestions([]);
+451:       return;
+452:     }
+453: 
+454:     const assetType = 50; // Contract notes is stocks (50)
+455: 
+456:     // 1. Filter local in-memory holdings first
+457:     const localMatches = state.assetMaster.filter(a => {
+458:       const matchesQuery = a.name.toLowerCase().includes(query.toLowerCase());
+459:       const matchesType = a.asset_type === assetType;
+460:       return matchesQuery && matchesType;
+461:     }).slice(0, 10).map(a => ({ amid: a.amid, name: a.name, asset_type: a.asset_type, isLocal: true }));
+462: 
+463:     // 2. Query global security asset master in Supabase
+464:     const cleanQuery = query.trim();
+465:     const { data: dbMatches } = await supabase
+466:       .from('asset_master')
+467:       .select('amid, name, asset_type, nse_symbol, isin')
+468:       .or(`name.ilike.%${cleanQuery}%,nse_symbol.ilike.%${cleanQuery}%,isin.ilike.%${cleanQuery}%`)
+469:       .eq('asset_type', assetType)
+470:       .limit(8);
+471:     
+472:     const dbMapped = (dbMatches || []).map((s: any) => ({
+473:       amid: s.amid,
+474:       name: s.name,
+475:       asset_type: s.asset_type,
+476:       isLocal: false
+477:     }));
+478: 
+479:     // Combine
+480:     const combined = [...localMatches];
+481:     dbMapped.forEach(item => {
+482:       if (!combined.some(c => c.amid === item.amid)) {
+483:         combined.push(item);
+484:       }
+485:     });
+486: 
+487:     setSearchSuggestions(combined.slice(0, 12));
+488:   };
+489: 
+490:   const selectAssetSuggestion = (suggestion: any, rowId: nu
+<truncated 956 bytes>
+b.tdate || '').substring(0, 10);
+509:       const key = `${pfId}_${amid}_${date}`;
+510:       if (!map[key]) map[key] = [];
+511:       map[key].push({
+512:         qty: Number(b.qn || b.qty),
+513:         typeStr: normalizeType(b.trstr || b.ttype || '')
+514:       });
+515:     }
+516:     return map;
+517:   }, [state.bs1]);
+518: 
+519:   // Helper to check for duplicate transactions in Supabase database cache (state.bs1)
+520:   const isDuplicateTrade = (trade: any, portfolioId: number, date: string): boolean => {
+521:     if (trade.amid === -1 || !portfolioId || !date) return false;
+522: 
+523:     const normalizeType = (t: string) => {
+524:       const typeLower = (t || '').toLowerCase();
+525:       if (['buy', 'purchase', 'sip', 'dividend reinvest', 'dividend_reinvest', 'reinvest'].includes(typeLower)) return 'buy';
+526:       if (['sell', 'redemption'].includes(typeLower)) return 'sell';
+527:       if (['dividend', 'dividend payout', 'dividend_payout'].includes(typeLower)) return 'dividend';
+528:       return typeLower;
+529:     };
+530: 
+531:     const pfId = String(portfolioId);
+532:     const amid = String(trade.amid);
+533:     const dateStr = date.substring(0, 10);
+534:     const key = `${pfId}_${amid}_${dateStr}`;
+535:     
+536:     const matches = bs1TradeMap[key];
+537:     if (!matches) return false;
+538: 
+539:     const normTradeType = normalizeType(trade.type);
+540:     const dup = matches.some(m => Math.abs(m.qty - Number(trade.quantity)) < 0.01 && m.typeStr === normTradeType);
+541:     if (dup) console.log('Duplicate trade detected:', key, trade, matches);
+542:     return dup;
+543:   };
+544: 
+545: 
+546:   // Dynamic asset mapping creator if missing
+547:   const ensureAssetLedgerExists = async (amid: number, name: string, portfolioId: number, assetType: number): Promise<number> => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:17:11Z
+Completed At: 2026-06-16T10:17:11Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1634
+Total Bytes: 77023
+Showing lines 600 to 660
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+600:         const { data: idExists } = await supabase.from('acmac1').select('id').eq('id', nextId).limit(1);
+601:         if (idExists && idExists.length > 0) {
+602:           const { data: maxIdRow } = await supabase.from('acmac1').select('id').order('id', { ascending: false }).limit(1);
+603:           nextId = (maxIdRow?.[0]?.id || 500000) + 1;
+604:         }
+605:       }
+606: 
+607:       const parentId = assetType === 60 ? 200061 : (assetType === 61 ? 200062 : (assetType === 80 ? 400000 : 200050));
+608:       
+609:       const { error } = await supabase.from('acmac1').insert([{
+610:         id: nextId,
+611:         name: name.trim(),
+612:         parent_id: parentId,
+613:         acid: acid,
+614:         is_group: false
+615:       }]);
+616: 
+617:       if (error) {
+618:         console.error('Error creating missing ledger:', error);
+619:       } else {
+620:         console.log(`Created missing ledger "${name.trim()}" with ID ${nextId}`);
+621:         state.acmac1.push({
+622:           id: nextId,
+623:           name: name.trim(),
+624:           parent_id: parentId,
+625:           acid: acid,
+626:           is_group: false
+627:         });
+628:       }
+629: 
+630:       return nextId;
+631:     };
+632: 
+633:     let totalBuys = 0;
+634:         let totalSells = 0;
+635: 
+636:         for (const t of tradesInGroup) {
+637:           const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, 50);
+638:           const gross = t.quantity * t.price;
+639: 
+640:           if (t.type === "Buy") {
+641:             totalBuys += gross;
+642:             mappedLines.push({
+643:               ledgerId,
+644:               debit: gross,
+645:               credit: 0,
+646:               quantity: t.quantity,
+647:               price: t.price
+648:             });
+649:           } else {
+650:             totalSells += gross;
+651:             mappedLines.push({
+652:               ledgerId,
+653:               debit: 0,
+654:               credit: gross,
+655:               quantity: t.quantity,
+656:               price: t.price
+657:             });
+658:           }
+659:         }
+660: 
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:17:25Z
+Completed At: 2026-06-16T10:17:25Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1634
+Total Bytes: 77023
+Showing lines 630 to 750
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+630:       return nextId;
+631:     };
+632: 
+633:     let totalBuys = 0;
+634:         let totalSells = 0;
+635: 
+636:         for (const t of tradesInGroup) {
+637:           const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, 50);
+638:           const gross = t.quantity * t.price;
+639: 
+640:           if (t.type === "Buy") {
+641:             totalBuys += gross;
+642:             mappedLines.push({
+643:               ledgerId,
+644:               debit: gross,
+645:               credit: 0,
+646:               quantity: t.quantity,
+647:               price: t.price
+648:             });
+649:           } else {
+650:             totalSells += gross;
+651:             mappedLines.push({
+652:               ledgerId,
+653:               debit: 0,
+654:               credit: gross,
+655:               quantity: t.quantity,
+656:               price: t.price
+657:             });
+658:           }
+659:         }
+660: 
+661:         // Add proportional charges
+662:         const c = groupCharges;
+663:         const combinedOther = Number((c.brokerage + c.gst + c.stamp + c.transCharges + c.other).toFixed(2));
+664:         
+665:         if (c.stt > 0) mappedLines.push({ ledgerId: Number(sttLedgerId), debit: c.stt, credit: 0 });
+666:         if (combinedOther > 0) mappedLines.push({ ledgerId: Number(otherLedgerId), debit: combinedOther, credit: 0 });
+667: 
+668:         const sumCharges = c.stt + combinedOther;
+669:         const netPayable = (totalBuys + sumCharges) - totalSells;
+670: 
+671:         if (netPayable > 0) {
+672:       
+<truncated 1322 bytes>
+pId));
+700:         const pName = currentPf?.name || currentPf?.portfolioName || `Portfolio ${pId}`;
+701:         const dataPayload = {
+702:           accountId: currentPf?.accountId || 31,
+703:           portfolioId: pId,
+704:           date: groupDate,
+705:           narration: `Daily trades CN (${brokerName}) - ${pName}${cnNo ? ' No: ' + cnNo : ''}`,
+706:           type: "journal",
+707:           lines: mappedLines,
+708:           // Contract note metadata — required for scnote1 header creation
+709:           isContractNote: true,
+710:           cnNo: cnNo || '',
+711:           brokerLedgerId: Number(selectedBrokerLedger),
+712:           cnCharges: groupCharges,
+713:           netPayable: Number(netPayable.toFixed(2))
+714:         };
+715: 
+716:         console.log(`Commiting contract note voucher for portfolio ${pName}:`, dataPayload);
+717:         await createVoucher(dataPayload);
+718:       }
+719: 
+720:       await forceRefreshDatabase();
+721:       setRefreshKey(prev => prev + 1);
+722: 
+723:       setOverallMessage("✅ Contract note trades successfully imported!");
+724:       setCnCharges({
+725:         stt: 0,
+726:         brokerage: 0,
+727:         gst: 0,
+728:         stamp: 0,
+729:         transCharges: 0,
+730:         other: 0
+731:       });
+732:       setCnTrades([]);
+733:       setCnNo("");
+734:     } catch (err: any) {
+735:       alert(`Failed to commit trades: ${err.message}`);
+736:     } finally {
+737:       setIsImporting(false);
+738:     }
+739:   };
+740: 
+741:   
+742:   // Inline styles
+743:   const tabStyle = (active: boolean) => ({
+744:     padding: "12px 24px",
+745:     background: active ? "#2563eb" : "none",
+746:     border: "none",
+747:     borderRadius: "8px",
+748:     fontWeight: 700,
+749:     color: active ? "#fff" : "#64748b",
+750:     cursor: "pointer",
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:18:09Z
+Completed At: 2026-06-16T10:18:09Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1634
+Total Bytes: 77023
+Showing lines 620 to 640
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+620:         console.log(`Created missing ledger "${name.trim()}" with ID ${nextId}`);
+621:         state.acmac1.push({
+622:           id: nextId,
+623:           name: name.trim(),
+624:           parent_id: parentId,
+625:           acid: acid,
+626:           is_group: false
+627:         });
+628:       }
+629: 
+630:       return nextId;
+631:     };
+632: 
+633:     let totalBuys = 0;
+634:         let totalSells = 0;
+635: 
+636:         for (const t of tradesInGroup) {
+637:           const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, 50);
+638:           const gross = t.quantity * t.price;
+639: 
+640:           if (t.type === "Buy") {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:20:07Z
+Completed At: 2026-06-16T10:20:08Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1628
+Total Bytes: 76790
+Showing lines 620 to 660
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+620:         console.log(`Created missing ledger "${name.trim()}" with ID ${nextId}`);
+621:         state.acmac1.push({
+622:           id: nextId,
+623:           name: name.trim(),
+624:           parent_id: parentId,
+625:           acid: acid,
+626:           is_group: false
+627:         });
+628:       }
+629: 
+630:       return nextId;
+631:     };
+632: 
+633: 
+634:           if (t.type === "Buy") {
+635:             totalBuys += gross;
+636:             mappedLines.push({
+637:               ledgerId,
+638:               debit: gross,
+639:               credit: 0,
+640:               quantity: t.quantity,
+641:               price: t.price
+642:             });
+643:           } else {
+644:             totalSells += gross;
+645:             mappedLines.push({
+646:               ledgerId,
+647:               debit: 0,
+648:               credit: gross,
+649:               quantity: t.quantity,
+650:               price: t.price
+651:             });
+652:           }
+653:         }
+654: 
+655:         // Add proportional charges
+656:         const c = groupCharges;
+657:         const combinedOther = Number((c.brokerage + c.gst + c.stamp + c.transCharges + c.other).toFixed(2));
+658:         
+659:         if (c.stt > 0) mappedLines.push({ ledgerId: Number(sttLedgerId), debit: c.stt, credit: 0 });
+660:         if (combinedOther > 0) mappedLines.push({ ledgerId: Number(otherLedgerId), debit: combinedOther, credit: 0 });
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:23:30Z
+Completed At: 2026-06-16T10:23:31Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1666
+Total Bytes: 78381
+Showing lines 640 to 680
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+640:       const grouped = selectedTrades.reduce((acc: any, t: any) => {
+641:         const pf = portfolios.find((p: any) => String(p.id) === String(topPortfolioId));
+642:         const pId = pf ? String(pf.id) : String(t.portfolioId || topPortfolioId || 1);
+643:         const groupDate = topCnDate || t.date;
+644:         const key = `${pId}_${groupDate}`;
+645:         if (!acc[key]) acc[key] = { pId, groupDate, tradesInGroup: [] };
+646:         acc[key].tradesInGroup.push(t);
+647:         return acc;
+648:       }, {});
+649: 
+650:       const numGroups = Object.keys(grouped).length;
+651: 
+652:       for (const key of Object.keys(grouped)) {
+653:         const { pId, groupDate, tradesInGroup } = grouped[key];
+654:         const mappedLines: any[] = [];
+655:         
+656:         const groupCharges = {
+657:           stt: cnCharges.stt / numGroups,
+658:           brokerage: cnCharges.brokerage / numGroups,
+659:           gst: cnCharges.gst / numGroups,
+660:           stamp: cnCharges.stamp / numGroups,
+661:           transCharges: cnCharges.transCharges / numGroups,
+662:           other: cnCharges.other / numGroups
+663:         };
+664: 
+665:         let totalBuys = 0;
+666:         let totalSells = 0;
+667: 
+668:         for (const t of tradesInGroup) {
+669:           const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, 50);
+670:           const gross = t.quantity * t.price;
+671: 
+672:           if (t.type === "Buy") {
+673:             totalBuys += gross;
+674:             mappedLines.push({
+675:               ledgerId,
+676:               debit: gross,
+677:               credit: 0,
+678:               quantity: t.quantity,
+679:               price: t.price
+680:             });
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:23:42Z
+Completed At: 2026-06-16T10:23:42Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1666
+Total Bytes: 78381
+Showing lines 740 to 790
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+740:           // Contract note metadata — required for scnote1 header creation
+741:           isContractNote: true,
+742:           cnNo: cnNo || '',
+743:           brokerLedgerId: Number(selectedBrokerLedger),
+744:           cnCharges: groupCharges,
+745:           netPayable: Number(netPayable.toFixed(2))
+746:         };
+747: 
+748:         console.log(`Commiting contract note voucher for portfolio ${pName}:`, dataPayload);
+749:         await createVoucher(dataPayload);
+750:       }
+751: 
+752:       await forceRefreshDatabase();
+753:       setRefreshKey(prev => prev + 1);
+754: 
+755:       setOverallMessage("✅ Contract note trades successfully imported!");
+756:       setCnCharges({
+757:         stt: 0,
+758:         brokerage: 0,
+759:         gst: 0,
+760:         stamp: 0,
+761:         transCharges: 0,
+762:         other: 0
+763:       });
+764:       setCnTrades([]);
+765:       setCnNo("");
+766:     } catch (err: any) {
+767:       alert(`Failed to commit trades: ${err.message}`);
+768:     } finally {
+769:       setIsImporting(false);
+770:     }
+771:   };
+772: 
+773:   
+774:   // Inline styles
+775:   const tabStyle = (active: boolean) => ({
+776:     padding: "12px 24px",
+777:     background: active ? "#2563eb" : "none",
+778:     border: "none",
+779:     borderRadius: "8px",
+780:     fontWeight: 700,
+781:     color: active ? "#fff" : "#64748b",
+782:     cursor: "pointer",
+783:     fontSize: "14px",
+784:     transition: "all 0.2s ease",
+785:     boxShadow: active ? "0 4px 12px rgba(37,99,235,0.2)" : "none"
+786:   });
+787: 
+788:   const selectStyle = {
+789:     padding: "10px 14px",
+790:     borderRadius: "8px",
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+--- VIEW_FILE Output ---
+Created At: 2026-06-16T10:24:46Z
+Completed At: 2026-06-16T10:24:46Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/ImportPage.tsx`
+Total Lines: 1666
+Total Bytes: 78381
+Showing lines 620 to 650
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+620:         console.log(`Created missing ledger "${name.trim()}" with ID ${nextId}`);
+621:         state.acmac1.push({
+622:           id: nextId,
+623:           name: name.trim(),
+624:           parent_id: parentId,
+625:           acid: acid,
+626:           is_group: false
+627:         });
+628:       }
+629: 
+630:       return nextId;
+631:     };
+632: 
+633:   const commitContractNote = async () => {
+634:     setIsImporting(true);
+635:     setOverallMessage("Committing contract note trades to ledger...");
+636:     try {
+637:       const selectedTrades = cnTrades.filter((t: any) => t.selected && t.amid !== -1 && t.date);
+638:       if (selectedTrades.length === 0) throw new Error("No valid trades selected.");
+639: 
+640:       const grouped = selectedTrades.reduce((acc: any, t: any) => {
+641:         const pf = portfolios.find((p: any) => String(p.id) === String(topPortfolioId));
+642:         const pId = pf ? String(pf.id) : String(t.portfolioId || topPortfolioId || 1);
+643:         const groupDate = topCnDate || t.date;
+644:         const key = `${pId}_${groupDate}`;
+645:         if (!acc[key]) acc[key] = { pId, groupDate, tradesInGroup: [] };
+646:         acc[key].tradesInGroup.push(t);
+647:         return acc;
+648:       }, {});
+649: 
+650:       const numGroups = Object.keys(grouped).length;
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

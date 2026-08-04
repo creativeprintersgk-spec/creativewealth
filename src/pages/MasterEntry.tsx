@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Edit2, Trash2, Search, X, PieChart, Settings, ArrowLeft } from "lucide-react";
 import {
   getStoredFamilies, getStoredAccounts, getStoredPortfolios, getStoredInvestorGroups,
-  saveMasterRecord, deleteMasterRecord
+  saveMasterRecord, deleteMasterRecord, togglePortfolioStatus
 } from "../logic";
 
 type TabType = "families" | "accounts" | "portfolios" | "investorGroups";
@@ -177,18 +177,35 @@ export default function MasterEntry() {
               <th>Portfolio Name</th>
               <th>Account Owner</th>
               <th>Type</th>
+              <th>Status</th>
               <th style={{ width: 80, textAlign: "center" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {data.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", padding: "30px", color: "#94a3b8" }}>No Portfolios found.</td></tr>}
+            {data.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", padding: "30px", color: "#94a3b8" }}>No Portfolios found.</td></tr>}
             {data.map(p => {
               const acc = accounts.find(a => a.id === p.accountId);
               return (
-                <tr key={p.id}>
+                <tr key={p.id} style={{ opacity: p.isActive ? 1 : 0.6 }}>
                   <td style={{ fontWeight: 600 }}>{p.portfolioName}</td>
                   <td>{acc?.accountName || <span style={{ color: "red" }}>Unlinked</span>}</td>
                   <td>{p.portfolioType || '-'}</td>
+                  <td>
+                    <button 
+                      onClick={async () => {
+                        await togglePortfolioStatus(p.id, !p.isActive);
+                        refreshData();
+                      }}
+                      style={{
+                        background: p.isActive ? '#dcfce7' : '#f1f5f9',
+                        color: p.isActive ? '#16a34a' : '#64748b',
+                        border: 'none', padding: '4px 8px', borderRadius: '4px',
+                        fontSize: '11px', fontWeight: 600, cursor: 'pointer'
+                      }}
+                    >
+                      {p.isActive ? 'Active' : 'Inactive'}
+                    </button>
+                  </td>
                   <td style={{ textAlign: "center" }}>
                     <button onClick={() => openDrawer(p)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b", padding: "4px" }}><Edit2 size={14} /></button>
                     <button onClick={() => handleDelete(p.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#ef4444", padding: "4px" }}><Trash2 size={14} /></button>

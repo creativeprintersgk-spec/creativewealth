@@ -86,7 +86,7 @@ export default function BalanceSheetPage() {
         <div style={{ background: '#fff1f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '1rem 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 4px 6px -1px rgba(225, 29, 72, 0.1)' }}>
           <AlertTriangle color="#e11d48" size={20} />
           <div style={{ color: '#9f1239', fontSize: '0.9rem', fontWeight: 700 }}>
-            UNBALANCED BY ₹{fmt(diff)}: This person's accounting requires review.
+            UNBALANCED BY Rs. {fmt(diff)}: This person's accounting requires review.
           </div>
         </div>
       )}
@@ -98,7 +98,7 @@ export default function BalanceSheetPage() {
         <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
           <div style={{ padding: '1.25rem 1.5rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Liabilities & Equity</h3>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>AMOUNT (₹)</span>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>AMOUNT (Rs.)</span>
           </div>
           <div style={{ padding: '0.5rem 0' }}>
             {data.liabilityGroups.map((g: any) => (
@@ -117,7 +117,7 @@ export default function BalanceSheetPage() {
         <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
           <div style={{ padding: '1.25rem 1.5rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assets</h3>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>AMOUNT (₹)</span>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>AMOUNT (Rs.)</span>
           </div>
           <div style={{ padding: '0.5rem 0' }}>
             {data.assetGroups.map((g: any) => (

@@ -2,17 +2,18 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Plus, RefreshCw, FileDown, FileUp, Calendar, FileText } from 'lucide-react';
 import { useFY } from './FYContext';
-import { handleYearClose, getStoredVouchers, getStoredEntries, getStoredLedgers } from './logic';
+import { handleYearClose, getStoredVouchers, getStoredEntries, getStoredLedgers, getStoredAccounts } from './logic';
 // import { save as dbSave } from './db/helpers';
 import VoucherModal from './VoucherModal';
+import YearEndCloseModal from './components/YearEndCloseModal';
 
 export default function TopNavbar() {
   const navigate = useNavigate();
-  const { selectedFY, setSelectedFY, reportFilter, setReportFilter, customRange, setCustomRange } = useFY();
+  const { selectedFY, setSelectedFY, reportFilter, setReportFilter, customRange, setCustomRange, selectedAccountId, triggerGlobalRefresh } = useFY();
   
   const [showActions, setShowActions] = useState(false);
-  const [showReports, setShowReports] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const [isYearEndModalOpen, setIsYearEndModalOpen] = useState(false);
 
   const years = [
     "2020-2021", "2021-2022", "2022-2023", "2023-2024", "2024-2025", 
@@ -42,35 +43,14 @@ export default function TopNavbar() {
   };
 
   const handleImport = async () => {
-    alert('Import is temporarily disabled in Cloud Mode.');
+    navigate('/import');
   };
 
   return (
-    <div style={{ height: '60px', background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', padding: '0 24px', justifyContent: 'space-between', zIndex: 10 }}>
+    <div className="print-hide" style={{ height: '60px', background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', padding: '0 24px', justifyContent: 'space-between', zIndex: 10 }}>
       
-      {/* Left: Reports Menu */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-        <div style={{ position: 'relative' }}>
-          <button 
-            className="btn-secondary" 
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: 'transparent', border: 'none', fontWeight: 600 }}
-            onClick={() => { setShowReports(!showReports); setShowActions(false); }}
-          >
-            <FileText size={16} /> Reports <ChevronDown size={14} />
-          </button>
-          
-          {showReports && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', width: '200px', zIndex: 50 }}>
-              <div style={{ padding: '8px 0' }}>
-                <button onClick={() => { navigate('/balance-sheet'); setShowReports(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Balance Sheet</button>
-                <button disabled style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', fontSize: '13px', fontWeight: 500, opacity: 0.5 }}>Profit &amp; Loss</button>
-                <button disabled style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', fontSize: '13px', fontWeight: 500, opacity: 0.5 }}>Trial Balance</button>
-                <button disabled style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', fontSize: '13px', fontWeight: 500, opacity: 0.5 }}>Ledger Printing</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Left spacer to keep Middle period engine centered */}
+      <div style={{ width: '200px' }}></div>
 
       {/* Middle: Period Engine */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -114,7 +94,7 @@ export default function TopNavbar() {
           <button 
             className="btn-primary" 
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}
-            onClick={() => { setShowActions(!showActions); setShowReports(false); }}
+            onClick={() => { setShowActions(!showActions); }}
           >
             Actions <ChevronDown size={14} />
           </button>
@@ -123,9 +103,15 @@ export default function TopNavbar() {
             <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', width: '240px', zIndex: 50 }}>
               <div style={{ padding: '8px 0' }}>
                 <button onClick={() => { setIsVoucherModalOpen(true); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Plus size={14} /> New Voucher</button>
-                <button onClick={() => { handleYearClose(selectedFY, () => window.location.reload()); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px', color: '#7c3aed' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Calendar size={14} /> Create Year End Voucher</button>
+                <button onClick={() => {
+                  const currentMemberName = getStoredAccounts().find(a => a.id === selectedAccountId)?.name || 'the selected member';
+                  if (window.confirm(`⚠️ WARNING: You are about to calculate and preview the Year End Closing Voucher for ${currentMemberName.toUpperCase()} for FY ${selectedFY}.\n\nThis will calculate offset transactions to close all Income & Expense accounts to the Capital Account.\n\nDo you want to proceed to the preview?`)) {
+                    setIsYearEndModalOpen(true);
+                  }
+                  setShowActions(false);
+                }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px', color: '#7c3aed' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Calendar size={14} /> Create Year End Voucher</button>
                 <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
-                <button onClick={() => { window.location.reload(); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><RefreshCw size={14} /> Recalculate</button>
+                <button onClick={async () => { await triggerGlobalRefresh(); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><RefreshCw size={14} /> Recalculate</button>
                 <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
                 <button onClick={() => { handleImport(); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><FileUp size={14} /> Import Data</button>
                 <button onClick={() => { handleExport(); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><FileDown size={14} /> Export Data</button>
@@ -138,10 +124,17 @@ export default function TopNavbar() {
       {isVoucherModalOpen && (
         <VoucherModal 
           onClose={() => setIsVoucherModalOpen(false)}
-          onSaved={() => {
+          onSaved={async () => {
             setIsVoucherModalOpen(false);
-            window.location.reload(); // Hard recalculate for now to ensure state sync globally
+            await triggerGlobalRefresh();
           }}
+        />
+      )}
+      {isYearEndModalOpen && (
+        <YearEndCloseModal 
+          isOpen={isYearEndModalOpen} 
+          onClose={() => setIsYearEndModalOpen(false)} 
+          selectedFY={selectedFY} 
         />
       )}
     </div>

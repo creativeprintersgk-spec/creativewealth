@@ -35,13 +35,18 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
   const calcLedgerBal = (ledger: any, groupType: string): number => {
     let debit = 0, credit = 0;
     entries.forEach((e: any) => {
-      if (e.ledgerId === ledger.id) {
+      if (String(e.ledgerId) === String(ledger.id)) {
         const v = voucherMap[e.voucherId]
         const entryDate = e.date || v?.date
         const entryAcid = e.accountId || v?.accountId
         const entryPfid = v?.portfolioId
 
-        if (entryDate && entryDate <= endDate) {
+        // Opening balance entries (vid=0) have null date — treat as always included (inception).
+        // Regular entries must have a date within the report period.
+        const isOpeningBalance = !entryDate || entryDate === '' || entryDate === 'undefined';
+        const dateOk = isOpeningBalance || entryDate <= endDate;
+
+        if (dateOk) {
           if (accountId) {
             const belongsToAccount =
               (entryAcid === accountId) ||
@@ -62,14 +67,76 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
     groupMap[g.id] = { ...g, balance: 0, children: [], ledgers: [] }
   })
 
-  // Attach acid-filtered ledgers to their groups
+  // Find any ledgers missing from the acid-filtered list that are used in valid entries
+  const ledgerIdsInEntries = new Set<string>();
+  entries.forEach((e: any) => {
+    const v = voucherMap[e.voucherId];
+    const entryDate = e.date || v?.date;
+    const entryAcid = e.accountId || v?.accountId;
+    const entryPfid = v?.portfolioId;
+
+    const isOpeningBalance = !entryDate || entryDate === '' || entryDate === 'undefined';
+    const dateOk = isOpeningBalance || entryDate <= endDate;
+
+    if (dateOk) {
+      if (accountId) {
+        const belongsToAccount =
+          (entryAcid === accountId) ||
+          (entryPfid && portfolioIds?.includes(entryPfid));
+        if (belongsToAccount) {
+          ledgerIdsInEntries.add(e.ledgerId);
+        }
+      } else {
+        ledgerIdsInEntries.add(e.ledgerId);
+      }
+    }
+  });
+
+  const existingLedgerIds = new Set(ledgers.map((l: any) => l.id));
+  const missingLedgerIds = Array.from(ledgerIdsInEntries).filter(id => !existingLedgerIds.has(id));
+
+  if (missingLedgerIds.length > 0) {
+    const allLedgers = getStoredLedgers(); // Fetch all without acid filter
+    missingLedgerIds.forEach(id => {
+      const globalLedger = allLedgers.find((l: any) => String(l.id) === String(id));
+      if (globalLedger) {
+        ledgers.push(globalLedger);
+      } else {
+        // Create a virtual ledger for missing/null IDs to preserve double-entry balance
+        ledgers.push({
+          id: id,
+          name: `Unassigned Ledger (${id})`,
+          groupId: 'suspense_virtual',
+          accountId: accountId || 31
+        } as any)
+
+      }
+    });
+  }
+
+  // Ensure a Suspense group exists for orphaned ledgers
+  if (!groupMap['suspense_virtual']) {
+    groupMap['suspense_virtual'] = { 
+      id: 'suspense_virtual', 
+      name: 'Suspense / Unassigned', 
+      type: 'LIABILITY', 
+      balance: 0, 
+      children: [], 
+      ledgers: [] 
+    };
+  }
+
+  // Attach acid-filtered (plus any missing) ledgers to their groups
   ledgers.forEach((l: any) => {
-    if (!groupMap[l.groupId]) return
-    const type = getGroupType(l.groupId)
+    let targetGroup = l.groupId;
+    if (!groupMap[targetGroup]) {
+      targetGroup = 'suspense_virtual'; // Never drop ledgers!
+    }
+    const type = getGroupType(targetGroup)
     const bal = calcLedgerBal(l, type)
     // Expenses are DR-heavy → displayBalance is a positive magnitude for clean rendering
     const displayBalance = type === 'EXPENSE' ? Math.abs(bal) : bal
-    groupMap[l.groupId].ledgers.push({ ...l, balance: bal, displayBalance, groupType: type })
+    groupMap[targetGroup].ledgers.push({ ...l, balance: bal, displayBalance, groupType: type })
   })
 
   // Build tree (parent-child hierarchy)
@@ -98,21 +165,9 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
   const totalAssets      = assets.reduce((s, g) => s + g.balance, 0)
   const totalLiabilities = liabilities.reduce((s, g) => s + g.balance, 0)
 
-  function removeZero(items: any[]): any[] {
-    return items.filter((item: any) => {
-      if (item.children) item.children = removeZero(item.children)
-      if (item.ledgers)  item.ledgers  = item.ledgers.filter((l: any) => l.balance !== 0)
-      return (
-        item.balance !== 0 ||
-        (item.children && item.children.length > 0) ||
-        (item.ledgers  && item.ledgers.length  > 0)
-      )
-    })
-  }
-
   return {
-    assets:      removeZero(assets),
-    liabilities: removeZero(liabilities),
+    assets,
+    liabilities,
     totalAssets,
     totalLiabilities,
   }

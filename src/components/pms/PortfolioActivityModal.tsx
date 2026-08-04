@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { X, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { getPortfolioActivity } from '../../logic';
 
@@ -26,7 +26,7 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: '16px', color: '#0f172a' }}>Portfolio Activity (Coming & Going)</div>
-            <div style={{ fontSize: '12px', color: '#64748b' }}>{title} â€” {activity.length} transactions</div>
+            <div style={{ fontSize: '12px', color: '#64748b' }}>{title} — {activity.length} transactions</div>
           </div>
           <button onClick={onClose} style={{ padding: '8px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>
             <X size={20} />
@@ -49,11 +49,13 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
                   <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No transactions found for this selection.</td>
                 </tr>
               ) : (
-                activity.map((tx, i) => (
+                activity.map((tx, i) => {
+                  const isImported = tx.narration && tx.narration.toLowerCase().includes("mutual fund cas");
+                  return (
                   <tr 
                     key={tx.id} 
-                    style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa', cursor: 'pointer' }}
-                    onDoubleClick={() => onEditTransaction?.((tx as any).voucherId)}
+                    style={{ borderBottom: '1px solid #f1f5f9', background: isImported ? '#e0f2fe' : (i % 2 === 0 ? 'white' : '#fafafa'), cursor: 'pointer' }}
+                    onDoubleClick={() => onEditTransaction?.(String(tx.id))}
                   >
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{tx.date}</td>
                     <td style={{ padding: '12px 16px', fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{tx.voucherNo}</td>
@@ -70,10 +72,11 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
                     </td>
                     <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e293b' }}>{tx.assetName}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{tx.quantity}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>â‚¹{fmt(tx.price)}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>â‚¹{fmt(tx.amount, 0)}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(tx.price)}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>₹{fmt(tx.amount, 0)}</td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

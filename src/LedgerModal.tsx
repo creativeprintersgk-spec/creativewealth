@@ -5,13 +5,15 @@ import { type Ledger, getStoredGroups, saveLedger, getStoredLedgers } from "./lo
 export default function LedgerModal({
   onClose,
   onSaved,
-  initialLedger
+  initialLedger,
+  accountId
 }: {
   onClose: () => void;
   onSaved?: () => void;
   initialLedger?: Ledger;
+  accountId?: string;
 }) {
-  const groups = getStoredGroups();
+  const groups = getStoredGroups(accountId);
   const [name, setName] = useState(initialLedger?.name || "");
   const [groupId, setGroupId] = useState(initialLedger?.groupId || (groups.length > 0 ? groups[0].id : ""));
   const [openingBalance, setOpeningBalance] = useState(initialLedger?.openingBalance.toString() || "0");

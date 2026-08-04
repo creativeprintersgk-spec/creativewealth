@@ -19,10 +19,9 @@ export const FamilyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // DB is already initialized before FamilyProvider mounts (App.tsx gates on initDatabase)
   // So getStoredFamilies() is populated and safe to use in the initializer
   const [activeFamilyId, setActiveFamilyId] = useState<string | null>(() => {
-    const stored = localStorage.getItem('activeFamilyId');
-    if (stored) return stored;
-    // Auto-select first available family
     const families = getStoredFamilies();
+    const stored = localStorage.getItem('activeFamilyId');
+    if (stored && families.some(f => f.id === stored)) return stored;
     return families.length > 0 ? families[0].id : null;
   });
 

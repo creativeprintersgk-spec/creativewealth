@@ -1,0 +1,72 @@
+Created At: 2026-05-23T07:05:52Z
+Completed At: 2026-05-23T07:05:53Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 594
+Total Bytes: 25686
+Showing lines 1 to 594
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: // WealthCore — Complete Logic Layer v2
+2: // Reads from real MProfit Supabase tables
+3: // All TypeScript errors fixed
+4: 
+5: import { supabase } from "./supabase";
+6: 
+7: // ── TYPES ─────────────────────────────────────────────────────────────────────
+8: export type Group = {
+9:   id: string; name: string; parent?: string;
+10:   type?: string; acid?: number; specialTypeId?: number;
+11: };
+12: 
+13: export type Ledger = {
+14:   id: string; name: string; groupId: string;
+15:   openingBalance: number; openingType: "DR" | "CR";
+16:   currentBalance?: number; currentType?: "DR" | "CR";
+17:   amid?: number; acid?: number;
+18: };
+19: 
+20: export type VoucherLine = {
+21:   id: string; ledgerId: string | null; ledgerName?: string;
+22:   debit: number; credit: number;
+23:   quantity?: number; price?: number; narration?: string;
+24: };
+25: 
+26: export type Voucher = {
+27:   id: string; date: string; type: string;
+28:   narration: string; voucherNo: string;
+29:   portfolioId?: string; accountId?: string; fy?: string;
+30: };
+31: 
+32: export type Entry = {
+33:   id: string; voucherId: string; ledgerId: string;
+34:   debit: number; credit: number; quantity: number; price: number;
+35: };
+36: 
+37: // ── ASSET TYPE MAPS ───────────────────────────────────────────────────────────
+38: export const ASSET_TYPE_MAP: Record<number, stri
+<truncated 24980 bytes>
+─
+571: export function getNextVoucherNo(type: string, fy: string): string {
+572:   const prefix = ({receipt:'RCPT',payment:'PAY',journal:'JRN',contra:'CON'} as any)[type.toLowerCase()] || 'VCH';
+573:   const count = state.vouchersC1.filter((v: any) => String(v.vtyp) === type).length + 1;
+574:   return `${prefix}-${count.toString().padStart(4,'0')}`;
+575: }
+576: 
+577: export function getVoucherById(id: any) {
+578:   const v = state.vouchersC1.find((v: any) => v.vid === Number(id));
+579:   if (!v) return null;
+580:   return { ...v, id: String(v.vid), lines: state.transC1.filter((e: any) => e.vid === v.vid) };
+581: }
+582: 
+583: // ── STUBS ─────────────────────────────────────────────────────────────────────
+584: export async function createVoucher(data: any) { console.log('createVoucher stub'); }
+585: export async function updateVoucher(data: any) { console.log('updateVoucher stub'); }
+586: export async function deleteVoucher(id: any) { console.log('deleteVoucher stub'); }
+587: export async function saveLedger(ledger: any) { console.log('saveLedger stub'); }
+588: export async function deleteLedger(id: any) { console.log('deleteLedger stub'); }
+589: export async function saveMasterRecord(type: any, record: any) { console.log('saveMasterRecord stub'); }
+590: export async function deleteMasterRecord(type: any, id: any) { console.log('deleteMasterRecord stub'); }
+591: export async function handleYearClose(fy: string, onSuccess?: () => void) { console.log('handleYearClose stub'); }
+592: export async function syncLivePrices() { console.log('syncLivePrices stub'); }
+593: export async function ensureLedgerExists(name: string, groupId: string): Promise<Ledger | null> { return null; }
+594: export async function updateAssetPrice(assetId: string, price: number) { console.log('updateAssetPrice stub'); }
+The above content shows the entire, complete file contents of the requested file.

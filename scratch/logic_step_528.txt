@@ -1,0 +1,29 @@
+Created At: 2026-05-23T10:31:13Z
+Completed At: 2026-05-23T10:31:13Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 668
+Total Bytes: 28987
+Showing lines 150 to 170
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+150: // ── HELPERS ───────────────────────────────────────────────────────────────────
+151: export function getAssetName(amid: number): string {
+152:   return state.assetNameMap[amid] || `Asset ${amid}`;
+153: }
+154: export function getAssetPrice(amid: number) {
+155:   return state.priceMap[amid] || { curr: 0, prev: 0 };
+156: }
+157: function getGroupType(st: number): string {
+158:   if ([150, 40, 50].includes(st)) return 'ASSET';
+159:   if ([250, 125, 275, 276].includes(st)) return 'LIABILITY';
+160:   if (st === 280) return 'INCOME';
+161:   if (st === 290) return 'EXPENSE';
+162:   return 'ASSET';
+163: }
+164: export function getAvailableFYs() {
+165:   const today = new Date();
+166:   const sy = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+167:   const fys = [];
+168:   for (let y = 2014; y <= sy; y++) {
+169:     fys.push({ label: `${y}-${y+1}`, start: `${y}-04-01`, end: `${y+1}-03-31` });
+170:   }
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

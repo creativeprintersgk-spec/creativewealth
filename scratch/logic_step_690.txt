@@ -1,0 +1,43 @@
+Created At: 2026-05-23T10:49:54Z
+Completed At: 2026-05-23T10:49:54Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 668
+Total Bytes: 28987
+Showing lines 86 to 120
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+86:     while (all.length < max) {
+87:       const { data, error } = await supabase
+88:         .from(table).select('*').order(pkMap[table] || 'id').range(page * size, (page + 1) * size - 1);
+89:       if (error) { console.warn(`⚠️ ${table}:`, error.message); break; }
+90:       if (!data || data.length === 0) break;
+91:       all = all.concat(data);
+92:       if (data.length < size) break;
+93:       page++;
+94:     }
+95:     return all;
+96:   } catch (e) {
+97:     console.warn(`⚠️ ${table}:`, e);
+98:     return [];
+99:   }
+100: }
+101: 
+102: // ── INIT ──────────────────────────────────────────────────────────────────────
+103: export async function initDatabase() {
+104:   if (state.initialized) return;
+105:   console.log('Initializing WealthCore...');
+106:   const [portfolios, igm, accPflink, acmac1, sam, assetMaster,
+107:          bs1, sumTable, vouchersC1, vouchers1, transC1, trans1, mprices] = await Promise.all([
+108:     safeFetch('portfolios'), safeFetch('investor_group_members'),
+109:     safeFetch('acc_pflink'), safeFetch('acmac1'), safeFetch('sam'),
+110:     safeFetch('asset_master'), safeFetch('bs1'), safeFetch('sum_table'),
+111:     safeFetch('vouchersc1'), safeFetch('vouchers1'), safeFetch('transc1'), safeFetch('trans1'), safeFetch('mprices'),
+112:   ]);
+113:   state.portfolios = portfolios;
+114:   state.investorGroupMembers = igm;
+115:   state.accPflink = accPflink;
+116:   
+117:   // CRITICAL FIX: The acmac1 table has exactly 5x duplicate rows in Supabase.
+118:   // We MUST deduplicate them by the unique tuple of (id, acid) to prevent 5x multiplication
+119:   // in all balance sheet rendering and calculations.
+120:   const uniqueAcmac1: any[] = [];
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

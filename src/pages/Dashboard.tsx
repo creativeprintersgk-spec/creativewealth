@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { LayoutDashboard, Wallet, TrendingUp, PieChart, Activity } from 'lucide-react';
-import { getStoredPortfolios, getHoldings } from '../logic';
+import { getStoredPortfolios, getHoldings, getStoredAccounts } from '../logic';
+import { useFamily } from '../contexts/FamilyContext';
 
 export default function Dashboard() {
+  const { activeFamily } = useFamily();
   const [portfolios, setPortfolios] = useState<any[]>([]);
   const [totalValue, setTotalValue] = useState(0);
   const [todaysGain, setTodaysGain] = useState(0);
 
   useEffect(() => {
     const checkData = () => {
-      const pfs = getStoredPortfolios();
-      if (pfs.length > 0) {
-        setPortfolios(pfs);
-        const pfIds = pfs.map(p => Number(p.id));
+      const allAccounts = getStoredAccounts();
+      const familyAccounts = allAccounts.filter(a => a.familyId === activeFamily?.id);
+      const familyPortfolios = getStoredPortfolios().filter(p => familyAccounts.some(acc => acc.id === p.accountId));
+      
+      if (familyPortfolios.length > 0) {
+        setPortfolios(familyPortfolios);
+        const pfIds = familyPortfolios.map(p => Number(p.id));
         const holdings = getHoldings(pfIds);
         let val = 0;
         let gain = 0;
@@ -23,12 +28,16 @@ export default function Dashboard() {
         });
         setTotalValue(val);
         setTodaysGain(gain);
+      } else {
+        setPortfolios([]);
+        setTotalValue(0);
+        setTodaysGain(0);
       }
     };
     checkData();
     const interval = setInterval(checkData, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeFamily?.id]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', {

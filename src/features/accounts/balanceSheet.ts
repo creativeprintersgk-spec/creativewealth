@@ -3,7 +3,7 @@ import type { Ledger, Voucher, Group, Entry } from "../../logic";
 export function getLedgerBalance(ledger: Ledger, vouchers: Voucher[], allEntries: Entry[]) {
   let balance = ledger.openingType === 'DR' ? ledger.openingBalance : -ledger.openingBalance;
 
-  const entries = allEntries.filter(e => e.ledgerId === ledger.id || e.ledgerId === ledger.name);
+  const entries = allEntries.filter(e => String(e.ledgerId) === String(ledger.id) || e.ledgerId === ledger.name);
   entries.forEach(e => {
     balance += e.debit || 0;
     balance -= e.credit || 0;

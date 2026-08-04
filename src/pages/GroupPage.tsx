@@ -106,7 +106,7 @@ export default function GroupPage() {
                       </td>
                       <td style={{ padding: '1rem 1.5rem', color: '#666', fontSize: '0.85rem' }}>Sub-Group</td>
                       <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
-                        <div style={{ fontWeight: 700 }}>₹ {Math.abs(balance).toLocaleString()}</div>
+                        <div style={{ fontWeight: 700 }}>Rs. {Math.abs(balance).toLocaleString()}</div>
                         <div style={{ fontSize: '0.7rem', color: '#999' }}>{balance >= 0 ? 'DR' : 'CR'}</div>
                       </td>
                       <td style={{ paddingRight: '1rem', color: '#ccc' }}>
@@ -136,7 +136,7 @@ export default function GroupPage() {
                       </td>
                       <td style={{ padding: '1rem 1.5rem', color: '#666', fontSize: '0.85rem' }}>Ledger</td>
                       <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
-                        <div style={{ fontWeight: 700 }}>₹ {Math.abs(balance).toLocaleString()}</div>
+                        <div style={{ fontWeight: 700 }}>Rs. {Math.abs(balance).toLocaleString()}</div>
                         <div style={{ fontSize: '0.7rem', color: '#999' }}>{balance >= 0 ? 'DR' : 'CR'}</div>
                       </td>
                       <td style={{ paddingRight: '1rem', color: '#ccc' }}>

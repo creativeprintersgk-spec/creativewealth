@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/yahoo/(.*)", "destination": "https://query1.finance.yahoo.com/$1" },
+    { "source": "/api/mfapi/(.*)", "destination": "https://api.mfapi.in/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

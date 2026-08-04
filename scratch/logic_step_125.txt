@@ -1,0 +1,72 @@
+Created At: 2026-05-23T07:27:43Z
+Completed At: 2026-05-23T07:27:44Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/pages/PMSWorkspace.tsx`
+Total Lines: 532
+Total Bytes: 27711
+Showing lines 1 to 532
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: import React, { useState, useMemo, useEffect } from 'react';
+2: import { useNavigate } from 'react-router-dom';
+3: import { useFamily } from '../contexts/FamilyContext';
+4: import { useFY } from '../FYContext';
+5: import {
+6:   getStoredAccounts,
+7:   getStoredPortfolios,
+8:   getStoredInvestorGroups,
+9:   getHoldings,
+10:   syncLivePrices
+11: } from '../logic';
+12: import type { AssetHolding } from '../logic';
+13: 
+14: import { 
+15:   PieChart, 
+16:   Plus, 
+17:   Users, 
+18:   Settings, 
+19:   RefreshCw, 
+20:   ChevronDown, 
+21:   FileText, 
+22:   FolderOpen,
+23:   LayoutGrid,
+24:   Activity,
+25:   X
+26: } from 'lucide-react';
+27: 
+28: import HoldingsGrid from '../components/pms/HoldingsGrid';
+29: import HoldingBreakupModal from '../components/pms/HoldingBreakupModal';
+30: import AssetLedgerModal from '../components/pms/AssetLedgerModal';
+31: import FamilySelectorModal from '../components/FamilySelectorModal';
+32: import PortfolioActivityModal from '../components/pms/PortfolioActivityModal';
+33: import PMSTransactionModal from '../components/pms/PMSTransactionModal';
+34: import PMSIncomeModal from '../components/pms/PMSIncomeModal';
+35: import PMSPriceModal from '../components/pms/PMSPriceModal';
+36: 
+37: // Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
+38: const ASSET_TYPE_TABS = [
+39:   'all', 'stocks', 'mf', 'nps', 'insurance', 'private_equity',
+40:   'fds', 'bonds', 'ncd', 'deposits_loans', 'ppf', 'post',
+41:   'gold', 'silver', 'jewellery', 'properties', 'art', 'aif', 'loans', 'special_inv_fun
+<truncated 26707 bytes>
+inter; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
+512:         .btn-inactive-tab:hover { color: #0f172a; }
+513:         
+514:         .tab-close-icon { width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #94a3b8; transition: all 0.2s; }
+515:         .tab-close-icon:hover { background: #fee2e2; color: #ef4444; }
+516: 
+517:         .asset-type-btn { padding: 6px 12px; border-radius: 6px; border: none; background: transparent; color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.1s; }
+518:         .asset-type-btn-active { padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #0f172a; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+519: 
+520:         .btn-amber { display: inline-flex; align-items: center; gap: 6px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.12s; line-height: 1; }
+521:         .btn-amber:hover { background: #fef08a; }
+522: 
+523:         .pms-selector-item { padding: 14px; text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 700; color: #1e293b; transition: all 0.2s; }
+524:         .pms-selector-item:hover { background: #eff6ff; border-color: #3b82f6; color: #2563eb; transform: translateX(4px); }
+525: 
+526:         .dropdown-item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: #475569; border-radius: 6px; cursor: pointer; transition: background 0.1s; }
+527:         .dropdown-item:hover { background: #f1f5f9; color: #0f172a; }
+528:       `}</style>
+529:     </div>
+530:   );
+531: }
+532: 
+The above content shows the entire, complete file contents of the requested file.

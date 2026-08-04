@@ -17,6 +17,10 @@ export default function HoldingBreakupModal({
 
   if (!open || !holding) return null;
 
+  const totalQty = holding.portfolioSplits?.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) || 0;
+  const totalInvested = holding.portfolioSplits?.reduce((acc: number, item: any) => acc + (item.amtInvested || 0), 0) || 0;
+  const totalCurrentValue = holding.portfolioSplits?.reduce((acc: number, item: any) => acc + ((item.quantity || 0) * holding.currentPrice), 0) || 0;
+
   return (
     <div style={{
       position: 'fixed',
@@ -109,11 +113,11 @@ export default function HoldingBreakupModal({
                   </td>
 
                   <td style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', textAlign: 'right' }}>
-                    ₹{item.amtInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    Rs. {item.amtInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
 
                   <td style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ fontWeight: 500 }}>₹{(item.quantity * holding.currentPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style={{ fontWeight: 500 }}>Rs. {(item.quantity * holding.currentPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -136,6 +140,22 @@ export default function HoldingBreakupModal({
                 </tr>
               ))}
             </tbody>
+            <tfoot style={{ backgroundColor: '#f1f5f9', fontWeight: 600, borderTop: '2px solid #cbd5e1' }}>
+              <tr>
+                <td colSpan={2} style={{ padding: '12px 16px', textAlign: 'center', color: '#475569' }}>
+                  Totals
+                </td>
+                <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0f172a' }}>
+                  {totalQty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </td>
+                <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0f172a' }}>
+                  Rs. {totalInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+                <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0f172a' }}>
+                  Rs. {totalCurrentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
 
@@ -154,7 +174,7 @@ export default function HoldingBreakupModal({
           </div>
 
           <div style={{ fontWeight: 600 }}>
-            Total Value: ₹{holding.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Total Value: Rs. {holding.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
       </div>

@@ -1,9 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, Database, Clock, Download, Upload, Calculator, FileText } from 'lucide-react';
-
-import { getStoredLedgers, getStoredVouchers, initDatabase } from './logic';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database } from 'lucide-react';
 import { getIndices } from './services/priceService';
 import React, { useState, useEffect } from 'react';
+import { useTestMode } from './contexts/TestModeContext';
 
 function getRefreshInterval(): number {
   const now = new Date()
@@ -20,11 +19,9 @@ function getRefreshInterval(): number {
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isTestMode, startTestMode, endTestMode } = useTestMode();
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
-
-  const ledgersCount = getStoredLedgers().length;
-  const vouchersCount = getStoredVouchers().length;
 
   const [indices, setIndices] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -50,55 +47,10 @@ export default function Sidebar() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleBackup = async () => {
-    try {
-      const res = await fetch('/api/db');
-      const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const date = new Date().toISOString().split('T')[0];
-      a.href = url;
-      a.download = `wealthcore_backup_${date}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert("Backup failed: " + err);
-    }
-  };
 
-  const handleRestore = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e: any) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      
-      if (!confirm("Are you sure? This will OVERWRITE all current data with the backup file.")) return;
-
-      const reader = new FileReader();
-      reader.onload = async (event: any) => {
-        try {
-          const data = JSON.parse(event.target.result);
-          await fetch('/api/db', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-          });
-          alert("Restore Successful! Restarting app...");
-          window.location.reload();
-        } catch (err) {
-          alert("Restore failed: Invalid JSON file.");
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar print-hide">
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">
           <LayoutDashboard size={14} color="white" />
@@ -137,12 +89,6 @@ export default function Sidebar() {
               <Layers /> Chart of Accounts
             </button>
             <button 
-              className={`sidebar-nav-item ${isActive('/trial-balance') ? 'active' : ''}`}
-              onClick={() => navigate('/trial-balance')}
-            >
-              <Calculator /> Trial Balance
-            </button>
-            <button 
               className={`sidebar-nav-item ${isActive('/ledger') ? 'active' : ''}`}
               onClick={() => navigate('/ledger')}
             >
@@ -168,10 +114,22 @@ export default function Sidebar() {
               <FileText /> Capital Gains
             </button>
             <button 
-              className="sidebar-nav-item"
-              style={{ opacity: 0.5, cursor: 'not-allowed' }}
+              className={`sidebar-nav-item ${isActive('/profit-loss') ? 'active' : ''}`}
+              onClick={() => navigate('/profit-loss')}
             >
-              <LayoutDashboard /> Profit & Loss
+              <LayoutDashboard /> Profit &amp; Loss
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/trial-balance') ? 'active' : ''}`}
+              onClick={() => navigate('/trial-balance')}
+            >
+              <Calculator /> Trial Balance
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/reports') || isActive('/ledger-printing') ? 'active' : ''}`}
+              onClick={() => navigate('/reports')}
+            >
+              <Printer /> Report Printing
             </button>
           </div>
         </div>
@@ -185,6 +143,18 @@ export default function Sidebar() {
               onClick={() => navigate('/master-entry')}
             >
               <BookOpen /> Master Entry
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/import') ? 'active' : ''}`}
+              onClick={() => navigate('/import')}
+            >
+              <FileUp /> Import Data
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/backup') ? 'active' : ''}`}
+              onClick={() => navigate('/backup')}
+            >
+              <Database /> Backup & Restore
             </button>
           </div>
         </div>
@@ -215,16 +185,49 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Version & DB Info */}
-        <div style={{ padding: '0 8px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.4)', fontSize: '10px', marginBottom: '4px' }}>
-            <Database size={10} />
-            <span>DB: {vouchersCount} v / {ledgersCount} l</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>
-            <Clock size={10} />
-            <span>v2.4.0 (Institutional)</span>
-          </div>
+
+
+        {/* TEST MODE BUTTON */}
+        <div style={{ padding: '0 12px 10px' }}>
+          <button
+            disabled={false}
+            onClick={() => {
+              if (isTestMode) {
+                endTestMode();
+              } else {
+                startTestMode();
+              }
+            }}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: isTestMode ? '1px solid #f97316' : '1px solid rgba(255,255,255,0.1)',
+              background: isTestMode ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.04)',
+              color: isTestMode ? '#f97316' : 'rgba(255,255,255,0.5)',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.2s',
+              letterSpacing: '0.03em',
+            }}
+          >
+            <FlaskConical size={13} />
+            {isTestMode ? (
+              <span style={{ flex: 1, textAlign: 'left' }}>
+                🟠 Test Mode ON
+                <span style={{ display: 'block', fontSize: '9px', opacity: 0.7, fontWeight: 400 }}>New entries shown orange · Click to end</span>
+              </span>
+            ) : (
+              <span style={{ flex: 1, textAlign: 'left' }}>
+                Start Test Mode
+                <span style={{ display: 'block', fontSize: '9px', opacity: 0.5, fontWeight: 400 }}>Highlights new imports & entries</span>
+              </span>
+            )}
+          </button>
         </div>
 
         <div className="sidebar-user-row">

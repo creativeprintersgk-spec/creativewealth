@@ -97,7 +97,7 @@ export default function VoucherGrid({
         setSearchQuery("")
         
         // Move focus to next logical field
-        const ledger = ledgers.find(l => l.id === selected.id)
+        const ledger = ledgers.find(l => String(l.id) === String(selected.id))
         const isInvestment = ledger?.accountingType === 'ASSET' && 
           (ledger.id.includes('stock') || ledger.name.toLowerCase().includes('stock') || ledger.name.toLowerCase().includes('equity') || ledger.name.toLowerCase().includes('mf'))
         
@@ -174,7 +174,7 @@ export default function VoucherGrid({
         </thead>
         <tbody>
           {rows.map((row, index) => {
-            const ledgerMeta = row.ledgerId ? allowedLedgers.find(l => l.id === row.ledgerId) : null
+            const ledgerMeta = row.ledgerId ? allowedLedgers.find(l => String(l.id) === String(row.ledgerId)) : null
             const balRaw = row.ledgerId ? getLedgerWithBalance(row.ledgerId) : null
             const currentBalance = balRaw && !Array.isArray(balRaw)
               ? balRaw.closingBalance
@@ -252,37 +252,13 @@ export default function VoucherGrid({
                         ))}
                       </div>
                     )}
-                    {/* Prominent balance with live projection */}
-                    {ledgerMeta && (() => {
-                      const afterBalance = currentBalance + (row.debit || 0) - (row.credit || 0);
-                      const fmtBal = (v: number) => `\u20b9${Math.abs(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })} ${v >= 0 ? "Dr" : "Cr"}`;
-                      const amtChange = (row.debit || 0) + (row.credit || 0);
-                      const changeLabel = row.debit ? `+Dr \u20b9${row.debit.toLocaleString("en-IN")}` : row.credit ? `+Cr \u20b9${row.credit.toLocaleString("en-IN")}` : '';
-                      const changeColor = row.debit ? "#15803d" : "#b91c1c";
-                      const changeBg = row.debit ? "#dcfce7" : "#fee2e2";
-
-                      return (
-                        <div style={{ marginTop: "7px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                          <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
-                            Cur. bal: <span style={{ color: currentBalance >= 0 ? "#0f766e" : "#b91c1c" }}>{fmtBal(currentBalance)}</span>
-                          </span>
-                          {amtChange > 0 && (
-                            <>
-                              <span style={{ fontSize: "12px", color: "#94a3b8" }}>→</span>
-                              <span style={{ fontSize: "12px", fontWeight: 800, color: afterBalance >= 0 ? "#0f766e" : "#b91c1c" }}>
-                                {fmtBal(afterBalance)}
-                              </span>
-                              <span style={{
-                                fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "4px",
-                                background: changeBg, color: changeColor
-                              }}>
-                                {changeLabel}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {ledgerMeta && (
+                      <div style={{ marginTop: "7px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
+                          Cur. bal: <span style={{ color: currentBalance >= 0 ? "#0f766e" : "#b91c1c" }}>{`Rs. ${Math.abs(currentBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })} ${currentBalance >= 0 ? "Dr" : "Cr"}`}</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </td>
 
@@ -311,7 +287,7 @@ export default function VoucherGrid({
                   <input
                     ref={el => { inputRefs.current[`${row.id}-price`] = el }}
                     type="number"
-                    placeholder="0.00"
+                    placeholder=""
                     value={row.price || ""}
                     onChange={e => updateRow(row.id, "price", parseFloat(e.target.value) || 0)}
                     onKeyDown={e => handleKeyDown(e, row.id, 'price')}
@@ -331,7 +307,7 @@ export default function VoucherGrid({
                   <input
                     ref={el => { inputRefs.current[`${row.id}-debit`] = el }}
                     type="number"
-                    placeholder="0.00"
+                    placeholder=""
                     value={row.debit || ""}
                     onChange={e => updateRow(row.id, "debit", parseFloat(e.target.value) || 0)}
                     onKeyDown={e => handleKeyDown(e, row.id, 'debit')}
@@ -349,7 +325,7 @@ export default function VoucherGrid({
                   <input
                     ref={el => { inputRefs.current[`${row.id}-credit`] = el }}
                     type="number"
-                    placeholder="0.00"
+                    placeholder=""
                     value={row.credit || ""}
                     onChange={e => updateRow(row.id, "credit", parseFloat(e.target.value) || 0)}
                     onKeyDown={e => handleKeyDown(e, row.id, 'credit')}
@@ -406,12 +382,12 @@ export default function VoucherGrid({
             <td></td>
             <td style={{ padding: "10px 12px", textAlign: "right" }}>
               <span style={{ fontSize: "13px", fontWeight: 800, color: "#059669" }}>
-                ₹{totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                Rs. {totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </td>
             <td style={{ padding: "10px 12px", textAlign: "right" }}>
               <span style={{ fontSize: "13px", fontWeight: 800, color: "#dc2626" }}>
-                ₹{totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                Rs. {totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </td>
             <td style={{ padding: "10px 4px", textAlign: "center" }}>
@@ -435,7 +411,7 @@ export default function VoucherGrid({
             <tr>
               <td colSpan={6} style={{ padding: "4px 12px 8px", textAlign: "right" }}>
                 <span style={{ fontSize: "11px", fontWeight: 700, color: "#f59e0b" }}>
-                  Diff: ₹{Math.abs(difference).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  Diff: Rs. {Math.abs(difference).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
               </td>
             </tr>

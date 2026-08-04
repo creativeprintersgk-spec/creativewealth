@@ -1,0 +1,7 @@
+families: error - Could not find the table 'public.families' in the schema cache
+fammac1: error - Could not find the table 'public.fammac1' in the schema cache
+accounts: error - Could not find the table 'public.accounts' in the schema cache
+acc_mast: error - Could not find the table 'public.acc_mast' in the schema cache
+portfolios: exists (1 rows)
+acmac1: exists (1 rows)
+acc_pflink: exists (1 rows)

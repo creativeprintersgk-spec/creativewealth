@@ -12,7 +12,7 @@ export function getLedgerWithBalanceCore(
 ) {
   const range = (startDate && endDate) ? { start: startDate, end: endDate } : null;
 
-  const ledgerEntries = allEntries.filter(e => e.ledgerId === ledgerId);
+  const ledgerEntries = allEntries.filter(e => String(e.ledgerId) === String(ledgerId));
   const entriesWithDate = ledgerEntries.map(e => {
     const v = allVouchers.find(v => v.id === e.voucherId);
     return { ...e, date: v?.date || '1900-01-01', v };
@@ -55,14 +55,14 @@ export function getLedgerWithBalanceCore(
         );
         
         if (oppositeEntries.length === 1) {
-          const oppositeLedger = allLedgers.find(l => l.id === oppositeEntries[0].ledgerId);
+          const oppositeLedger = allLedgers.find(l => String(l.id) === String(oppositeEntries[0].ledgerId));
           return oppositeLedger?.name || oppositeEntries[0].ledgerId;
         } else if (oppositeEntries.length > 1) {
           return "Multiple";
         } else {
           const others = voucherEntries.filter(ve => ve.id !== e.id);
           if (others.length === 1) {
-            const otherLedger = allLedgers.find(l => l.id === others[0].ledgerId);
+            const otherLedger = allLedgers.find(l => String(l.id) === String(others[0].ledgerId));
             return otherLedger?.name || others[0].ledgerId;
           }
           return "Various";

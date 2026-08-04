@@ -12,7 +12,7 @@ export function calculateGroupTotalCore(
   
   ledgersInGroup.forEach(l => {
     let bal = l.openingType === 'DR' ? l.openingBalance : -l.openingBalance;
-    allEntries.filter(e => e.ledgerId === l.id).forEach(e => {
+    allEntries.filter(e => String(e.ledgerId) === String(l.id)).forEach(e => {
       bal += e.debit;
       bal -= e.credit;
     });

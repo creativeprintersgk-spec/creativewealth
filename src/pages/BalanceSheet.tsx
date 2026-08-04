@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { getBalanceSheet } from "../services/balanceSheet"
 import { useFY } from "../FYContext"
 import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, createVoucher, getStoredAccounts } from "../logic"
@@ -9,11 +9,10 @@ import { useFamily } from "../contexts/FamilyContext"
 import { Users } from 'lucide-react'
 
 export default function BalanceSheet() {
-  const { selectedFY, reportFilter, customRange } = useFY()
+  const { selectedFY, reportFilter, customRange, selectedAccountId, setSelectedAccountId, globalRefreshTrigger } = useFY()
   const { activeFamilyId } = useFamily()
   
   const [data, setData] = useState<{ assets: any[], liabilities: any[], totalAssets: number, totalLiabilities: number } | null>(null)
-  const [selectedAccountId, setSelectedAccountId] = useState<string>('')
   
   const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
@@ -28,7 +27,6 @@ export default function BalanceSheet() {
   }, [accounts, selectedAccountId]);
 
   // View Controls
-  const [expandAll, setExpandAll] = useState(false)
   const [showZeroValues, setShowZeroValues] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   
@@ -57,12 +55,47 @@ export default function BalanceSheet() {
     return customRange
   })()
 
-  useEffect(() => { load() }, [selectedFY, reportFilter, customRange.start, customRange.end, selectedAccountId])
+  useEffect(() => { load() }, [selectedFY, reportFilter, customRange.start, customRange.end, selectedAccountId, globalRefreshTrigger])
 
   async function load() {
     if (!selectedAccountId && accounts.length > 0) return;
     const res = await getBalanceSheet(effectiveDates.start, effectiveDates.end, selectedAccountId)
-    setData(res)
+    setData(res); fetch('http://localhost:3005', { method: 'POST', body: JSON.stringify(res.assets) }).catch(e => console.log(e));
+  }
+
+  function cleanLedgerName(name: string): string {
+    let cleaned = name.replace(/\s*\(?ISIN\s+[A-Z0-9]{12}\)?/gi, '');
+    cleaned = cleaned.replace(/\s*\([A-Z]{2}[A-Z0-9]{10}\)/gi, '');
+    cleaned = cleaned.replace(/\s*\(\d[\d\s\/,.-]*\)/gi, '');
+    cleaned = cleaned.trim().replace(/\s*-\s*$/, '');
+    return cleaned.trim();
+  }
+
+  function getAllGroupIds(groups: any[]): string[] {
+    const ids: string[] = []
+    function traverse(g: any) {
+      ids.push(g.id)
+      if (g.children) {
+        g.children.forEach(traverse)
+      }
+    }
+    groups.forEach(traverse)
+    return ids
+  }
+
+  const allGroupIds = data ? [...getAllGroupIds(data.assets), ...getAllGroupIds(data.liabilities)] : []
+  const areAllExpanded = allGroupIds.length > 0 && allGroupIds.every(id => expanded[id])
+
+  function handleToggleAll() {
+    if (areAllExpanded) {
+      setExpanded({})
+    } else {
+      const newExpanded: Record<string, boolean> = {}
+      allGroupIds.forEach(id => {
+        newExpanded[id] = true
+      })
+      setExpanded(newExpanded)
+    }
   }
 
   function toggle(id: string) {
@@ -74,76 +107,90 @@ export default function BalanceSheet() {
   }
 
   function renderGroup(group: any, level = 0): React.ReactElement | null {
-    if (!showZeroValues && group.balance === 0 && group.ledgers.length === 0 && group.children.length === 0) return null
+    if (!showZeroValues && Math.abs(group.balance) < 0.1) return null
 
-    const isOpen = expandAll || expanded[group.id]
+    const isOpen = !!expanded[group.id]
     const hasChildren = group.children.length > 0 || group.ledgers.length > 0
-    const indent = level * 20
+
+    // Sort ledgers and children alphabetically (ABCD-wise)
+    const sortedLedgers = [...group.ledgers].sort((a: any, b: any) => a.name.localeCompare(b.name));
+    const sortedChildren = [...group.children].sort((a: any, b: any) => a.name.localeCompare(b.name));
 
     return (
-      <div key={group.id} style={{ marginBottom: level === 0 ? 12 : 4 }}>
+      <div key={group.id} style={{ marginBottom: level === 0 ? 6 : 2 }}>
         <div
           style={{
-            paddingLeft: indent,
             fontWeight: level === 0 ? 700 : 600,
-            fontSize: level === 0 ? 14 : 13,
+            fontSize: level === 0 ? 14 : 12,
             display: 'flex',
             justifyContent: 'space-between',
+            alignItems: 'center',
             color: level === 0 ? '#111827' : '#374151',
             cursor: hasChildren ? 'pointer' : 'default',
-            padding: `5px 8px 5px ${8 + indent}px`,
+            padding: '2px 8px',
             borderRadius: 4,
             background: level === 0 ? '#f9fafb' : 'transparent',
+            gap: 8,
           }}
           onClick={() => hasChildren && toggle(group.id)}
         >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
             {hasChildren
-              ? <span style={{ fontSize: 9, color: '#9ca3af', display: 'inline-block', width: 12 }}>{isOpen ? 'â–¼' : 'â–¶'}</span>
-              : <span style={{ display: 'inline-block', width: 12 }} />}
-            {group.name}
+              ? <span style={{ fontSize: 8, color: '#6b7280', display: 'inline-block', width: 12, flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
+              : <span style={{ display: 'inline-block', width: 12, flexShrink: 0 }} />}
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }} title={cleanLedgerName(group.name)}>
+              {cleanLedgerName(group.name)}
+            </span>
           </span>
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0, marginLeft: 8 }}>
             {group.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
         {isOpen && (
-          <div>
-            {group.ledgers.map((l: any) => {
-              if (!showZeroValues && (l.displayBalance ?? l.balance) === 0) return null;
+          <div style={{ 
+            position: 'relative', 
+            marginLeft: 14, 
+            borderLeft: '1px solid #d1d5db', 
+            paddingLeft: 6 
+          }}>
+            {sortedLedgers.map((l: any) => {
+              if (!showZeroValues && Math.abs(l.displayBalance ?? l.balance) < 0.1) return null;
               return (
-              <div
-                key={l.id}
-                style={{
-                  paddingLeft: indent + 28,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: 13,
-                  color: l.readOnly ? '#7c3aed' : '#2563eb',
-                  fontStyle: l.readOnly ? 'italic' : 'normal',
-                  cursor: l.readOnly ? 'default' : 'pointer',
-                  padding: `4px 8px 4px ${indent + 28}px`,
-                  borderRadius: 4,
-                  background: l.readOnly ? 'rgba(124,58,237,0.05)' : 'transparent',
-                  marginBottom: l.readOnly ? 2 : 0,
-                }}
-                onClick={() => !l.readOnly && openLedger(l.id)}
-                onMouseEnter={e => { if (!l.readOnly) e.currentTarget.style.background = '#eff6ff' }}
-                onMouseLeave={e => { if (!l.readOnly) e.currentTarget.style.background = 'transparent' }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {l.name}
-                  {l.groupType === 'EXPENSE' && (
-                    <span style={{ fontSize: 9, color: '#dc2626', background: '#fef2f2', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>EXP</span>
-                  )}
-                </span>
-                <span style={{ color: l.readOnly ? (l.balance >= 0 ? '#059669' : '#dc2626') : (l.groupType === 'EXPENSE' ? '#dc2626' : '#4b5563') }}>
-                  {(l.displayBalance ?? l.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-            )})}
-            {group.children.map((child: any) => renderGroup(child, level + 1))}
+                <div
+                  key={l.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: 12,
+                    color: l.readOnly ? '#7c3aed' : '#2563eb',
+                    fontStyle: l.readOnly ? 'italic' : 'normal',
+                    cursor: l.readOnly ? 'default' : 'pointer',
+                    padding: '1px 8px',
+                    borderRadius: 4,
+                    background: l.readOnly ? 'rgba(124,58,237,0.05)' : 'transparent',
+                    gap: 8,
+                  }}
+                  onClick={() => !l.readOnly && openLedger(l.id)}
+                  onMouseEnter={e => { if (!l.readOnly) e.currentTarget.style.background = '#eff6ff' }}
+                  onMouseLeave={e => { if (!l.readOnly) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }} title={cleanLedgerName(l.name)}>
+                      {cleanLedgerName(l.name)}
+                    </span>
+                    {l.groupType === 'EXPENSE' && (
+                      <span style={{ fontSize: 8, color: '#dc2626', background: '#fef2f2', padding: '1px 4px', borderRadius: 3, fontWeight: 700, flexShrink: 0 }}>EXP</span>
+                    )}
+                  </span>
+                  <span style={{ color: l.readOnly ? (l.balance >= 0 ? '#059669' : '#dc2626') : (l.groupType === 'EXPENSE' ? '#dc2626' : '#4b5563'), flexShrink: 0, marginLeft: 8, fontVariantNumeric: 'tabular-nums' }}>
+                    {(l.displayBalance ?? l.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              );
+            })}
+            {sortedChildren.map((child: any) => renderGroup(child, level + 1))}
           </div>
         )}
       </div>
@@ -244,11 +291,11 @@ export default function BalanceSheet() {
       id: uuid(),
       date: closeDate,
       type: "journal",
-      narration: `Year End Closing Entry â€” FY ${selectedFY}`,
+      narration: `Year End Closing Entry — FY ${selectedFY}`,
       lines,
     })
 
-    alert(`âœ… FY ${selectedFY} closed. Net P&L transferred to ${capitalLedger.name}.`)
+    alert(`✅ FY ${selectedFY} closed. Net P&L transferred to ${capitalLedger.name}.`)
     load()
   }
 
@@ -266,8 +313,8 @@ export default function BalanceSheet() {
             <h2 style={{ fontSize: "1.4rem", fontWeight: "bold", margin: 0, color: '#111827' }}>Balance Sheet</h2>
             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: 2 }}>
               {reportFilter === 'custom' ? `From ${effectiveDates.start} to ${effectiveDates.end}` : 
-               reportFilter === 'previous' ? `As at 31 March â€” FY ${getPreviousFY(selectedFY)}` :
-               `As at 31 March â€” FY ${reportFilter === 'last' ? getLastFY(selectedFY) : selectedFY}`}
+               reportFilter === 'previous' ? `As at 31 March — FY ${getPreviousFY(selectedFY)}` :
+               `As at 31 March — FY ${reportFilter === 'last' ? getLastFY(selectedFY) : selectedFY}`}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -286,22 +333,22 @@ export default function BalanceSheet() {
             <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: '#f8fafc', padding: '6px 12px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
               <input type="checkbox" checked={showZeroValues} onChange={e => setShowZeroValues(e.target.checked)} /> Show Zero Values
             </label>
-            <button onClick={() => setExpandAll(!expandAll)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-              {expandAll ? 'Collapse All' : 'Expand All'}
+            <button onClick={handleToggleAll} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+              {areAllExpanded ? 'Collapse All' : 'Expand All'}
             </button>
             {!isBalanced && (
               <span style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', padding: '4px 10px', borderRadius: 4 }}>
-                âš  Unbalanced by {Math.abs(data!.totalAssets - data!.totalLiabilities).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                ⚠️ Unbalanced by {Math.abs(data!.totalAssets - data!.totalLiabilities).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             )}
           </div>
         </div>
 
-        {/* Two-column layout */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px" }}>
+        {/* Three-column layout for perfect centering */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 0 }}>
 
           {/* LIABILITIES */}
-          <div style={{ borderRight: "1px solid #e5e7eb", paddingRight: "32px" }}>
+          <div style={{ paddingRight: "20px" }}>
             <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6b7280', marginBottom: 16 }}>
               Liabilities &amp; Equity
             </h3>
@@ -311,8 +358,11 @@ export default function BalanceSheet() {
             }
           </div>
 
+          {/* Vertical Divider */}
+          <div style={{ width: "1px", background: "#e5e7eb", minHeight: "100%" }} />
+
           {/* ASSETS */}
-          <div>
+          <div style={{ paddingLeft: "20px" }}>
             <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6b7280', marginBottom: 16 }}>
               Assets
             </h3>
@@ -324,12 +374,13 @@ export default function BalanceSheet() {
         </div>
 
         {/* Totals */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", marginTop: "32px", borderTop: "2px solid #111827", paddingTop: "16px" }}>
-          <div style={{ paddingRight: "32px", display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: "15px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 0, marginTop: "32px", borderTop: "2px solid #111827", paddingTop: "16px" }}>
+          <div style={{ paddingRight: "20px", display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: "15px" }}>
             <span>Total Liabilities &amp; Equity</span>
             <span>{data.totalLiabilities.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: "15px" }}>
+          <div style={{ width: "1px" }} />
+          <div style={{ paddingLeft: "20px", display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: "15px" }}>
             <span>Total Assets</span>
             <span>{data.totalAssets.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>

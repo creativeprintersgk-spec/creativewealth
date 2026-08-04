@@ -126,3 +126,14 @@ code {
   background: #f1f5f9;
   color: #0f172a;
 }
+
+/* Hide spin buttons/arrows on all numeric inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}

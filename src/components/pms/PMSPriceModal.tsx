@@ -40,7 +40,7 @@ export default function PMSPriceModal({ assetId, assetName, currentPrice, onClos
           </div>
 
           <div style={{ marginBottom: '8px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Market Price (₹)</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Market Price (Rs.)</label>
             <input 
               type="number" 
               value={price || ''} 

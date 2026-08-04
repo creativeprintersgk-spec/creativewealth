@@ -2,12 +2,16 @@ import { useState, useEffect } from "react";
 import { Folder, FileText, Plus, Edit2, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 import { type Ledger, deleteLedger } from "./logic";
 import LedgerModal from "./LedgerModal";
-import { getStoredGroups, getStoredLedgers } from "./logic";
+import { getStoredGroups, getStoredLedgers, getStoredAccounts } from "./logic";
+import { useFamily } from "./contexts/FamilyContext";
 
 export default function ChartOfAccounts() {
   const [groups, setGroups] = useState<any[]>([]);
   const [ledgers, setLedgers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { activeFamilyId } = useFamily();
+  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(accounts.length > 0 ? accounts[0].id : "");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [editingLedger, setEditingLedger] = useState<Ledger | undefined>(undefined);
@@ -15,8 +19,8 @@ export default function ChartOfAccounts() {
 
   const loadData = async () => {
     setLoading(true);
-    const g = getStoredGroups();
-    const l = getStoredLedgers();
+    const g = getStoredGroups(selectedAccountId);
+    const l = getStoredLedgers(selectedAccountId);
     console.log("✅ Loaded groups:", g.length);
     console.log("UI groups count:", g.length);
     setGroups(g);
@@ -27,7 +31,7 @@ export default function ChartOfAccounts() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedAccountId]);
 
   const refreshData = () => {
     loadData();
@@ -106,8 +110,15 @@ export default function ChartOfAccounts() {
     <div style={{ display: 'flex', gap: '24px', height: 'calc(100vh - 160px)' }}>
       {/* LEFT: GROUP TREE */}
       <div className="card" style={{ width: '300px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '16px', borderBottom: '1px solid hsl(220, 15%, 90%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ padding: '16px', borderBottom: '1px solid hsl(220, 15%, 90%)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <span style={{ fontWeight: 700, fontSize: '13px', color: 'hsl(220, 9%, 46%)', textTransform: 'uppercase' }}>Groups</span>
+          <select 
+            value={selectedAccountId}
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+            style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid hsl(220, 15%, 85%)', fontSize: '13px', outline: 'none' }}
+          >
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.accountName}</option>)}
+          </select>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
           <div 

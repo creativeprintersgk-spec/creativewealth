@@ -1,5 +1,5 @@
-﻿import { X, Trash2, Save, Copy } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { X, Trash2, Save, Copy } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   createVoucher,
   updateVoucher,
@@ -16,14 +16,18 @@ import VoucherGrid from "./components/VoucherGrid";
 import { v4 as uuid } from "uuid";
 import { useFY } from "./FYContext";
 import { useFamily } from "./contexts/FamilyContext";
+import { useTestMode } from "./contexts/TestModeContext";
 
-type VoucherType = "payment" | "receipt" | "journal" | "contra";
+type VoucherType = "payment" | "receipt" | "journal" | "contra" | "purchase" | "sale" | "dividend";
 
 const VOUCHER_TYPES: { key: VoucherType; label: string; short: string; color: string }[] = [
   { key: "receipt",  label: "Receipt",  short: "RCPT", color: "#059669" },
   { key: "payment",  label: "Payment",  short: "PAY",  color: "#dc2626" },
   { key: "journal",  label: "Journal",  short: "JRN",  color: "#7c3aed" },
   { key: "contra",   label: "Contra",   short: "CON",  color: "#0284c7" },
+  { key: "purchase", label: "Purchase", short: "PUR",  color: "#3b82f6" },
+  { key: "sale",     label: "Sale",     short: "SAL",  color: "#f59e0b" },
+  { key: "dividend", label: "Dividend", short: "DIV",  color: "#ec4899" },
 ];
 
 export default function VoucherModal({
@@ -47,7 +51,9 @@ export default function VoucherModal({
   const [date, setDate] = useState(today);
   const [accountId, setAccountId] = useState<string>(propAccountId || "");
   const [narration, setNarration] = useState("");
+  const { isTestMode } = useTestMode();
   const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Simple mode (payment/receipt)
   const [simpleAccount, setSimpleAccount] = useState("");
@@ -63,28 +69,48 @@ export default function VoucherModal({
   const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
 
   const groups = getStoredGroups();
-  const mappedLedgers = getStoredLedgers().map(l => ({
-    id: l.id,
-    name: l.name,
-    type: l.name.toLowerCase().includes("bank")
-      ? "bank"
-      : l.name.toLowerCase().includes("cash")
-      ? "cash"
-      : "other",
-    accountingType: groups.find(g => g.id === l.groupId)?.type || "ASSET",
-  }));
+
+  // Only load ledgers for the currently selected accountId person.
+  // This prevents duplicate names (e.g. "Gift" appearing for every family member)
+  // and makes the dropdown fast — no more scanning 5000+ rows.
+  const mappedLedgers = useMemo(() => {
+    // Use propAccountId if passed from parent, else the locally selected accountId state.
+    // We also deduplicate by name (same ledger name should not appear twice for same person).
+    const effectiveAcid = propAccountId || accountId;
+    const raw = effectiveAcid ? getStoredLedgers(effectiveAcid) : getStoredLedgers();
+    
+    const seen = new Set<string>();
+    const unique: typeof raw = [];
+    for (const l of raw) {
+      const lowerName = l.name.toLowerCase().trim();
+      if (!seen.has(lowerName)) {
+        seen.add(lowerName);
+        unique.push(l);
+      }
+    }
+
+    return unique.map(l => ({
+      id: l.id,
+      name: l.name,
+      type: l.name.toLowerCase().includes("bank")
+        ? "bank"
+        : l.name.toLowerCase().includes("cash")
+        ? "cash"
+        : "other",
+      accountingType: groups.find(g => g.id === l.groupId)?.type || "ASSET",
+    }));
+  }, [propAccountId, accountId, groups]);
 
   const [mainAccount, setMainAccount] = useState<string>(() => {
     if (selectedLedger) {
-      const found = mappedLedgers.find(l => l.id === selectedLedger || l.name === selectedLedger);
+      const found = mappedLedgers.find(l => String(l.id) === String(selectedLedger) || l.name === selectedLedger);
       if (found) return found.id;
     }
-    const bankOrCash = mappedLedgers.find(l => l.type === "bank" || l.type === "cash");
-    return bankOrCash?.id || mappedLedgers[0]?.id || "";
+    return "";
   });
   const [mainAccountSearch, setMainAccountSearch] = useState("");
 
-  const isSimpleMode = type === "payment" || type === "receipt";
+  const isSimpleMode = (type === "payment" || type === "receipt") && voucherLines.length <= 2;
 
   // Auto voucher number
   useEffect(() => {
@@ -103,25 +129,45 @@ export default function VoucherModal({
         setDate(v.date);
         setAccountId(v.accountId || "");
         setNarration(v.narration || "");
+        
+        // Query the ledger name directly from getStoredLedgers() to avoid stale state issues with mappedLedgers
+        const allLedgers = getStoredLedgers();
         const lines: VoucherLine[] = v.lines.map((e: any) => ({
           id: e.id || uuid(),
           ledgerId: e.ledgerId,
-          ledgerName: mappedLedgers.find(l => l.id === e.ledgerId)?.name || e.ledgerId,
+          ledgerName: allLedgers.find(l => String(l.id) === String(e.ledgerId))?.name || e.ledgerId,
           debit: e.debit || 0,
           credit: e.credit || 0,
           narration: e.narration || "",
         }));
         setVoucherLines(lines);
         
-        // Populate Simple Mode fields
+        // Populate Simple Mode fields correctly based on debit/credit structure
         const nonZeroLines = lines.filter(l => (l.debit !== 0 || l.credit !== 0));
         if (nonZeroLines.length >= 2) {
-          const other = nonZeroLines.find(l => l.ledgerId !== mainAccount) || nonZeroLines[1];
-          if (other) {
-            setSimpleAccount(other.ledgerName ?? "");
-            setSimpleAmount(String(other.debit || other.credit || ""));
-            setSimpleQuantity(String(other.quantity || ""));
-            setSimplePrice(String(other.price || ""));
+          let mainAccId = "";
+          let counterLine: VoucherLine | undefined;
+
+          if (v.type === "payment") {
+            const creditLine = nonZeroLines.find(l => l.credit > 0);
+            const debitLine = nonZeroLines.find(l => l.debit > 0);
+            if (creditLine && creditLine.ledgerId) mainAccId = creditLine.ledgerId;
+            counterLine = debitLine;
+          } else if (v.type === "receipt") {
+            const debitLine = nonZeroLines.find(l => l.debit > 0);
+            const creditLine = nonZeroLines.find(l => l.credit > 0);
+            if (debitLine && debitLine.ledgerId) mainAccId = debitLine.ledgerId;
+            counterLine = creditLine;
+          }
+
+          if (mainAccId) {
+            setMainAccount(mainAccId);
+          }
+          if (counterLine) {
+            setSimpleAccount(counterLine.ledgerName ?? "");
+            setSimpleAmount(String(counterLine.debit || counterLine.credit || ""));
+            setSimpleQuantity(String(counterLine.quantity || ""));
+            setSimplePrice(String(counterLine.price || ""));
           }
         }
       }
@@ -142,7 +188,7 @@ export default function VoucherModal({
       return Math.abs(dr - cr) < 0.01;
     })();
 
-    if (isSimpleMode && !isSimpleValid) { setError("Select an account and enter an amount."); return; }
+    if (isSimpleMode && (!isSimpleValid || !mainAccount)) { setError("Select both accounts and enter an amount."); return; }
     if (!isSimpleMode && !isGridValid) { setError("Voucher is not balanced."); return; }
     if (!accountId) { setError("Please select an Account (Member) for this voucher."); return; }
 
@@ -163,11 +209,16 @@ export default function VoucherModal({
       date, type, voucherNo, fy: selectedFY, accountId, narration, lines: finalLines,
     };
 
+    setIsSaving(true);
+    setError("");
     try {
       if (voucherId && voucherId !== "new") await updateVoucher(data);
-      else await createVoucher(data);
+      else await createVoucher({ ...data, isTest: isTestMode });
       onSaved?.();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { 
+      setError(e.message); 
+      setIsSaving(false);
+    }
   }, [isSimpleMode, simpleAmount, simpleAccount, voucherLines, type, date, voucherNo, narration, selectedFY, mainAccount, voucherId, onSaved]);
 
   useEffect(() => {
@@ -182,26 +233,18 @@ export default function VoucherModal({
   const totalDebit = isSimpleMode ? (parseFloat(simpleAmount) || 0) : voucherLines.reduce((s, r) => s + (r.debit || 0), 0);
   const totalCredit = isSimpleMode ? (parseFloat(simpleAmount) || 0) : voucherLines.reduce((s, r) => s + (r.credit || 0), 0);
   const difference = Math.abs(totalDebit - totalCredit);
-  const isBalanced = isSimpleMode ? (totalDebit > 0 && !!simpleAccount) : (difference < 0.01 && totalDebit > 0);
+  const isBalanced = isSimpleMode ? (totalDebit > 0 && !!simpleAccount && !!mainAccount) : (difference < 0.01 && totalDebit > 0);
 
   const currentTypeMeta = VOUCHER_TYPES.find(t => t.key === type)!;
 
-  const renderHint = (ledgerName: string) => {
-    const meta = mappedLedgers.find(l => l.name === ledgerName);
-    if (!meta) return null;
-    const bal = getLedgerWithBalance(meta.id);
-    const currentBalance = !Array.isArray(bal) ? bal.closingBalance : 0;
-    return (
-      <span style={{ fontSize: "10px", color: "#94a3b8", marginLeft: "8px" }}>
-        â‚¹{Math.abs(currentBalance).toLocaleString("en-IN")} {currentBalance >= 0 ? "Dr" : "Cr"}
-      </span>
-    );
-  };
+  // Balance hint is only shown for the currently-selected counter ledger, not in every dropdown row
+  // (calling getLedgerWithBalance on every row causes severe slowdown with 1000+ ledgers)
+  const renderHint = (_ledgerName: string) => null;
 
-  const mainLedgerName = mappedLedgers.find(l => l.id === mainAccount)?.name || "";
+  const mainLedgerName = mappedLedgers.find(l => String(l.id) === String(mainAccount))?.name || "";
 
   // Live balance projection for simple mode
-  const mainMeta = mappedLedgers.find(l => l.id === mainAccount);
+  const mainMeta = mappedLedgers.find(l => String(l.id) === String(mainAccount));
   const mainBalRaw = mainMeta ? getLedgerWithBalance(mainMeta.id) : null;
   const mainBal = mainBalRaw && !Array.isArray(mainBalRaw) ? mainBalRaw.closingBalance : 0;
   const counterMeta = mappedLedgers.find(l => l.name === simpleAccount);
@@ -217,14 +260,14 @@ export default function VoucherModal({
     <div className="modal-overlay" style={{ zIndex: 2000 }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-box" style={{ width: 860, maxHeight: "90vh", display: "flex", flexDirection: "column", borderRadius: "14px", overflow: "hidden" }}>
 
-        {/* â”€â”€ Accounting Toolbar Header â”€â”€ */}
-        <div style={{ display: "flex", alignItems: "center", gap: 0, borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+        {/* ── Accounting Toolbar Header ── */}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0, borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
           {VOUCHER_TYPES.map(t => (
             <button
               key={t.key}
               onClick={() => setType(t.key)}
               style={{
-                padding: "28px 28px",
+                padding: "16px 16px",
                 fontSize: "13px",
                 fontWeight: 700,
                 letterSpacing: "0.08em",
@@ -303,12 +346,13 @@ export default function VoucherModal({
                         onFocus={() => { setActiveDropdown("m"); setMainAccountSearch(mainLedgerName); }}
                         onBlur={() => setTimeout(() => setActiveDropdown(null), 150)}
                         onChange={e => setMainAccountSearch(e.target.value)}
+                        placeholder="Select account..."
                         style={{ fontSize: "15px", fontWeight: 700, padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: "5px", background: "white", minWidth: "220px" }}
                       />
                       {activeDropdown === "m" && (
                         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 200, background: "white", border: "1px solid #e2e8f0", borderRadius: "6px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.1)" }}>
-                          {mappedLedgers.filter(l => l.name.toLowerCase().includes(mainAccountSearch.toLowerCase())).map(l => (
-                            <div key={l.id} onMouseDown={() => setMainAccount(l.id)} style={{ padding: "8px 12px", cursor: "pointer", fontSize: "13px", borderBottom: "1px solid #f1f5f9" }}>{l.name}</div>
+                          {mappedLedgers.filter(l => l.name.toLowerCase().includes(mainAccountSearch.toLowerCase())).slice(0, 50).map(l => (
+                            <div key={l.name} onMouseDown={() => setMainAccount(l.id)} style={{ padding: "8px 12px", cursor: "pointer", fontSize: "13px", borderBottom: "1px solid #f1f5f9" }}>{l.name}</div>
                           ))}
                         </div>
                       )}
@@ -322,19 +366,6 @@ export default function VoucherModal({
                   <span style={{ fontSize: "13px", fontWeight: 700, color: "#1e293b" }}>
                     Cur. bal: <span style={{ color: mainBal >= 0 ? "#0f766e" : "#b91c1c" }}>{fmtBal(mainBal)}</span>
                   </span>
-                  {simpleAmt > 0 && (
-                    <>
-                      <span style={{ fontSize: "13px", color: "#94a3b8" }}>â†’</span>
-                      <span style={{ fontSize: "13px", fontWeight: 800, color: mainAfter >= 0 ? "#0f766e" : "#b91c1c" }}>{fmtBal(mainAfter)}</span>
-                      <span style={{
-                        fontSize: "11px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px",
-                        background: type === "receipt" ? "#dcfce7" : "#fee2e2",
-                        color: type === "receipt" ? "#15803d" : "#b91c1c"
-                      }}>
-                        {type === "receipt" ? `+â‚¹${simpleAmt.toLocaleString("en-IN")}` : `-â‚¹${simpleAmt.toLocaleString("en-IN")}`}
-                      </span>
-                    </>
-                  )}
                 </div>
               </div>
 
@@ -355,33 +386,19 @@ export default function VoucherModal({
                   />
                   {activeDropdown === "s" && (
                     <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 200, background: "white", border: "1px solid #e2e8f0", borderRadius: "6px", maxHeight: "160px", overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.1)" }}>
-                      {mappedLedgers.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).map(l => (
-                        <div key={l.id} onMouseDown={() => { setSimpleAccount(l.name); setActiveDropdown(null); }} style={{ padding: "8px 12px", cursor: "pointer", fontSize: "13px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between" }}>
+                      {mappedLedgers.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 50).map(l => (
+                        <div key={l.name} onMouseDown={() => { setSimpleAccount(l.name); setActiveDropdown(null); }} style={{ padding: "8px 12px", cursor: "pointer", fontSize: "13px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between" }}>
                           <span>{l.name}</span>
                           {renderHint(l.name)}
                         </div>
                       ))}
                     </div>
                   )}
-                  {/* Prominent counter account balance with live projection */}
                   {counterMeta && (
                     <div style={{ marginTop: "7px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                       <span style={{ fontSize: "13px", fontWeight: 700, color: "#1e293b" }}>
                         Cur. bal: <span style={{ color: counterBal >= 0 ? "#0f766e" : "#b91c1c" }}>{fmtBal(counterBal)}</span>
                       </span>
-                      {simpleAmt > 0 && (
-                        <>
-                          <span style={{ fontSize: "13px", color: "#94a3b8" }}>â†’</span>
-                          <span style={{ fontSize: "13px", fontWeight: 800, color: counterAfter >= 0 ? "#0f766e" : "#b91c1c" }}>{fmtBal(counterAfter)}</span>
-                          <span style={{
-                            fontSize: "11px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px",
-                            background: type === "payment" ? "#dcfce7" : "#fee2e2",
-                            color: type === "payment" ? "#15803d" : "#b91c1c"
-                          }}>
-                            {type === "payment" ? `+â‚¹${simpleAmt.toLocaleString("en-IN")}` : `-â‚¹${simpleAmt.toLocaleString("en-IN")}`}
-                          </span>
-                        </>
-                      )}
                     </div>
                   )}
                 </div>
@@ -411,19 +428,19 @@ export default function VoucherModal({
                           setSimplePrice(p);
                           if (simpleQuantity && p) setSimpleAmount(String(parseFloat(simpleQuantity) * parseFloat(p)));
                         }}
-                        placeholder="0.00"
+                        placeholder=""
                         style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", textAlign: "right", fontSize: "13px", fontWeight: 600 }}
                       />
                     </div>
                   </>
                 )}
                 <div style={{ width: "130px" }}>
-                  <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px", color: "#64748b", letterSpacing: "0.06em" }}>Amount (â‚¹)</label>
+                  <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px", color: "#64748b", letterSpacing: "0.06em" }}>Amount (₹)</label>
                   <input
                     type="number"
                     value={simpleAmount}
                     onChange={e => setSimpleAmount(e.target.value)}
-                    placeholder="0.00"
+                    placeholder=""
                     style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", textAlign: "right", fontSize: "14px", fontWeight: 700 }}
                   />
                 </div>
@@ -445,19 +462,24 @@ export default function VoucherModal({
             />
           </div>
 
-          {error && <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px", fontWeight: 600 }}>âš  {error}</div>}
+          {error && <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px", fontWeight: 600 }}>⚠ {error}</div>}
         </div>
 
         {/* â”€â”€ Footer â”€â”€ */}
         <div style={{ padding: "12px 20px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: "11px", color: "#94a3b8" }}>Ctrl+S to save Â· Esc to close</span>
+          <span style={{ fontSize: "11px", color: "#94a3b8" }}>Ctrl+S to save · Esc to close</span>
           <button
             className="btn-primary"
             onClick={handleSave}
-            disabled={!isBalanced}
-            style={{ padding: "8px 24px", opacity: isBalanced ? 1 : 0.4, display: "flex", alignItems: "center", gap: "6px" }}
+            disabled={!isBalanced || isSaving}
+            style={{ padding: "8px 24px", opacity: (isBalanced && !isSaving) ? 1 : 0.4, display: "flex", alignItems: "center", gap: "6px" }}
           >
-            <Save size={14} /> Save Voucher
+            {isSaving ? (
+              <div style={{ width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            ) : (
+              <Save size={14} />
+            )}
+            {isSaving ? "Saving..." : "Save Voucher"}
           </button>
         </div>
       </div>

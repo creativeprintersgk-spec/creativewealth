@@ -22,6 +22,7 @@ export interface AssetMaster {
   amfi_code: number | null;
   nse_symbol: string | null;
   ticker: string | null;
+  isin?: string | null;
 }
 
 export interface LivePrice {
@@ -38,6 +39,10 @@ export interface LivePrice {
 const priceCache = new Map<number, { price: LivePrice; fetchedAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+export function clearPriceCache() {
+  priceCache.clear();
+}
+
 // ─── Asset Search ─────────────────────────────────────────────────────────────
 
 /**
@@ -52,7 +57,7 @@ export async function searchAssets(
 
   let q = supabase
     .from('asset_master')
-    .select('amid, name, asset_type, asset_type_name, exchange_group, bse_code, amfi_code, nse_symbol, ticker')
+    .select('amid, name, asset_type, asset_type_name, exchange_group, bse_code, amfi_code, nse_symbol, ticker, isin')
     .ilike('name', `%${query.trim()}%`)
     .limit(20);
 
@@ -104,11 +109,27 @@ export async function getAssetByAmid(amid: number): Promise<AssetMaster | null> 
   return data || null;
 }
 
-// ─── Live Price Fetching ──────────────────────────────────────────────────────
+function getYahooUrl(symbol: string): string {
+  const path = `/v8/finance/chart/${symbol}?interval=1d&range=5d`;
+  if (typeof window !== 'undefined') {
+    return `/api/yahoo${path}`;
+  } else {
+    return `https://query1.finance.yahoo.com${path}`;
+  }
+}
+
+function getMfapiUrl(amfiCode: number): string {
+  const path = `/mf/${amfiCode}`;
+  if (typeof window !== 'undefined') {
+    return `/api/mfapi${path}`;
+  } else {
+    return `https://api.mfapi.in${path}`;
+  }
+}
 
 async function fetchMFNav(amfiCode: number): Promise<{ price: number; change: number; change_pct: number; date: string } | null> {
   try {
-    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}`);
+    const res = await fetch(getMfapiUrl(amfiCode));
     if (!res.ok) return null;
     const data = await res.json();
     const today = data?.data?.[0];
@@ -142,15 +163,16 @@ async function fetchMFNav(amfiCode: number): Promise<{ price: number; change: nu
  * Fetch live price for a Stock from Yahoo Finance.
  * Supports NSE/BSE symbols.
  */
-async function fetchStockPrice(symbol: string): Promise<{ price: number; change: number; change_pct: number; date: string } | null> {
+export async function fetchStockPrice(symbol: string): Promise<{ price: number; change: number; change_pct: number; date: string } | null> {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`;
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      }
-    });
+    const url = getYahooUrl(symbol);
+    const headers = typeof window === 'undefined'
+      ? {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json',
+        }
+      : undefined;
+    const res = await fetch(url, { headers });
     if (!res.ok) return null;
     const data = await res.json();
     const meta = data?.chart?.result?.[0]?.meta;
@@ -184,6 +206,29 @@ async function fetchStockPrice(symbol: string): Promise<{ price: number; change:
   }
 }
 
+const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
+  104519: 'NTPC.NS',          // NTPC Limited
+  100038: 'BEL.NS',           // Bharat Electronics
+  100132: 'HCC.NS',           // Hindustan Construction Company (approx 22)
+  100135: 'HINDZINC.NS',      // Hindustan Zinc
+  100167: 'KSL.NS',           // Kalyani Steels
+  100231: 'OILCOUNTUB.NS',    // Oil Country Tubular
+  100344: 'HINDMOTORS.NS',    // Hindustan Motors
+  100407: 'TATAINVEST.NS',    // Tata Investment Corporation
+  101556: 'BHANDARI.NS',      // Bhandari Hosiery Exports
+  101684: 'HINDCOPPER.NS',    // Hindustan Copper
+  101856: 'ANANTRAJ.NS',      // Anant Raj
+  102647: 'SEYAIND.NS',       // Seya Industries
+  104467: 'ISMTLTD.NS',       // ISMT Limited
+  105468: 'ESSENTIA.NS',      // Integra Essentia
+  106093: 'LLOYDSENGG.NS',    // Lloyds Engineering Works
+  121746: 'RVNL.NS',          // Rail Vikas Nigam
+  121933: 'TARC.NS',          // Tarc
+  122169: 'SILVERBEES.NS',    // Nippon India Silver ETF
+  122630: 'JIOFIN.NS',        // Jio Financial Services
+  123306: 'METAL.NS',         // Mirae Asset Nifty Metal ETF
+};
+
 /**
  * Get live price for any asset (stocks + MF)
  * Automatically routes to the right API based on asset_type.
@@ -214,10 +259,21 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
     }
   }
 
-  // Stock — prefer NSE symbol then BSE code
-  if (asset.asset_type === 50) {
+  // Stock or Bonds - prefer ticker, then NSE symbol, then BSE code
+  if (asset.asset_type === 50 || asset.asset_type === 70) {
     let quote = null;
-    if (asset.nse_symbol) {
+
+    // Check for hardcoded ticker overrides first (to handle bad/abbreviated NSE symbols in database)
+    const overrideSymbol = STOCK_SYMBOL_OVERRIDES[asset.amid];
+    if (overrideSymbol) {
+      quote = await fetchStockPrice(overrideSymbol);
+    }
+    
+    if (!quote && asset.ticker) {
+      quote = await fetchStockPrice(asset.ticker);
+    }
+
+    if (!quote && asset.nse_symbol) {
       quote = await fetchStockPrice(`${asset.nse_symbol}.NS`);
     }
     if (!quote && asset.bse_code) {

@@ -1,0 +1,75 @@
+
+
+--- MATCH ---
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-06-16T10:26:00Z sender=b8574ae2-8ca9-4b84-af80-04e987c74bcc/task-2226 priority=MESSAGE_PRIORITY_HIGH content=Task id "b8574ae2-8ca9-4b84-af80-04e987c74bcc/task-2226" finished with result:
+
+				The command completed successfully.
+				Output:
+				PAGE LOG: [vite] connecting...
+PAGE LOG: [vite] connected.
+PAGE LOG: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+PAGE LOG: Initializing WealthCore...
+PAGE LOG: Initializing WealthCore...
+PAGE LOG: ✅ WealthCore Ready — 35 portfolios, 8625 COA entries, 19127 journal entries, 14855 portfolio txns
+PAGE UNCAUGHT ERROR: hasStaged is not defined
+PAGE WARNING: %s
+
+%s
+ An error occurred in the <ImportPage> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+PAGE LOG: ✅ WealthCore Ready — 35 portfolios, 8625 COA entries, 19127 journal entries, 14855 portfolio txns
+
+
+Log: file:///C:/Users/Admin/.gemini/antigravity-ide/brain/b8574ae2-8ca9-4b84-af80-04e987c74bcc/.system_generated/tasks/task-2226.log
+</SYSTEM_MESSAGE>
+
+--- MATCH ---
+Created At: 2026-06-16T10:26:16Z
+Completed At: 2026-06-16T10:26:17Z
+
+				The command completed successfully.
+				Output:
+				
+                  Select or drag MProfit export CSV files to parse and synchronize them with your Supabase account.
+                </p>
+              </div>
+>             {hasStaged && !isImporting && (
+                <button 
+                  onClick={clearStaged}
+                  style={{ padding: "8px 16px", background: "none", border: "1px solid #cbd5e1", borderRadius: "8px", 
+fontSize: "13px", fontWeight: 600, color: "#64748b", cursor: "pointer", transition: "all 0.2s" }}
+                </button>
+                <button 
+                  onClick={startImport}
+>                 disabled={!hasStaged || missingRequired.length > 0 || isImporting}
+                  className="btn-primary"
+>                 style={{ padding: "10px 28px", display: "flex", alignItems: "center", gap: "8px", opacity: 
+(!hasStaged || missingRequired.length > 0 || isImporting) ? 0.5 : 1, cursor: (!hasStaged || missingRequired.length > 0 
+|| isImporting) ? "not-allowed" : "pointer" }}
+                >
+                  <Play size={16} /> Start Database Import
+                </button>
+
+
+
+
+
+--- MATCH ---
+Created At: 2026-06-16T10:26:31Z
+Completed At: 2026-06-16T10:26:31Z
+
+				The command completed successfully.
+				Output:
+				
+          {!isImporting && !importComplete && missingRequired.length > 0 && (
+                  {missingRequired.map(t => (
+                disabled={!hasStaged || missingRequired.length > 0 || isImporting}
+                style={{ padding: "10px 28px", display: "flex", alignItems: "center", gap: "8px", opacity: (!hasStaged 
+|| missingRequired.length > 0 || isImporting) ? 0.5 : 1, cursor: (!hasStaged || missingRequired.length > 0 || 
+isImporting) ? "not-allowed" : "pointer" }}
+
+
+

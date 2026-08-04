@@ -1,0 +1,87 @@
+Created At: 2026-05-23T08:09:01Z
+Completed At: 2026-05-23T08:09:02Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 630
+Total Bytes: 27356
+Showing lines 215 to 340
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+215: // ── COA ───────────────────────────────────────────────────────────────────────
+216: export function getStoredGroups(): Group[] {
+217:   return state.acmac1.filter((a: any) => a.is_group).map((a: any) => ({
+218:     id: String(a.id),
+219:     name: a.name,
+220:     parent: a.parent_id ? String(a.parent_id) : undefined,
+221:     type: getGroupType(a.special_type_id || 150),
+222:     acid: a.acid,
+223:     specialTypeId: a.special_type_id
+224:   }));
+225: }
+226: 
+227: export function getStoredLedgers(): Ledger[] {
+228:   return state.acmac1.filter((a: any) => !a.is_group).map((a: any) => ({
+229:     id: String(a.id),
+230:     name: a.name,
+231:     groupId: String(a.parent_id),
+232:     openingBalance: 0,
+233:     openingType: 'DR' as "DR" | "CR",
+234:     currentBalance: 0,
+235:     currentType: 'DR' as "DR" | "CR",
+236:     amid: a.id >= 100000 ? a.id : undefined,
+237:     acid: a.acid
+238:   }));
+239: }
+240: 
+241: export function getStoredVouchers(): Voucher[] {
+242:   return state.vouchersC1.map((v: any) => ({
+243:     id: String(v.vid),
+244:     date: v.dt || '',
+245:     type: String(v.vtyp || 'journal'),
+246:     narration: v.narr || '',
+247:     voucherNo: `V-${v.vid}`,
+248:     portfolioId: v.pfid ? String(v.pfid) : undefined,
+249:     accountId: v.acid ? String(v.acid) : undefined,
+250:   }));
+251: }
+252: 
+253: export function getStoredEntries(): Entry[] {
+254:   return state.transC1.map((e: any) => ({
+255:     id: Str
+<truncated 2409 bytes>
+:         overallGain: 0, overallGainPct: 0, currentValue: 0,
+305:         portfolioSplits: []
+306:       };
+307:     }
+308:     const h = map[amid];
+309:     const qty = Number(s.qnt) || 0;
+310:     const inv = Number(s.amtinv) || 0;
+311:     h.quantity += qty;
+312:     h.amtInvested += inv;
+313:     const port = state.portfolios.find((p: any) => p.id === s.pfolio_id);
+314:     const ex = h.portfolioSplits.find(sp => sp.portfolioId === s.pfolio_id);
+315:     if (ex) { ex.quantity += qty; ex.amtInvested += inv; ex.currentValue = ex.quantity * price.curr; }
+316:     else h.portfolioSplits.push({
+317:       portfolioId: s.pfolio_id,
+318:       portfolioName: port?.investor_name || `Portfolio ${s.pfolio_id}`,
+319:       quantity: qty, amtInvested: inv, currentValue: qty * price.curr
+320:     });
+321:   });
+322:   return Object.values(map).map(h => {
+323:     h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : 0;
+324:     h.currentValue = h.quantity * h.currentPrice;
+325:     h.overallGain = h.currentValue > 0 ? h.currentValue - h.amtInvested : 0;
+326:     h.overallGainPct = h.amtInvested > 0 && h.currentValue > 0 ? (h.overallGain / h.amtInvested) * 100 : 0;
+327:     h.todaysGain = h.prevPrice > 0 ? h.quantity * (h.currentPrice - h.prevPrice) : 0;
+328:     h.todaysGainPct = h.prevPrice > 0 ? ((h.currentPrice - h.prevPrice) / h.prevPrice) * 100 : 0;
+329:     return h;
+330:   }).sort((a, b) => b.amtInvested - a.amtInvested);
+331: }
+332: 
+333: export interface PortfolioSummary {
+334:   totalInvested: number; currentValue: number;
+335:   overallGain: number; overallGainPct: number;
+336:   todaysGain: number; todaysGainPct: number;
+337:   assetTypeBreakdown: Array<{ type: number; name: string; invested: number; currentValue: number }>;
+338: }
+339: 
+340: export function getPortfolioSummary(portfolioIds: number[]): PortfolioSummary {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

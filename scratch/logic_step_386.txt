@@ -1,0 +1,24 @@
+Created At: 2026-05-23T08:46:02Z
+Completed At: 2026-05-23T08:46:02Z
+File Path: `file:///c:/Users/Admin/Desktop/wealthcore-clean/src/logic.ts`
+Total Lines: 649
+Total Bytes: 28450
+Showing lines 70 to 85
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+70: 
+71: // ── SAFE FETCH ────────────────────────────────────────────────────────────────
+72: async function safeFetch(table: string, max = 50000): Promise<any[]> {
+73:   try {
+74:     let all: any[] = [];
+75:     const pkMap: Record<string, string> = {
+76:       bs1: 'trno',
+77:       transc1: 'transid', trans1: 'transid',
+78:       vouchersc1: 'vid', vouchers1: 'vid',
+79:       portfolios: 'id', investor_group_members: 'id', acc_pflink: 'pfid',
+80:       acmac1: 'id', sam: 'amid', asset_master: 'amid',
+81:       sum_table: 'sid', mprices: 'amid'
+82:     };
+83:     while (all.length < max) {
+84:       const { data, error } = await supabase
+85:         .from(table).select('*').order(pkMap[table] || 'id').range(page * size, (page + 1) * size - 1);
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
