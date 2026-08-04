@@ -1692,7 +1692,16 @@ export async function syncLivePrices() {
         try {
           const price = await getLivePrice(asset);
           if (price && price.price > 0) {
-            const oldPrice = state.priceMap[asset.amid]?.curr || 0;
+            let oldPrice = state.priceMap[asset.amid]?.curr || 0;
+            
+            // If the latest MProfit price was empty/0, look back at historical rows to find a non-zero baseline
+            if (oldPrice === 0 && state.mprices) {
+              const historical = state.mprices.filter((m: any) => m.amid === asset.amid && Number(m.currp) > 0);
+              if (historical.length > 0) {
+                oldPrice = Number(historical[historical.length - 1].currp);
+              }
+            }
+
             let usePrice = true;
             if (oldPrice > 0) {
               const ratio = price.price / oldPrice;
