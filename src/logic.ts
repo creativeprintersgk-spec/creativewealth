@@ -474,6 +474,7 @@ export interface AssetHolding {
   portfolioSplits: Array<{
     portfolioId: number; portfolioName: string;
     quantity: number; amtInvested: number; currentValue: number;
+    folio?: string;
   }>;
 }
 

@@ -144,6 +144,25 @@ export default function PMSWorkspace() {
   const [areAllExpanded, setAreAllExpanded] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'value' | 'todaysGainPct' | 'overallGainPct' | 'overallGain' | 'todaysGain'>('value');
 
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<number>(Date.now());
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!syncStatus) {
+        setSyncStatus('Auto-Syncing...');
+        syncLivePrices((msg: string) => setSyncStatus(msg))
+          .finally(() => {
+            setSyncStatus(null);
+            setLastSyncTime(Date.now());
+            setTick(t => t + 1);
+          });
+      }
+    }, 15 * 60 * 1000); // 15 mins
+    return () => clearInterval(interval);
+  }, [syncStatus]);
+
   useEffect(() => {
     const handleClick = () => {
       setIsViewsMenuOpen(false);
@@ -180,47 +199,20 @@ export default function PMSWorkspace() {
     if (activeTab === id) setActiveTab('all');
   };
 
-  const selectedMemberId = (isSelectorOpen === 'group' && tempSelectedIds.length > 0) 
-    ? tempSelectedIds[0] 
-    : (activeFamily?.familyName || 'all');
-
-  const selectedMemberName = familyMembers.find(m => m.id === selectedMemberId)?.name || 'Select Member';
-
-  // Extract relevant IDs from temp selection
-  let portIdsToAnalyze: string[] = [];
-  if (isSelectorOpen === 'group') {
-    // If a specific group member is selected, gather their portfolio IDs
-    if (tempSelectedIds.length > 0 && tempSelectedIds[0] !== activeFamily?.familyName) {
-      portIdsToAnalyze = accPflink
-        .filter(link => String(link.group_member_id) === tempSelectedIds[0])
-        .map(link => String(link.pfid));
-    } else {
-      // If "All Family" is selected, gather ALL portfolios for this family
-      const memberIds = investorGroupMembers.filter(m => m.family_id === activeFamily?.id).map(m => m.id);
-      portIdsToAnalyze = accPflink
-        .filter(link => memberIds.includes(link.group_member_id!))
-        .map(link => String(link.pfid));
-    }
-  } else if (isSelectorOpen === 'port') {
-    portIdsToAnalyze = tempSelectedIds;
-  } else {
-    // Default: gather all portfolios for the active family
-    if (activeFamily) {
-      const memberIds = investorGroupMembers.filter(m => m.family_id === activeFamily.id).map(m => m.id);
-      portIdsToAnalyze = accPflink
-        .filter(link => memberIds.includes(link.group_member_id!))
-        .map(link => String(link.pfid));
-    }
-  }
-
-  // Use centralized logic to compute enriched holdings
-  const enrichedHoldings = useMemo(() => {
+  // Compute base holdings from MProfit data
+  const holdings = useMemo(() => {
     if (!currentTab) return [];
     const filterIds = activeAssetType === 'all' ? undefined : (ATTY_MAP[activeAssetType] || []);
-    return getHoldings(portIdsToAnalyze.map(Number), filterIds);
-  }, [portIdsToAnalyze, currentTab, activeAssetType, customRange.end, tick]); // Re-compute when tick changes (after sync)
+    return getHoldings(currentTab.portfolioIds.map(Number), filterIds);
+  }, [currentTab, activeAssetType, customRange.end, tick]); // Re-compute when tick changes (after sync)
 
-  // Aggregate totals
+  const [enrichedHoldings, setEnrichedHoldings] = useState<any[]>([]);
+
+  useEffect(() => {
+    setEnrichedHoldings(holdings);
+  }, [holdings]);
+
+  // Aggregate totals from enriched holdings (which are populated by HoldingsGrid async fetch)
   const totals = useMemo(() => {
     if (!enrichedHoldings.length) return { invested: 0, today: 0, overall: 0, value: 0 };
     return enrichedHoldings.filter(r => !r.isGroup).reduce((acc, h) => ({
