@@ -207,6 +207,9 @@ export async function fetchStockPrice(symbol: string): Promise<{ price: number; 
 }
 
 const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
+  100063: 'CGPOWER.NS',       // CG Power and Industrial Solutions (old name was "CROMPTON GREAVES LTD." in DB)
+  102365: 'GVT&D.NS',         // GE Vernova T&D India (old name was "AREVA" in DB)
+  103321: 'SHILPAMED.NS',     // Shilpa Medicare (old name was "SHILPA MEDIC" in DB)
   103391: 'ACSTECH.BO',        // ACS Technologies
   104519: 'NTPC.NS',          // NTPC Limited
   100038: 'BEL.NS',           // Bharat Electronics
