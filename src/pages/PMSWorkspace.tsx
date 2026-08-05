@@ -180,11 +180,6 @@ export default function PMSWorkspace() {
     if (activeTab === id) setActiveTab('all');
   };
 
-  const holdings = useMemo(() => {
-    if (!currentTab) return [];
-    const filterIds = activeAssetType === 'all' ? undefined : (ATTY_MAP[activeAssetType] || []);
-    return getHoldings(currentTab.portfolioIds.map(Number), filterIds);
-  }, [currentTab, activeAssetType, customRange.end]);
   const selectedMemberId = (isSelectorOpen === 'group' && tempSelectedIds.length > 0) 
     ? tempSelectedIds[0] 
     : (activeFamily?.familyName || 'all');
@@ -220,13 +215,16 @@ export default function PMSWorkspace() {
 
   // Use centralized logic to compute enriched holdings
   const enrichedHoldings = useMemo(() => {
-    return computeHoldingsForPortfolios(portIdsToAnalyze, customRange);
-  }, [portIdsToAnalyze, customRange, tick]); // Re-compute when tick changes (after sync)
+    if (!currentTab) return [];
+    const filterIds = activeAssetType === 'all' ? undefined : (ATTY_MAP[activeAssetType] || []);
+    return getHoldings(portIdsToAnalyze.map(Number), filterIds);
+  }, [portIdsToAnalyze, currentTab, activeAssetType, customRange.end, tick]); // Re-compute when tick changes (after sync)
 
   // Aggregate totals
   const totals = useMemo(() => {
-    return enrichedHoldings.reduce((acc, h) => ({
-      invested: acc.invested + (h.investedValue || 0),
+    if (!enrichedHoldings.length) return { invested: 0, today: 0, overall: 0, value: 0 };
+    return enrichedHoldings.filter(r => !r.isGroup).reduce((acc, h) => ({
+      invested: acc.invested + (h.amtInvested || 0),
       today: acc.today + (h.todaysGain || 0),
       overall: acc.overall + (h.overallGain || 0),
       value: acc.value + (h.currentValue || 0)
