@@ -83,13 +83,13 @@ export default function HoldingsGrid({
         const amids = Array.from(new Set(data.map(row => row.amid).filter(id => !isNaN(id))));
         if (!amids.length) return;
 
-        // Read live prices from mprices table (real MProfit table)
-        // Order by row_id ascending so that newer price rows overwrite older ones
+        // Read live prices from mprices table
+        // Order DESC by row_id so the LATEST synced price row wins (highest row_id = newest)
         const { data: priceRows, error } = await supabase
           .from('mprices')
           .select('amid, currp, prevp, row_id')
           .in('amid', amids)
-          .order('row_id', { ascending: true });
+          .order('row_id', { ascending: false });
  
         if (error) {
           console.warn('Price fetch error:', error.message);
@@ -97,10 +97,10 @@ export default function HoldingsGrid({
         }
         if (!priceRows?.length) return;
  
-        // Build lookup map by amid
+        // Build lookup map by amid — first hit per amid wins (DESC order = newest first)
         const priceByAmid = new Map<number, { curr: number; prev: number }>();
         priceRows.forEach((p: any) => {
-          if (p.currp && p.currp > 0) {
+          if (!priceByAmid.has(Number(p.amid)) && p.currp && p.currp > 0) {
             priceByAmid.set(Number(p.amid), { curr: Number(p.currp), prev: Number(p.prevp) || 0 });
           }
         });

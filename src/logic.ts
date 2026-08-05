@@ -1647,165 +1647,157 @@ export async function handleYearClose(fy: string, onSuccess?: () => void) {
 
 export async function syncLivePrices(onProgress?: (msg: string) => void) {
   if (!state.mprices) {
-    if (onProgress) onProgress('Loading initial prices...');
+    if (onProgress) onProgress('Loading prices...');
     state.mprices = await safeFetch('mprices');
   }
   try {
+    // Use IST time (UTC+5:30) so syncs after midnight UTC still use the correct Indian trading date
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const todayStr = nowIST.toISOString().slice(0, 10);
+    const hours = nowIST.getUTCHours(); // getUTCHours on our manually-offset date = IST hours
+    const day = nowIST.getUTCDay();
+    // NSE market: Mon-Fri, 9:15am to 3:30pm IST. We allow 9am-4pm for buffer.
+    const isMarketHours = day >= 1 && day <= 5 && hours >= 9 && hours < 16;
+    if (!isMarketHours) {
+      console.log(`Market closed (IST ${hours}:xx, day ${day}). Skipping sync.`);
+      if (onProgress) onProgress('Market closed');
+      return;
+    }
+
     if (onProgress) onProgress('Finding active assets...');
-    console.log("Checking active market assets for live prices...");
     clearPriceCache();
-    
-    // 1. Collect all unique active amids from sumTable (where quantity > 0 or value > 0 or invested > 0)
+
+    // 1. Collect all unique active amids (quantity > 0 or current value > 0)
     const amids = Array.from(new Set(
       state.sumTable
-        .filter((s: any) => Number(s.qnt) > 0.0001 || Number(s.currv) > 0.01 || Number(s.amtinv) > 0.01)
+        .filter((s: any) => Number(s.qnt) > 0.0001 || Number(s.currv) > 0.01)
         .map((s: any) => Number(s.amid))
-        .filter(id => !!id && !isNaN(id))
+        .filter((id: number) => !!id && !isNaN(id))
     ));
 
     if (amids.length === 0) {
-      console.log("No active holdings found to sync.");
+      console.log('No active holdings found to sync.');
       return;
     }
-    console.log(`Found ${amids.length} active assets to sync. Fetching details from asset_master in chunks...`);
 
-    // 2. Fetch asset details for all these amids from asset_master table in chunks of 100 to avoid URI too large (414)
+    // 2. Fetch asset details from asset_master in chunks of 100
     const assets: any[] = [];
-    const ASSET_CHUNK_SIZE = 100;
-    for (let i = 0; i < amids.length; i += ASSET_CHUNK_SIZE) {
-      const chunk = amids.slice(i, i + ASSET_CHUNK_SIZE);
-      const { data, error: assetErr } = await supabase
+    const CHUNK = 100;
+    for (let i = 0; i < amids.length; i += CHUNK) {
+      const { data } = await supabase
         .from('asset_master')
         .select('*')
-        .in('amid', chunk);
+        .in('amid', amids.slice(i, i + CHUNK));
+      if (data) assets.push(...data);
+    }
+    console.log(`Found ${assets.length} assets to sync.`);
 
-      if (assetErr) {
-        console.error(`Failed to fetch asset master chunk starting at index ${i}:`, assetErr.message);
-      }
-      if (data) {
-        assets.push(...data);
+    // 3. Load yesterday's closing prices from mprices as a fallback for prevp.
+    //    This guarantees "today's gain" = qty × (currp - prevp) is correct even when
+    //    Yahoo/mfapi returns change=0 or no previousClose.
+    const yesterdayIST = new Date(nowIST);
+    yesterdayIST.setUTCDate(yesterdayIST.getUTCDate() - 1);
+    // Walk back to find the last weekday (skip weekends)
+    while (yesterdayIST.getUTCDay() === 0 || yesterdayIST.getUTCDay() === 6) {
+      yesterdayIST.setUTCDate(yesterdayIST.getUTCDate() - 1);
+    }
+    const yesterdayStr = yesterdayIST.toISOString().slice(0, 10);
+
+    const prevClosePrices = new Map<number, number>();
+    for (let i = 0; i < amids.length; i += CHUNK) {
+      const { data: prevRows } = await supabase
+        .from('mprices')
+        .select('amid, currp')
+        .eq('date', yesterdayStr)
+        .in('amid', amids.slice(i, i + CHUNK) as number[]);
+      if (prevRows) {
+        prevRows.forEach((r: any) => {
+          if (r.currp > 0) prevClosePrices.set(Number(r.amid), Number(r.currp));
+        });
       }
     }
+    console.log(`Loaded ${prevClosePrices.size} previous-close prices from ${yesterdayStr}.`);
 
-    console.log(`Fetched ${assets.length} assets. Retrieving live prices...`);
-
-    // 3. Fetch live prices sequentially to avoid Yahoo rate limits
-    const fetchedPrices: Array<{ amid: number, currp: number, prevp: number, date: string, source_id_atyp: number }> = [];
-    const todayStr = new Date().toISOString().slice(0, 10);
-
+    // 4. Fetch live prices sequentially (to avoid Yahoo Finance rate-limiting)
+    const fetchedPrices: Array<{ amid: number; currp: number; prevp: number; date: string; source_id_atyp: number }> = [];
     const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
     for (let i = 0; i < assets.length; i++) {
       const asset = assets[i];
+      if (onProgress && (i === 0 || i % 10 === 0 || i === assets.length - 1)) {
+        onProgress(`Fetching ${i + 1}/${assets.length}: ${asset.name?.slice(0, 20)}...`);
+      }
       try {
         const price = await getLivePrice(asset);
         if (price && price.price > 0) {
-          let oldPrice = state.priceMap[asset.amid]?.curr || 0;
-          
-          if (oldPrice === 0 && state.mprices) {
-            const historical = state.mprices.filter((m: any) => m.amid === asset.amid && Number(m.currp) > 0);
-            if (historical.length > 0) {
-              oldPrice = Number(historical[historical.length - 1].currp);
-            }
+          // Use Yahoo/mfapi previousClose if available, otherwise fall back to yesterday's stored price
+          let prevp = Math.max(0, price.price - price.change);
+          if (prevp === 0 || prevp === price.price) {
+            // change was 0 or missing — use stored yesterday close
+            prevp = prevClosePrices.get(asset.amid) ?? price.price;
           }
-
-          let usePrice = true;
-          if (oldPrice > 0) {
-            const ratio = price.price / oldPrice;
-            if (ratio > 10 || ratio < 0.1) {
-              console.warn(`[Sanity Check] Price for ${asset.name} rejected. Live: ${price.price}, Old: ${oldPrice}`);
-              usePrice = false;
-            }
-          }
-          if (usePrice) {
-            fetchedPrices.push({
-              amid: asset.amid,
-              currp: price.price,
-              prevp: price.price - price.change,
-              date: todayStr,
-              source_id_atyp: asset.asset_type
-            });
-          }
+          fetchedPrices.push({
+            amid: asset.amid,
+            currp: price.price,
+            prevp,
+            date: todayStr,
+            source_id_atyp: asset.asset_type
+          });
         }
       } catch (e) {
-        console.warn(`Failed to fetch price for ${asset.name} (amid=${asset.amid}):`, e);
+        console.warn(`Price fetch failed for ${asset.name} (amid=${asset.amid}):`, e);
       }
-      
-      // Small delay to avoid rate limiting
+      // Delay only for stocks to avoid Yahoo rate limits (MF NAV from mfapi is fast)
       if (asset.asset_type === 50 || asset.asset_type === 70) {
-        await delay(200);
+        await delay(150);
       }
     }
 
     if (fetchedPrices.length === 0) {
-      console.log("No live prices successfully fetched.");
+      console.log('No live prices fetched.');
       return;
     }
 
-    console.log(`Fetched ${fetchedPrices.length} live prices. Querying existing rows for today...`);
+    if (onProgress) onProgress(`Saving ${fetchedPrices.length} prices...`);
+    console.log(`Saving ${fetchedPrices.length} prices for ${todayStr}...`);
 
-    // 4. Fetch existing rows from mprices for today's date to avoid duplicate rows for the same amid and date.
-    // Query in chunks of 100 to avoid URI too large.
-    const existingRows: any[] = [];
-    for (let i = 0; i < amids.length; i += ASSET_CHUNK_SIZE) {
-      const chunk = amids.slice(i, i + ASSET_CHUNK_SIZE);
-      const { data, error: existErr } = await supabase
+    // 4. DELETE all existing rows for today for these amids, then INSERT fresh ones.
+    //    This is more reliable than upsert (which requires unique constraints).
+    const amidsToSave = fetchedPrices.map(p => p.amid);
+    for (let i = 0; i < amidsToSave.length; i += CHUNK) {
+      const { error: delErr } = await supabase
         .from('mprices')
-        .select('*')
+        .delete()
         .eq('date', todayStr)
-        .in('amid', chunk);
-
-      if (existErr) {
-        console.error(`Failed to query existing mprices chunk starting at index ${i}:`, existErr.message);
-      }
-      if (data) {
-        existingRows.push(...data);
+        .in('amid', amidsToSave.slice(i, i + CHUNK));
+      if (delErr) {
+        console.warn(`Delete failed (non-fatal) at chunk ${i}:`, delErr.message);
       }
     }
 
-    // Map existing rows by amid for O(1) lookup
-    const existingMap = new Map<number, any>();
-    existingRows.forEach(row => {
-      existingMap.set(Number(row.amid), row);
-    });
-
-    // 5. Construct price updates/inserts
-    const priceUpdates = fetchedPrices.map(price => {
-      const existing = existingMap.get(price.amid);
-      if (existing) {
-        return {
-          row_id: existing.row_id, // include the primary key to update the existing row
-          ...price
-        };
-      }
-      return price;
-    });
-
-    console.log(`Syncing ${priceUpdates.length} prices to Supabase public.mprices...`);
-
-    // 6. Upsert the updated prices into the mprices table in chunks of 100
-    const UPSERT_CHUNK_SIZE = 100;
-    for (let i = 0; i < priceUpdates.length; i += UPSERT_CHUNK_SIZE) {
-      const chunk = priceUpdates.slice(i, i + UPSERT_CHUNK_SIZE);
-      const { error: upsertErr } = await supabase
+    // 5. Insert fresh price rows
+    for (let i = 0; i < fetchedPrices.length; i += CHUNK) {
+      const { error: insertErr } = await supabase
         .from('mprices')
-        .upsert(chunk);
-
-      if (upsertErr) {
-        console.error(`Upsert failed for chunk starting at index ${i}:`, upsertErr.message);
-        throw new Error(`Failed to save synced prices: ${upsertErr.message}`);
+        .insert(fetchedPrices.slice(i, i + CHUNK));
+      if (insertErr) {
+        console.error(`Insert failed at chunk ${i}:`, insertErr.message);
+        throw new Error(`Failed to save prices: ${insertErr.message}`);
       }
     }
-    priceUpdates.forEach((p: any) => {
-      state.priceMap[p.amid] = { curr: Number(p.currp) || 0, prev: Number(p.prevp) || 0 };
+
+    // 6. Update in-memory state so UI refreshes immediately without page reload
+    fetchedPrices.forEach((p: any) => {
+      state.priceMap[p.amid] = { curr: p.currp, prev: p.prevp };
     });
     rebuildAllIndexes();
-    console.log("✅ Live prices sync completed successfully.");
+    console.log(`✅ Sync done: ${fetchedPrices.length} prices saved for ${todayStr}.`);
   } catch (err) {
-    console.error("❌ Live price sync failed:", err);
+    console.error('❌ Live price sync failed:', err);
     throw err;
   }
 }
+
 export async function ensureLedgerExists(name: string, groupId: string, acid?: number): Promise<Ledger | null> {
   const acidNum = acid ? Number(acid) : null;
   if (!acidNum) {
