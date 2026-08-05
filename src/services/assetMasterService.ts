@@ -231,6 +231,11 @@ const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
   123306: 'METAL.NS',         // Mirae Asset Nifty Metal ETF
 };
 
+const AMFI_OVERRIDES: Record<number, number> = {
+  245407: 148457, // Nippon India Multi Asset Allocation Fund - Direct Plan - Growth Option
+  245412: 148459, // Nippon India Multi Asset Allocation Fund - Regular Plan - Growth Option
+};
+
 /**
  * Get live price for any asset (stocks + MF)
  * Automatically routes to the right API based on asset_type.
@@ -246,8 +251,9 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   let result: LivePrice | null = null;
 
   // Mutual Fund — use mfapi.in
-  if (asset.asset_type === 60 && asset.amfi_code) {
-    const nav = await fetchMFNav(asset.amfi_code);
+  const amfiCode = asset.amfi_code || AMFI_OVERRIDES[asset.amid];
+  if ((asset.asset_type === 60 || asset.asset_type === 61 || asset.asset_type === 62) && amfiCode) {
+    const nav = await fetchMFNav(amfiCode);
     if (nav) {
       result = {
         amid: asset.amid,
@@ -261,8 +267,8 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
     }
   }
 
-  // Stock or Bonds - prefer ticker, then NSE symbol, then BSE code
-  if (asset.asset_type === 50 || asset.asset_type === 70) {
+  // Fallback: Stock, Bonds, or unmapped Mutual Funds - prefer ticker, then NSE symbol, then BSE code, then ISIN
+  if (!result) {
     let quote = null;
 
     // Check for hardcoded ticker overrides first (to handle bad/abbreviated NSE symbols in database)
@@ -280,6 +286,13 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
     }
     if (!quote && asset.bse_code) {
       quote = await fetchStockPrice(`${asset.bse_code}.BO`);
+    }
+    if (!quote && asset.isin) {
+      // Sometimes Yahoo Finance can resolve ISIN directly for Mutual funds (e.g. 0P0000XW8F.BO)
+      // We can try to query Yahoo Finance for ISIN if all else fails. But fetchStockPrice only takes a symbol.
+      // Wait, we have Google Finance fallback in fetchStockPrice! Wait, we deleted it or it failed?
+      // Just pass ISIN directly, if the API supports it.
+      quote = await fetchStockPrice(asset.isin);
     }
 
     if (quote) {

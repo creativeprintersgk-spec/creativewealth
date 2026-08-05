@@ -481,10 +481,11 @@ export interface AssetHolding {
 export function getHoldings(portfolioIds: number[], assetTypeFilter?: number | number[]): AssetHolding[] {
   const pSet = new Set(portfolioIds);
   
-  // 1. Filter sum_table for active holdings (qnt > 0 or currv > 0 or amtinv > 0)
+  // 1. Filter sum_table for active holdings (qnt > 0 or currv > 0)
+  // We exclude amtinv > 0 because sold assets often still retain an amtinv value in the sumTable
   const rows = state.sumTable.filter((s: any) => 
     pSet.has(s.pfolio_id) && 
-    (Number(s.qnt) > 0.0001 || Number(s.currv) > 0.01 || Number(s.amtinv) > 0.01)
+    (Number(s.qnt) > 0.0001 || Number(s.currv) > 0.01)
   );
 
   // Map parent group IDs in acmac1 to correct UI atty codes
