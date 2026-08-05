@@ -188,14 +188,48 @@ export default function PMSWorkspace() {
 
   const [enrichedHoldings, setEnrichedHoldings] = useState<any[]>([]);
 
-  useEffect(() => {
-    setEnrichedHoldings(holdings);
-  }, [holdings]);
+  const selectedMemberId = (isSelectorOpen === 'group' && tempSelectedIds.length > 0) 
+    ? tempSelectedIds[0] 
+    : (activeFamily?.familyName || 'all');
 
+  const selectedMemberName = familyMembers.find(m => m.id === selectedMemberId)?.name || 'Select Member';
+
+  // Extract relevant IDs from temp selection
+  let portIdsToAnalyze: string[] = [];
+  if (isSelectorOpen === 'group') {
+    // If a specific group member is selected, gather their portfolio IDs
+    if (tempSelectedIds.length > 0 && tempSelectedIds[0] !== activeFamily?.familyName) {
+      portIdsToAnalyze = accPflink
+        .filter(link => String(link.group_member_id) === tempSelectedIds[0])
+        .map(link => String(link.pfid));
+    } else {
+      // If "All Family" is selected, gather ALL portfolios for this family
+      const memberIds = investorGroupMembers.filter(m => m.family_id === activeFamily?.id).map(m => m.id);
+      portIdsToAnalyze = accPflink
+        .filter(link => memberIds.includes(link.group_member_id!))
+        .map(link => String(link.pfid));
+    }
+  } else if (isSelectorOpen === 'port') {
+    portIdsToAnalyze = tempSelectedIds;
+  } else {
+    // Default: gather all portfolios for the active family
+    if (activeFamily) {
+      const memberIds = investorGroupMembers.filter(m => m.family_id === activeFamily.id).map(m => m.id);
+      portIdsToAnalyze = accPflink
+        .filter(link => memberIds.includes(link.group_member_id!))
+        .map(link => String(link.pfid));
+    }
+  }
+
+  // Use centralized logic to compute enriched holdings
+  const enrichedHoldings = useMemo(() => {
+    return computeHoldingsForPortfolios(portIdsToAnalyze, customRange);
+  }, [portIdsToAnalyze, customRange, tick]); // Re-compute when tick changes (after sync)
+
+  // Aggregate totals
   const totals = useMemo(() => {
-    if (!enrichedHoldings.length) return { invested: 0, today: 0, overall: 0, value: 0 };
-    return enrichedHoldings.filter(r => !r.isGroup).reduce((acc, h) => ({
-      invested: acc.invested + (h.amtInvested || 0),
+    return enrichedHoldings.reduce((acc, h) => ({
+      invested: acc.invested + (h.investedValue || 0),
       today: acc.today + (h.todaysGain || 0),
       overall: acc.overall + (h.overallGain || 0),
       value: acc.value + (h.currentValue || 0)
@@ -209,7 +243,7 @@ export default function PMSWorkspace() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc', overflow: 'hidden' }}>
       
-      {/* â”€â”€ TOP BAR â”€â”€ */}
+      {/* ── TOP BAR ── */}
       <div style={{ height: '60px', background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 40px', justifyContent: 'space-between', flexShrink: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           <div style={{ display: 'flex', gap: '4px' }}>
@@ -217,14 +251,19 @@ export default function PMSWorkspace() {
             <button className="pms-topbar-btn"><Plus size={14} /> Import</button>
             <button 
               className="pms-topbar-btn" 
+              style={{ opacity: syncStatus ? 0.7 : 1, cursor: syncStatus ? 'wait' : 'pointer' }}
               onClick={async () => {
-                const btn = document.activeElement as HTMLButtonElement;
-                if (btn) btn.disabled = true;
-                await syncLivePrices();
-                window.location.reload();
+                if (syncStatus) return;
+                setSyncStatus('Starting Sync...');
+                await syncLivePrices((msg: string) => setSyncStatus(msg));
+                setSyncStatus(null);
+                setLastSyncTime(Date.now());
+                setTick(t => t + 1);
               }}
+              title={`Last synced at ${new Date(lastSyncTime).toLocaleTimeString()}`}
             >
-              <RefreshCw size={14} /> Sync
+              <RefreshCw size={14} className={syncStatus ? 'animate-spin' : ''} /> 
+              {syncStatus || 'Sync'}
             </button>
           </div>
         </div>

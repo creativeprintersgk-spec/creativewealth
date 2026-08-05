@@ -1642,9 +1642,15 @@ export async function handleYearClose(fy: string, onSuccess?: () => void) {
   console.log('handleYearClose invoked for FY', fy);
   if (onSuccess) onSuccess();
 }
-export async function syncLivePrices() {
-  console.log("Starting client-side live price sync...");
+
+export async function syncLivePrices(onProgress?: (msg: string) => void) {
+  if (!state.mprices) {
+    if (onProgress) onProgress('Loading initial prices...');
+    state.mprices = await safeFetch('mprices');
+  }
   try {
+    if (onProgress) onProgress('Finding active assets...');
+    console.log("Checking active market assets for live prices...");
     clearPriceCache();
     
     // 1. Collect all unique active amids from sumTable (where quantity > 0 or value > 0 or invested > 0)
