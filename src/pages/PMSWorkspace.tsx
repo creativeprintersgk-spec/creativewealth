@@ -185,9 +185,6 @@ export default function PMSWorkspace() {
     const filterIds = activeAssetType === 'all' ? undefined : (ATTY_MAP[activeAssetType] || []);
     return getHoldings(currentTab.portfolioIds.map(Number), filterIds);
   }, [currentTab, activeAssetType, customRange.end]);
-
-  const [enrichedHoldings, setEnrichedHoldings] = useState<any[]>([]);
-
   const selectedMemberId = (isSelectorOpen === 'group' && tempSelectedIds.length > 0) 
     ? tempSelectedIds[0] 
     : (activeFamily?.familyName || 'all');
