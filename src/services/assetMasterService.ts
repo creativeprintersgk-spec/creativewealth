@@ -228,6 +228,7 @@ const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
   105468: 'ESSENTIA.NS',      // Integra Essentia
   106093: 'LLOYDSENGG.NS',    // Lloyds Engineering Works
   121746: 'RVNL.NS',          // Rail Vikas Nigam
+  121749: 'POLYCAB.NS',       // Polycab India (nse_symbol is empty in DB)
   121904: 'MAZDOCK.NS',       // Mazagon Dock Shipbuilders (nse_symbol is empty in DB)
   121933: 'TARC.NS',          // Tarc
   122169: 'SILVERBEES.NS',    // Nippon India Silver ETF
