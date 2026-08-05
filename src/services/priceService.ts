@@ -22,12 +22,61 @@ export async function fetchPrices(items: any[]) {
   }
 }
 
+
+let _indexCache: { data: any[]; fetchedAt: number } | null = null;
+const INDEX_CACHE_MS = 60 * 1000; // cache 60 seconds
+
 export async function getIndices() {
-  return [
-    { name: 'NIFTY 50', price: 24614.90, change: -159.40, change_pct: -0.64 },
-    { name: 'SENSEX', price: 78428.95, change: -210.08, change_pct: -0.27 }
+  // Return cached result if fresh enough
+  if (_indexCache && Date.now() - _indexCache.fetchedAt < INDEX_CACHE_MS) {
+    return _indexCache.data;
+  }
+
+  const symbols = [
+    { symbol: '^NSEI',  name: 'NIFTY 50' },
+    { symbol: '^BSESN', name: 'SENSEX'   },
   ];
+
+  const results: any[] = [];
+
+  for (const idx of symbols) {
+    try {
+      // Use Vite proxy in browser (/api/yahoo/...) to avoid CORS
+      const path = `/v8/finance/chart/${encodeURIComponent(idx.symbol)}?interval=1d&range=1d`;
+      const url = typeof window !== 'undefined'
+        ? `/api/yahoo${path}`
+        : `https://query1.finance.yahoo.com${path}`;
+
+      const res = await fetch(url, {
+        headers: typeof window === 'undefined'
+          ? { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
+          : undefined,
+      });
+      if (!res.ok) continue;
+
+      const json = await res.json();
+      const meta = json?.chart?.result?.[0]?.meta;
+      if (!meta) continue;
+
+      const price = meta.regularMarketPrice ?? 0;
+      const prev  = meta.previousClose ?? meta.chartPreviousClose ?? price;
+      const change     = parseFloat((price - prev).toFixed(2));
+      const change_pct = prev > 0 ? parseFloat(((change / prev) * 100).toFixed(2)) : 0;
+
+      results.push({ name: idx.name, price, change, change_pct });
+    } catch {
+      // Silently skip — sidebar will show last cached value
+    }
+  }
+
+  if (results.length > 0) {
+    _indexCache = { data: results, fetchedAt: Date.now() };
+  }
+
+  // Fall back to last cached data if fetch failed
+  return results.length > 0 ? results : (_indexCache?.data ?? []);
 }
+
 
 export async function getPortfolioPrices(holdings: any[]): Promise<Map<number, LivePrice>> {
   const amids = [...new Set(holdings.map(h => h.amid).filter(id => !!id))];

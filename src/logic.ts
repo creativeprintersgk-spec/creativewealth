@@ -1645,7 +1645,7 @@ export async function handleYearClose(fy: string, onSuccess?: () => void) {
   if (onSuccess) onSuccess();
 }
 
-export async function syncLivePrices(onProgress?: (msg: string) => void) {
+export async function syncLivePrices(onProgress?: (msg: string) => void, force = false) {
   if (!state.mprices) {
     if (onProgress) onProgress('Loading prices...');
     state.mprices = await safeFetch('mprices');
@@ -1658,8 +1658,8 @@ export async function syncLivePrices(onProgress?: (msg: string) => void) {
     const day = nowIST.getUTCDay();
     // NSE market: Mon-Fri, 9:15am to 3:30pm IST. We allow 9am-4pm for buffer.
     const isMarketHours = day >= 1 && day <= 5 && hours >= 9 && hours < 16;
-    if (!isMarketHours) {
-      console.log(`Market closed (IST ${hours}:xx, day ${day}). Skipping sync.`);
+    if (!force && !isMarketHours) {
+      console.log(`Market closed (IST ${hours}:xx, day ${day}). Skipping auto-sync.`);
       if (onProgress) onProgress('Market closed');
       return;
     }

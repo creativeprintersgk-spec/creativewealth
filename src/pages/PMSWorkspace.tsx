@@ -148,19 +148,39 @@ export default function PMSWorkspace() {
   const [lastSyncTime, setLastSyncTime] = useState<number>(Date.now());
   const [tick, setTick] = useState(0);
 
+  // Helper: is it NSE market hours right now?
+  const isMarketOpen = () => {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const h = now.getHours(), m = now.getMinutes(), day = now.getDay();
+    const mins = h * 60 + m;
+    return day >= 1 && day <= 5 && mins >= 555 && mins < 930; // 9:15am to 3:30pm IST
+  };
+
+  const runSync = (label: string, force = false) => {
+    if (syncStatus) return; // already syncing
+    setSyncStatus(label);
+    syncLivePrices((msg: string) => setSyncStatus(msg), force)
+      .catch(e => console.warn('Sync error:', e))
+      .finally(() => {
+        setSyncStatus(null);
+        setLastSyncTime(Date.now());
+        setTick(t => t + 1);
+      });
+  };
+
+  // Sync immediately on mount if market is open
+  useEffect(() => {
+    if (isMarketOpen()) runSync('Syncing prices...');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-sync every 15 mins during market hours
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!syncStatus) {
-        setSyncStatus('Auto-Syncing...');
-        syncLivePrices((msg: string) => setSyncStatus(msg))
-          .finally(() => {
-            setSyncStatus(null);
-            setLastSyncTime(Date.now());
-            setTick(t => t + 1);
-          });
-      }
-    }, 15 * 60 * 1000); // 15 mins
+      if (isMarketOpen()) runSync('Auto-Syncing...');
+    }, 15 * 60 * 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncStatus]);
 
   useEffect(() => {
@@ -239,14 +259,7 @@ export default function PMSWorkspace() {
             <button 
               className="pms-topbar-btn" 
               style={{ opacity: syncStatus ? 0.7 : 1, cursor: syncStatus ? 'wait' : 'pointer' }}
-              onClick={async () => {
-                if (syncStatus) return;
-                setSyncStatus('Starting Sync...');
-                await syncLivePrices((msg: string) => setSyncStatus(msg));
-                setSyncStatus(null);
-                setLastSyncTime(Date.now());
-                setTick(t => t + 1);
-              }}
+              onClick={() => runSync('Syncing...', true)}
               title={`Last synced at ${new Date(lastSyncTime).toLocaleTimeString()}`}
             >
               <RefreshCw size={14} className={syncStatus ? 'animate-spin' : ''} /> 
