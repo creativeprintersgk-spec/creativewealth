@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFamily } from '../contexts/FamilyContext';
 import { useFY } from '../FYContext';
@@ -124,9 +124,14 @@ export default function PMSWorkspace() {
     localStorage.setItem('pms_openTabs', JSON.stringify(openTabIds));
   }, [openTabIds]);
 
+  const lastFamilyIdRef = useRef<string | null>(activeFamily?.id || null);
+
   useEffect(() => {
-    setOpenTabIds(['all']);
-    setActiveTab('all');
+    if (activeFamily?.id !== lastFamilyIdRef.current) {
+      setOpenTabIds(['all']);
+      setActiveTab('all');
+      lastFamilyIdRef.current = activeFamily?.id || null;
+    }
   }, [activeFamily?.id]);
 
   const [selectedHolding, setSelectedHolding] = useState<AssetHolding | null>(null);
