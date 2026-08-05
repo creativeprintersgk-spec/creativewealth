@@ -1681,49 +1681,52 @@ export async function syncLivePrices() {
 
     console.log(`Fetched ${assets.length} assets. Retrieving live prices...`);
 
-    // 3. Fetch live prices in parallel batches of 10
-    const CHUNK = 10;
+    // 3. Fetch live prices sequentially to avoid Yahoo rate limits
     const fetchedPrices: Array<{ amid: number, currp: number, prevp: number, date: string, source_id_atyp: number }> = [];
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    for (let i = 0; i < assets.length; i += CHUNK) {
-      const chunk = assets.slice(i, i + CHUNK);
-      await Promise.all(chunk.map(async (asset) => {
-        try {
-          const price = await getLivePrice(asset);
-          if (price && price.price > 0) {
-            let oldPrice = state.priceMap[asset.amid]?.curr || 0;
-            
-            // If the latest MProfit price was empty/0, look back at historical rows to find a non-zero baseline
-            if (oldPrice === 0 && state.mprices) {
-              const historical = state.mprices.filter((m: any) => m.amid === asset.amid && Number(m.currp) > 0);
-              if (historical.length > 0) {
-                oldPrice = Number(historical[historical.length - 1].currp);
-              }
-            }
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-            let usePrice = true;
-            if (oldPrice > 0) {
-              const ratio = price.price / oldPrice;
-              if (ratio > 10 || ratio < 0.1) {
-                console.warn(`[Sanity Check] Price for ${asset.name} rejected. Live: ${price.price}, Old: ${oldPrice}`);
-                usePrice = false;
-              }
-            }
-            if (usePrice) {
-              fetchedPrices.push({
-                amid: asset.amid,
-                currp: price.price,
-                prevp: price.price - price.change,
-                date: todayStr,
-                source_id_atyp: asset.asset_type
-              });
+    for (let i = 0; i < assets.length; i++) {
+      const asset = assets[i];
+      try {
+        const price = await getLivePrice(asset);
+        if (price && price.price > 0) {
+          let oldPrice = state.priceMap[asset.amid]?.curr || 0;
+          
+          if (oldPrice === 0 && state.mprices) {
+            const historical = state.mprices.filter((m: any) => m.amid === asset.amid && Number(m.currp) > 0);
+            if (historical.length > 0) {
+              oldPrice = Number(historical[historical.length - 1].currp);
             }
           }
-        } catch (e) {
-          console.warn(`Failed to fetch price for ${asset.name} (amid=${asset.amid}):`, e);
+
+          let usePrice = true;
+          if (oldPrice > 0) {
+            const ratio = price.price / oldPrice;
+            if (ratio > 10 || ratio < 0.1) {
+              console.warn(`[Sanity Check] Price for ${asset.name} rejected. Live: ${price.price}, Old: ${oldPrice}`);
+              usePrice = false;
+            }
+          }
+          if (usePrice) {
+            fetchedPrices.push({
+              amid: asset.amid,
+              currp: price.price,
+              prevp: price.price - price.change,
+              date: todayStr,
+              source_id_atyp: asset.asset_type
+            });
+          }
         }
-      }));
+      } catch (e) {
+        console.warn(`Failed to fetch price for ${asset.name} (amid=${asset.amid}):`, e);
+      }
+      
+      // Small delay to avoid rate limiting
+      if (asset.asset_type === 50 || asset.asset_type === 70) {
+        await delay(200);
+      }
     }
 
     if (fetchedPrices.length === 0) {
