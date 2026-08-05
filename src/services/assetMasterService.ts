@@ -158,6 +158,39 @@ async function fetchMFNav(amfiCode: number): Promise<{ price: number; change: nu
     return null;
   }
 }
+function getGoogleFinanceUrl(ticker: string): string {
+  const path = `/${ticker}`;
+  if (typeof window !== 'undefined') {
+    return `/api/gfinance${path}`;
+  } else {
+    return `https://www.google.com/finance/quote${path}`;
+  }
+}
+
+async function fetchGoogleFinancePrice(ticker: string): Promise<{ price: number; change: number; change_pct: number; date: string } | null> {
+  try {
+    const res = await fetch(getGoogleFinanceUrl(ticker), {
+      headers: typeof window === 'undefined' ? {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      } : undefined
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    const match = text.match(/class="YMlKec fxKbKc">([^<]+)<\/div>/);
+    if (match) {
+      const price = parseFloat(match[1].replace(/₹|,/g, ''));
+      return {
+        price,
+        change: 0,
+        change_pct: 0,
+        date: new Date().toISOString().split('T')[0]
+      };
+    }
+  } catch (e) {
+    // console.warn('Failed to fetch from Google Finance', e);
+  }
+  return null;
+}
 
 /**
  * Fetch live price for a Stock from Yahoo Finance.
@@ -280,6 +313,18 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
     if (!quote && asset.bse_code) {
       quote = await fetchStockPrice(`${asset.bse_code}.BO`);
     }
+    
+    // Fallback to Google Finance scraping if Yahoo Finance fails or returns weird numbers (like for ACS Technologies Mutual Fund glitch)
+    if (!quote || (asset.bse_code && asset.bse_code.toString() === '530745')) {
+      let gfQuote = null;
+      if (asset.nse_symbol) gfQuote = await fetchGoogleFinancePrice(`${asset.nse_symbol}:NSE`);
+      if (!gfQuote && asset.bse_code) gfQuote = await fetchGoogleFinancePrice(`${asset.bse_code}:BOM`);
+      
+      if (gfQuote) {
+        quote = gfQuote;
+      }
+    }
+
     if (quote) {
       result = {
         amid: asset.amid,

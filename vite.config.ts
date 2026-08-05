@@ -204,6 +204,14 @@ export default defineConfig({
           'Accept': 'application/json'
         }
       },
+      '/api/gfinance': {
+        target: 'https://www.google.com/finance/quote',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/gfinance/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      },
       '/api/mfapi': {
         target: 'https://api.mfapi.in',
         changeOrigin: true,
