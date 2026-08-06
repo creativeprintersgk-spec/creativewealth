@@ -32,7 +32,7 @@ export interface LivePrice {
   change: number;       // absolute change
   change_pct: number;   // % change
   as_of: string;        // date string
-  source: 'mfapi' | 'yahoo' | 'cached';
+  source: 'mfapi' | 'yahoo' | 'cached' | 'nse_bhavcopy';
 }
 
 // In-memory price cache (resets on page refresh — OK for a session)
@@ -276,7 +276,7 @@ const BOND_ISIN_TO_NSE_SYMBOL: Record<string, string> = {
   'IN0020210145': 'SGBSEP29VI',
   'IN0020200195': 'SGBSEP28VI',
   'IN0020170166': 'SGBJAN26XIV',
-  'IN0020180314': 'SGBNOV26III',
+  'IN0020180314': 'SGBNOV26',
 };
 
 export function extractIsin(asset: AssetMaster): string | null {
@@ -454,7 +454,7 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   let nseSymbol = isin ? BOND_ISIN_TO_NSE_SYMBOL[isin] : null;
   
   const cleanName = asset.name?.toUpperCase() || '';
-  const isBondOrSGB = cleanName.includes('SOVEREIGN') || cleanName.includes('SGB') || cleanName.includes('G-SEC') || cleanName.includes('GS') || asset.asset_type === 100 || asset.asset_type === 70;
+  const isBondOrSGB = cleanName.includes('SOVEREIGN') || cleanName.includes('SGB') || cleanName.includes('G-SEC') || cleanName.includes('GS') || asset.asset_type === 100 || asset.asset_type === 70 || asset.asset_type === 40;
   
   if (isBondOrSGB) {
     try {
@@ -468,8 +468,9 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
       if (nseSymbol) {
         const match = bhavMap.get(nseSymbol);
         if (match) {
-          const change = match.price - (match.prevClose || match.price);
-          const change_pct = match.prevClose > 0 ? (change / match.prevClose) * 100 : 0;
+          const prevCloseVal = match.prevClose ?? match.price;
+          const change = match.price - prevCloseVal;
+          const change_pct = prevCloseVal > 0 ? (change / prevCloseVal) * 100 : 0;
           result = {
             amid: asset.amid,
             name: asset.name,
@@ -504,7 +505,7 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   }
 
   // Fallback: Stock, Bonds, or unmapped Mutual Funds - prefer ticker, then NSE symbol, then BSE code, then ISIN
-  if (!result) {
+  if (!result && !isBondOrSGB) {
     let quote = null;
 
     // Check for hardcoded ticker overrides first (to handle bad/abbreviated NSE symbols in database)
