@@ -234,11 +234,16 @@ const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
   122169: 'SILVERBEES.NS',    // Nippon India Silver ETF
   122630: 'JIOFIN.NS',        // Jio Financial Services
   123306: 'METAL.NS',         // Mirae Asset Nifty Metal ETF
+  122103: 'LATENTVIEW.NS',    // Latent View Analytics
+  105051: 'ADANIPOWER.NS',    // Adani Power
+  104499: 'BIOCON.NS',        // Biocon Limited
+  100345: 'LT.NS',            // Larsen & Toubro
 };
 
 const AMFI_OVERRIDES: Record<number, number> = {
   245407: 148457, // Nippon India Multi Asset Allocation Fund - Direct Plan - Growth Option
   245412: 148459, // Nippon India Multi Asset Allocation Fund - Regular Plan - Growth Option
+  234448: 152645, // Mirae Asset Nifty MidSmallcap400 Momentum Quality 100 ETF Fund of Fund - Direct Plan - Growth
 };
 
 /**

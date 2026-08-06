@@ -578,8 +578,17 @@ export function getHoldings(portfolioIds: number[], assetTypeFilter?: number | n
     const fallbackCurr = qty > 0 ? currv / qty : 0;
     const fallbackPrev = qty > 0 ? fallbackCurr - (tgain / qty) : fallbackCurr;
 
-    const currPrice = price.curr || fallbackCurr;
-    const prevPrice = price.prev || fallbackPrev;
+    let currPrice = price.curr || fallbackCurr;
+    let prevPrice = price.prev || fallbackPrev;
+
+    // Fixed Income assets (Bonds, NCDs, FDs, PPF, Deposits) cost-price fallback when no live price is available
+    const inv = Number(s.amtinv) || 0;
+    const avgPrice = qty > 0 ? inv / qty : 0;
+    const isFixedIncome = [40, 90, 100, 110, 120, 130].includes(s.resolvedAtty);
+    if (currPrice === 0 && isFixedIncome) {
+      currPrice = avgPrice;
+      prevPrice = avgPrice;
+    }
 
     if (!map[amid]) {
       map[amid] = {
