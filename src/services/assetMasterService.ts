@@ -289,16 +289,16 @@ export function extractIsin(asset: AssetMaster): string | null {
   return null;
 }
 
-let cachedBhavcopyPrices: Map<string, { price: number; date: string }> | null = null;
+let cachedBhavcopyPrices: Map<string, { price: number; prevClose?: number; date: string }> | null = null;
 let lastBhavcopyFetchTime = 0;
 
-export async function fetchNSEBhavcopyPrices(): Promise<Map<string, { price: number; date: string }>> {
+export async function fetchNSEBhavcopyPrices(): Promise<Map<string, { price: number; prevClose?: number; date: string }>> {
   const BHAV_CACHE_TTL = 30 * 60 * 1000; // 30 mins
   if (cachedBhavcopyPrices && (Date.now() - lastBhavcopyFetchTime < BHAV_CACHE_TTL)) {
     return cachedBhavcopyPrices;
   }
 
-  const map = new Map<string, { price: number; date: string }>();
+  const map = new Map<string, { price: number; prevClose?: number; date: string }>();
   const pad = (n: number) => n.toString().padStart(2, '0');
   
   // We check up to 5 days back to handle weekends and market holidays
@@ -323,9 +323,10 @@ export async function fetchNSEBhavcopyPrices(): Promise<Map<string, { price: num
           if (parts.length >= 9) {
             const symbol = parts[0].trim();
             const closePrice = parseFloat(parts[8].trim());
+            const prevClose = parseFloat(parts[3]?.trim());
             const dateVal = parts[2].trim();
             if (symbol && !isNaN(closePrice)) {
-              map.set(symbol, { price: closePrice, date: dateVal });
+              map.set(symbol, { price: closePrice, prevClose: isNaN(prevClose) ? closePrice : prevClose, date: dateVal });
             }
           }
         }
@@ -467,12 +468,14 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
       if (nseSymbol) {
         const match = bhavMap.get(nseSymbol);
         if (match) {
+          const change = match.price - (match.prevClose || match.price);
+          const change_pct = match.prevClose > 0 ? (change / match.prevClose) * 100 : 0;
           result = {
             amid: asset.amid,
             name: asset.name,
             price: match.price,
-            change: 0,
-            change_pct: 0,
+            change,
+            change_pct,
             as_of: match.date,
             source: 'nse_bhavcopy'
           };
