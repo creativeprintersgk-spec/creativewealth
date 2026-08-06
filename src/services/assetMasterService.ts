@@ -345,6 +345,95 @@ export async function fetchNSEBhavcopyPrices(): Promise<Map<string, { price: num
   return map;
 }
 
+export function fuzzyMatchSGBSymbol(name: string, csvSymbols: string[]): string | null {
+  const cleanName = name.toUpperCase();
+  // Extract month
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  let monthIndex = -1;
+  let matchedMonthStr = '';
+  for (let i = 0; i < months.length; i++) {
+    const m = months[i];
+    if (cleanName.includes(m) || (m === 'JUN' && cleanName.includes('JUNE')) || (m === 'JUL' && cleanName.includes('JULY'))) {
+      monthIndex = i;
+      matchedMonthStr = m;
+      break;
+    }
+  }
+  if (monthIndex === -1) return null;
+
+  // Extract year
+  const yearMatch = cleanName.match(/\b(20\d{2})\b/);
+  let yearShort = '';
+  if (yearMatch) {
+    yearShort = yearMatch[1].slice(2);
+  } else {
+    const yearMatch2 = cleanName.match(/\b(\d{2})\b/);
+    if (yearMatch2) yearShort = yearMatch2[1];
+  }
+  if (!yearShort) return null;
+
+  // Extract Series
+  const romanMatch = cleanName.match(/\b(XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/);
+  const roman = romanMatch ? romanMatch[1] : '';
+
+  const monthAbbrs: Record<string, string[]> = {
+    'JAN': ['JAN', 'J'],
+    'FEB': ['FEB'],
+    'MAR': ['MAR', 'MR'],
+    'APR': ['APR'],
+    'MAY': ['MAY'],
+    'JUN': ['JUN', 'JU'],
+    'JUL': ['JUL'],
+    'AUG': ['AUG'],
+    'SEP': ['SEP'],
+    'OCT': ['OCT', 'OC'],
+    'NOV': ['NOV', 'NV', 'N'],
+    'DEC': ['DEC', 'DC']
+  };
+
+  const prefixes = monthAbbrs[matchedMonthStr] || [matchedMonthStr];
+
+  for (const prefix of prefixes) {
+    if (roman) {
+      const sym1 = `SGB${prefix}${yearShort}${roman}`;
+      if (csvSymbols.includes(sym1)) return sym1;
+    }
+    const sym2 = `SGB${prefix}${yearShort}`;
+    if (csvSymbols.includes(sym2)) return sym2;
+  }
+  return null;
+}
+
+export function fuzzyMatchGSecSymbol(name: string, csvSymbols: string[]): string | null {
+  const cleanName = name.toUpperCase();
+  const couponMatch = cleanName.match(/(\d+\.\d+|\d+)%/);
+  let couponStr = '';
+  if (couponMatch) {
+    couponStr = couponMatch[1].replace('.', '');
+  } else {
+    const couponMatch2 = cleanName.match(/(\d+\.\d+|\d+)\s+GS/);
+    if (couponMatch2) couponStr = couponMatch2[1].replace('.', '');
+  }
+  if (!couponStr) return null;
+
+  const couponOptions = [couponStr];
+  if (couponStr.endsWith('0')) {
+    couponOptions.push(couponStr.slice(0, -1));
+  } else if (couponStr.length === 2) {
+    couponOptions.push(couponStr + '0');
+  }
+
+  const yearMatch = cleanName.match(/\b(20\d{2})\b/);
+  if (!yearMatch) return null;
+  const year = yearMatch[1];
+
+  for (const cop of couponOptions) {
+    const sym = `${cop}GS${year}`;
+    if (csvSymbols.includes(sym)) return sym;
+  }
+  return null;
+}
+
 /**
  * Get live price for any asset (stocks + MF)
  * Automatically routes to the right API based on asset_type.
@@ -361,21 +450,33 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   
   // 1. Check if it's a G-Sec or SGB and fetch from automated NSE Bhavcopy
   const isin = extractIsin(asset);
-  const nseSymbol = isin ? BOND_ISIN_TO_NSE_SYMBOL[isin] : null;
-  if (nseSymbol) {
+  let nseSymbol = isin ? BOND_ISIN_TO_NSE_SYMBOL[isin] : null;
+  
+  const cleanName = asset.name?.toUpperCase() || '';
+  const isBondOrSGB = cleanName.includes('SOVEREIGN') || cleanName.includes('SGB') || cleanName.includes('G-SEC') || cleanName.includes('GS') || asset.asset_type === 100 || asset.asset_type === 70;
+  
+  if (isBondOrSGB) {
     try {
       const bhavMap = await fetchNSEBhavcopyPrices();
-      const match = bhavMap.get(nseSymbol);
-      if (match) {
-        result = {
-          amid: asset.amid,
-          name: asset.name,
-          price: match.price,
-          change: 0,
-          change_pct: 0,
-          as_of: match.date,
-          source: 'nse_bhavcopy'
-        };
+      const csvSymbols = Array.from(bhavMap.keys());
+      
+      if (!nseSymbol) {
+        nseSymbol = fuzzyMatchSGBSymbol(cleanName, csvSymbols) || fuzzyMatchGSecSymbol(cleanName, csvSymbols);
+      }
+      
+      if (nseSymbol) {
+        const match = bhavMap.get(nseSymbol);
+        if (match) {
+          result = {
+            amid: asset.amid,
+            name: asset.name,
+            price: match.price,
+            change: 0,
+            change_pct: 0,
+            as_of: match.date,
+            source: 'nse_bhavcopy'
+          };
+        }
       }
     } catch (e) {
       console.warn(`Failed to fetch price from NSE Bhavcopy for ${asset.name}:`, e);
