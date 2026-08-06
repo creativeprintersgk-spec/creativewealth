@@ -270,8 +270,8 @@ export async function initDatabase() {
   state.transC1    = transC1.map((e: any)    => ({ ...e, _src: 'c' }));
   state.trans1     = trans1.map((e: any)     => ({ ...e, _src: 't' }));
   state.mprices = mprices;
-  // Sort mprices by row_id ascending so that newer price rows overwrite older ones
-  const sortedMprices = [...mprices].sort((a, b) => (Number(a.row_id) || 0) - (Number(b.row_id) || 0));
+  // Sort mprices by date ascending so that the newest date price overwrites older ones
+  const sortedMprices = [...mprices].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   sortedMprices.forEach((p: any) => {
     state.priceMap[p.amid] = { curr: Number(p.currp) || 0, prev: Number(p.prevp) || 0 };
   });
