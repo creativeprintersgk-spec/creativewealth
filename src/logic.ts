@@ -614,7 +614,6 @@ export function getHoldings(portfolioIds: number[], assetTypeFilter?: number | n
     }
     const h = map[amid];
     const qtyRow = Number(s.qnt) || 0;
-    const inv = Number(s.amtinv) || 0;
     h.quantity += qtyRow;
     h.amtInvested += inv;
     const port = state.portfolios.find((p: any) => p.id === s.pfolio_id);
