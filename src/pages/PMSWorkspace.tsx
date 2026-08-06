@@ -417,6 +417,7 @@ export default function PMSWorkspace() {
             <HoldingsGrid 
               data={holdings} 
               onHoldingClick={setSelectedHolding} 
+              onSetPriceClick={(h) => setPriceAsset({ id: String(h.assetId), name: h.assetName, currentPrice: h.currentPrice })}
               groupByCategory={activeAssetType === 'all'} 
               categoryLabels={CATEGORY_LABELS} 
               onDataChange={setEnrichedHoldings} 

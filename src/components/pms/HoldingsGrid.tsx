@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { supabase } from '../../supabase';
 import type { AssetHolding } from '../../logic';
  
 interface Props {
   data: AssetHolding[];
   onHoldingClick: (holding: AssetHolding) => void;
+  onSetPriceClick?: (holding: AssetHolding) => void;
   groupByCategory?: boolean;
   categoryLabels?: Record<string, string>;
   onDataChange?: (enrichedData: AssetHolding[]) => void;
@@ -66,6 +67,7 @@ const ASSET_TYPE_ORDER = [
 export default function HoldingsGrid({ 
   data, 
   onHoldingClick, 
+  onSetPriceClick,
   groupByCategory = false, 
   categoryLabels = {}, 
   onDataChange,
@@ -84,11 +86,12 @@ export default function HoldingsGrid({
         if (!amids.length) return;
 
         // Read live prices from mprices table
-        // Order DESC by row_id so the LATEST synced price row wins (highest row_id = newest)
+        // Order DESC by date and then row_id so the LATEST synced price row wins
         const { data: priceRows, error } = await supabase
           .from('mprices')
-          .select('amid, currp, prevp, row_id')
+          .select('amid, currp, prevp, date, row_id')
           .in('amid', amids)
+          .order('date', { ascending: false })
           .order('row_id', { ascending: false });
  
         if (error) {
@@ -235,8 +238,43 @@ export default function HoldingsGrid({
         {fmt(h.amtInvested, 0)}
       </td>
       {/* Current Price */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontSize: '13px', color: h.currentPrice > 0 ? '#1e293b' : '#94a3b8' }}>
-        {h.currentPrice > 0 ? fmt(h.currentPrice) : '—'}
+      <td 
+        style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontSize: '13px', color: h.currentPrice > 0 ? '#1e293b' : '#94a3b8', position: 'relative' }}
+        onMouseEnter={e => {
+          const btn = e.currentTarget.querySelector('.edit-price-btn') as HTMLElement;
+          if (btn) btn.style.opacity = '1';
+        }}
+        onMouseLeave={e => {
+          const btn = e.currentTarget.querySelector('.edit-price-btn') as HTMLElement;
+          if (btn) btn.style.opacity = '0';
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+          <span>{h.currentPrice > 0 ? fmt(h.currentPrice) : '—'}</span>
+          {onSetPriceClick && (
+            <button
+              className="edit-price-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetPriceClick(h);
+              }}
+              style={{
+                opacity: 0,
+                transition: 'opacity 0.15s',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#2563eb',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+              title="Set Current Price"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
+        </div>
       </td>
       {/* Today's Gain */}
       <td style={{ padding: '3px 16px', textAlign: 'right', width: '120px', fontSize: '13px', whiteSpace: 'nowrap' }}>

@@ -246,6 +246,102 @@ const AMFI_OVERRIDES: Record<number, number> = {
   234448: 152645, // Mirae Asset Nifty MidSmallcap400 Momentum Quality 100 ETF Fund of Fund - Direct Plan - Growth
 };
 
+const BOND_ISIN_TO_NSE_SYMBOL: Record<string, string> = {
+  // G-Secs
+  'IN0020210095': '610GS2031',
+  'IN0020210152': '667GS2035',
+  'IN0020200252': '667GS2050',
+  'IN0020210194': '699GS2051',
+  'IN0020230051': '730GS2053',
+  'IN0020240035': '734GS2064',
+  'IN0020220085': '736GS2052',
+  'IN0020220086': '736GS2052',
+  'IN0020220020': '754GS2036',
+  'IN0020220029': '754GS2036',
+
+  // SGBs
+  'IN0020190552': 'SGBMAR28X',
+  'IN0020200161': 'SGBAUG28V',
+  'IN0020210220': 'SGBD29VIII',
+  'IN0020210228': 'SGBD29VIII',
+  'IN0020190537': 'SGBJAN28VIII',
+  'IN0020200377': 'SGBJAN29IX',
+  'IN0020200385': 'SGBJAN29X',
+  'IN0020200146': 'SGBJUL28IV',
+  'IN0020210111': 'SGBJUL29IV',
+  'IN0020200104': 'SGBJUN28III',
+  'IN0020210061': 'SGBJUN29II',
+  'IN0020210087': 'SGBJUN29III',
+  'IN0020220045': 'SGBJUN30I',
+  'IN0020210145': 'SGBSEP29VI',
+  'IN0020200195': 'SGBSEP28VI',
+  'IN0020170166': 'SGBJAN26XIV',
+  'IN0020180314': 'SGBNOV26III',
+};
+
+export function extractIsin(asset: AssetMaster): string | null {
+  if (asset.isin && asset.isin.length >= 10 && asset.isin.startsWith('IN')) {
+    return asset.isin.trim();
+  }
+  // Try to parse from name
+  const match = asset.name?.match(/(?:ISIN\s+|IN\s*)?(IN[A-Z0-9]{10})/i);
+  if (match) return match[1].toUpperCase();
+  return null;
+}
+
+let cachedBhavcopyPrices: Map<string, { price: number; date: string }> | null = null;
+let lastBhavcopyFetchTime = 0;
+
+export async function fetchNSEBhavcopyPrices(): Promise<Map<string, { price: number; date: string }>> {
+  const BHAV_CACHE_TTL = 30 * 60 * 1000; // 30 mins
+  if (cachedBhavcopyPrices && (Date.now() - lastBhavcopyFetchTime < BHAV_CACHE_TTL)) {
+    return cachedBhavcopyPrices;
+  }
+
+  const map = new Map<string, { price: number; date: string }>();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  
+  // We check up to 5 days back to handle weekends and market holidays
+  const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000); 
+  let success = false;
+  
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(nowIST.getTime() - i * 24 * 60 * 60 * 1000);
+    // Format DDMMYYYY
+    const dateStr = `${pad(d.getUTCDate())}${pad(d.getUTCMonth() + 1)}${d.getUTCFullYear()}`;
+    const url = `/api/nse-bhavcopy/sec_bhavdata_full_${dateStr}.csv`;
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const text = await res.text();
+        const lines = text.split('\n');
+        for (const line of lines) {
+          const parts = line.split(',');
+          if (parts.length >= 9) {
+            const symbol = parts[0].trim();
+            const closePrice = parseFloat(parts[8].trim());
+            const dateVal = parts[2].trim();
+            if (symbol && !isNaN(closePrice)) {
+              map.set(symbol, { price: closePrice, date: dateVal });
+            }
+          }
+        }
+        console.log(`Successfully fetched NSE Bhavcopy for date: ${dateStr}, mapped ${map.size} items.`);
+        success = true;
+        break; 
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch NSE Bhavcopy for date ${dateStr}:`, e);
+    }
+  }
+
+  if (success) {
+    cachedBhavcopyPrices = map;
+    lastBhavcopyFetchTime = Date.now();
+  }
+  return map;
+}
+
 /**
  * Get live price for any asset (stocks + MF)
  * Automatically routes to the right API based on asset_type.
@@ -259,6 +355,29 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   }
 
   let result: LivePrice | null = null;
+  
+  // 1. Check if it's a G-Sec or SGB and fetch from automated NSE Bhavcopy
+  const isin = extractIsin(asset);
+  const nseSymbol = isin ? BOND_ISIN_TO_NSE_SYMBOL[isin] : null;
+  if (nseSymbol) {
+    try {
+      const bhavMap = await fetchNSEBhavcopyPrices();
+      const match = bhavMap.get(nseSymbol);
+      if (match) {
+        result = {
+          amid: asset.amid,
+          name: asset.name,
+          price: match.price,
+          change: 0,
+          change_pct: 0,
+          as_of: match.date,
+          source: 'nse_bhavcopy'
+        };
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch price from NSE Bhavcopy for ${asset.name}:`, e);
+    }
+  }
 
   // Mutual Fund — use mfapi.in
   const amfiCode = asset.amfi_code || AMFI_OVERRIDES[asset.amid];

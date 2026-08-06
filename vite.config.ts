@@ -216,6 +216,14 @@ export default defineConfig({
         target: 'https://api.mfapi.in',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/mfapi/, '')
+      },
+      '/api/nse-bhavcopy': {
+        target: 'https://nsearchives.nseindia.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/nse-bhavcopy/, '/products/content'),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
       }
     }
   },
