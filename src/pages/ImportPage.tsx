@@ -1,11 +1,18 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileUp, CheckCircle, AlertTriangle, ArrowRight, Upload, Play, Database, RefreshCw, ChevronRight, Edit2, Plus, Trash2, Search, CheckSquare, Square } from "lucide-react";
+import Papa from 'papaparse';
 import { supabase } from "../supabase";
 import { useFY } from "../FYContext";
 import { useTestMode } from "../contexts/TestModeContext";
-import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers } from "../logic";
+import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers, syncLivePrices, getAssetName } from "../logic";
+import isinDictionary from "../services/isinDictionary.json";
 import { MfCasTab } from "./MfCasTab";
+
+const isinToAmidMap: Record<string, number> = {};
+for (const [amidStr, isinVal] of Object.entries(isinDictionary as Record<string, string>)) {
+  if (isinVal) isinToAmidMap[isinVal.toUpperCase().trim()] = Number(amidStr);
+}
 
 // Define the 12 MProfit replicated tables and their expected file names
 interface TableConfig {
@@ -232,19 +239,17 @@ function mapHeaderToColumn(header: string): string {
 function parseValue(key: string, val: string): any {
   const cleanVal = val.trim();
   if (cleanVal === "") return null;
-  
   if (["date", "dt", "dtorigin"].includes(key)) {
     return normalizeDateToYYYYMMDD(cleanVal);
   }
 
   if (["is_group", "is_it_ledger", "is_op_bal_to_be_recalc", "is_currv_manual"].includes(key)) {
-    return cleanVal === "1" || cleanVal.toLowerCase() === "true";
+    return (cleanVal === "1" || cleanVal.toLowerCase() === "true") ? 1 : 0;
   }
   
   const numericKeys = [
     "id", "client_id", "exit_status", "risk_profile", "view_settings", "pfolio_type", "ext_id",
     "investor_group_id", "pfolio_id", "ext_src_id", "pfid", "acid", "action_flag",
-    "parent_id", "parent_ext_id", "disp_seqno", "flags", "clid", "special_type_id", "cr_bal", "db_bal",
     "amid", "atyp", "grp", "exint1", "exint2", "isr",
     "trid", "atyid", "sid", "cnid", "trty", "acvch", "qn", "purpr", "brkg", "netpr", "amt", "chrgs", "tmp_balq", "tmp_bala",
     "qnt", "amtinv", "balpurc", "sellcnt", "currv", "tgain", "relgain", "today_amtinv", "today_quant",
@@ -268,6 +273,23 @@ interface TableStatus {
   progress: number;
   error?: string;
 }
+
+// Helper to load sql.js dynamically
+const loadSqlJs = (): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    if ((window as any).initSqlJs) {
+      resolve((window as any).initSqlJs);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js";
+    script.onload = () => {
+      resolve((window as any).initSqlJs);
+    };
+    script.onerror = (err) => reject(err);
+    document.head.appendChild(script);
+  });
+};
 
 // Helper to load PDF.js dynamically
 const loadPdfJs = (): Promise<any> => {
@@ -374,7 +396,7 @@ function ImportPageInner() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Tabs: 'db' | 'contract-note' | 'mf-cas' | 'sql-restore'
-  const [activeTab, setActiveTab] = useState<'db' | 'contract-note' | 'mf-cas' | 'sql-restore'>('contract-note');
+  const [activeTab, setActiveTab] = useState<'db' | 'contract-note' | 'mf-cas' | 'sql-restore' | 'db-converter'>('db');
 
   // SQL Restore States
   const sqlFileInputRef = useRef<HTMLInputElement>(null);
@@ -476,6 +498,87 @@ function ImportPageInner() {
   const processFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
     for (const file of fileArray) {
+      const lowerName = file.name.toLowerCase();
+      if (lowerName.endsWith('.db') || lowerName.endsWith('.sqlite') || lowerName.endsWith('.bak')) {
+        try {
+          const initSqlJs = await loadSqlJs();
+          const SQL = await initSqlJs({
+            locateFile: (f: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}`
+          });
+          const buffer = await file.arrayBuffer();
+          
+          let db;
+          try {
+             db = new SQL.Database(new Uint8Array(buffer));
+          } catch (e: any) {
+             alert(`Could not parse ${file.name} as a SQLite database. Error: ${e.message}. Is this file really a database?`);
+             continue;
+          }
+          
+          for (const config of TABLE_CONFIGS) {
+            try {
+              const tablesResult = db.exec("SELECT name FROM sqlite_master WHERE type='table'");
+              if (tablesResult.length > 0) {
+                 const allTables = tablesResult[0].values.map((v: any) => v[0] as string);
+                 
+                 const match = allTables.find((t: string) => config.filePattern.test(t + '.csv'));
+                 if (match) {
+                    const dataRes = db.exec(`SELECT * FROM "${match}"`);
+                    if (dataRes.length > 0) {
+                       const columns = dataRes[0].columns;
+                       const values = dataRes[0].values;
+                       
+                       let rows = values.map((row: any) => {
+                          const obj: Record<string, any> = {};
+                          columns.forEach((col: string, i: number) => {
+                           const mappedCol = mapHeaderToColumn(col);
+                           obj[mappedCol] = parseValue(mappedCol, String(row[i] ?? ''));
+                          });
+                          return obj;
+                       });
+
+                       // If parsing acmac1, also check for any missing master ledgers in ACMA1
+                       if (config.key === 'acmac1' && allTables.includes('ACMA1')) {
+                         try {
+                           const acmaRes = db.exec('SELECT * FROM "ACMA1"');
+                           if (acmaRes.length > 0) {
+                             const acmaCols = acmaRes[0].columns;
+                             const existingIds = new Set(rows.map((r: any) => r.id));
+                             acmaRes[0].values.forEach((row: any) => {
+                               const obj: Record<string, any> = {};
+                               acmaCols.forEach((col: string, i: number) => {
+                                 const mappedCol = mapHeaderToColumn(col);
+                                 obj[mappedCol] = parseValue(mappedCol, String(row[i] ?? ''));
+                               });
+                               if (!existingIds.has(obj.id)) {
+                                 rows.push(obj);
+                               }
+                             });
+                           }
+                         } catch (err) {
+                           console.warn('Could not merge ACMA1 into acmac1:', err);
+                         }
+                       }
+                       
+                       setStagedFiles(prev => ({ ...prev, [config.key]: { rows, fileName: file.name + ` (${match})` } }));
+                       setTableStatus(prev => ({
+                         ...prev,
+                         [config.key]: { status: 'parsed', rowCount: rows.length, progress: 0 }
+                       }));
+                       console.log(`Staged ${config.name} from DB: ${rows.length} rows`);
+                    }
+                 }
+              }
+            } catch (e) {
+              console.error(`Error reading ${config.name} from DB`, e);
+            }
+          }
+        } catch (globalErr: any) {
+          alert(`Error initializing database reader: ${globalErr.message}`);
+        }
+        continue;
+      }
+      
       if (!file.name.endsWith('.csv')) continue;
       const fileName = file.name.toLowerCase();
       const config = TABLE_CONFIGS.find(t => t.filePattern.test(fileName));
@@ -486,7 +589,7 @@ function ImportPageInner() {
       const text = await file.text();
       const parsed = parseCSV(text);
       if (parsed.length < 2) continue; // No data rows
-      const headers = parsed[0].map(h => mapColumn[h.trim()] || h.trim().toLowerCase());
+      const headers = parsed[0].map(h => mapHeaderToColumn(h));
       const rows = parsed.slice(1)
         .filter(row => row.some(cell => cell.trim() !== ''))
         .map(row => {
@@ -526,6 +629,166 @@ function ImportPageInner() {
     setIsDragging(false);
     if (e.dataTransfer.files.length > 0) {
       await processFiles(e.dataTransfer.files);
+    }
+  };
+
+  const clearStaged = () => {
+    setStagedFiles({});
+    const initial: Record<string, TableStatus> = {};
+    TABLE_CONFIGS.forEach(t => {
+      initial[t.key] = { status: "idle", rowCount: 0, progress: 0 };
+    });
+    setTableStatus(initial);
+    setImportComplete(false);
+    setOverallProgress(0);
+    setOverallMessage("");
+  };
+
+  const allowedColumns: Record<string, string[]> = {
+    portfolios: [
+      'id', 'client_id', 'investor_name', 'is_group', 'full_name', 'investor_addr',
+      'city', 'pin_code', 'country', 'phone', 'mobile', 'pan', 'exit_status',
+      'risk_profile', 'view_settings', 'pfolio_type', 'ext_id'
+    ],
+    sam: [
+      'amid', 'anm', 'atyp', 'grp', 'exint1', 'extstr', 'exint2', 'isr', 'alias'
+    ],
+    investor_group_members: [
+      'investor_group_id', 'pfolio_id', 'ext_src_id', 'client_id'
+    ],
+    acc_pflink: [
+      'pfid', 'acid', 'is_op_bal_to_be_recalc', 'action_flag', 'client_id'
+    ],
+    acmac1: [
+      'id', 'ext_id', 'parent_id', 'parent_ext_id', 'is_group', 'name', 'disp_seqno',
+      'descr', 'flags', 'acid', 'clid', 'is_it_ledger', 'special_type_id', 'cr_bal',
+      'db_bal', 'tree_node', 'addr', 'pan', 'addinfo'
+    ],
+    mprices: [
+      'source_id_atyp', 'amid', 'currp', 'prevp', 'date', 'row_id'
+    ],
+    sum_table: [
+      'sid', 'pfolio_id', 'client_id', 'atty', 'amid', 'agentcode', 'qnt', 'amtinv',
+      'balpurc', 'sellcnt', 'currv', 'tgain', 'is_currv_manual', 'refno', 'ext_id',
+      'flag', 'relgain', 'today_amtinv', 'today_quant', 'tag', 'accinfo'
+    ],
+    scnote1: [
+      'cnid', 'pfid', 'aty', 'brkrid', 'cnnum', 'billnum', 'servtax', 'stmpchrgs',
+      'tranchrg', 'stt', 'othchrg', 'amtdue', 'dt', 'isdue', 'isspec', 'cstr'
+    ],
+    vouchers1: [
+      'vid', 'vtyp', 'dt', 'narr', 'pms_trans_id', 'cnid', 'acctlist', 'extid_source',
+      'pfid', 'atype', 'sid', 'imp_rec_id', 'chqno', 'acid'
+    ],
+    vouchersc1: [
+      'vid', 'vtyp', 'dt', 'narr', 'pms_trans_id', 'cnid', 'acctlist', 'extid_source',
+      'pfid', 'atype', 'sid', 'imp_rec_id', 'chqno', 'acid'
+    ],
+    trans1: [
+      'transid', 'vid', 'vtyp', 'dt', 'maid', 'ext_id', 'cramt', 'dramt', 'special_account',
+      'narr', 'acid'
+    ],
+    transc1: [
+      'transid', 'vid', 'vtyp', 'dt', 'maid', 'ext_id', 'cramt', 'dramt', 'special_account',
+      'narr', 'acid'
+    ],
+    bs1: [
+      'trid', 'pfid', 'amid', 'atyid', 'sid', 'cnid', 'trty', 'trstr', 'acvch',
+      'dt', 'qn', 'purpr', 'brkg', 'netpr', 'amt', 'chrgs', 'narr', 'tmp_balq',
+      'tmp_bala', 'accinfo', 'taxetc', 'dtorigin'
+    ]
+  };
+
+  const startImport = async () => {
+    setIsImporting(true);
+    setImportComplete(false);
+    setOverallMessage("Preparing to import database records...");
+    setOverallProgress(0);
+
+    const tablesInOrder = [
+      'portfolios', 'sam', 'acmac1', 'acc_pflink', 'investor_group_members',
+      'mprices', 'sum_table', 'scnote1', 'vouchers1', 'vouchersc1',
+      'trans1', 'transc1', 'bs1'
+    ];
+
+    try {
+      // Step 1: Wipe tables in reverse order for foreign key safety
+      setOverallMessage("Wiping existing database tables...");
+      for (let i = tablesInOrder.length - 1; i >= 0; i--) {
+        const tableKey = tablesInOrder[i];
+        const config = TABLE_CONFIGS.find(t => t.key === tableKey);
+        if (!config) continue;
+        const delKey = config.deleteKey;
+        await supabase.from(tableKey).delete().neq(delKey, -999999);
+      }
+
+      // Step 2: Upload staged records in strict dependency order
+      const totalTablesToUpload = tablesInOrder.filter(t => stagedFiles[t]).length;
+      let completedTables = 0;
+
+      for (const tableKey of tablesInOrder) {
+        const fileData = stagedFiles[tableKey];
+        const config = TABLE_CONFIGS.find(t => t.key === tableKey);
+        if (!fileData || !config) continue;
+
+        const allowedCols = allowedColumns[tableKey] || [];
+        const rows = fileData.rows;
+        
+        setTableStatus(prev => ({
+          ...prev,
+          [tableKey]: { status: 'importing', rowCount: rows.length, progress: 0 }
+        }));
+        setOverallMessage(`Uploading ${config.name} (${rows.length.toLocaleString()} rows)...`);
+
+        const cleanRows = rows.map(r => {
+          const mapped: Record<string, any> = {};
+          for (const [col, val] of Object.entries(r)) {
+            if (allowedCols.includes(col)) {
+              let finalVal = val;
+              if (typeof val === 'string' && val.trim() === '') {
+                finalVal = null;
+              }
+              mapped[col] = finalVal;
+            }
+          }
+          return mapped;
+        });
+
+        const batchSize = 500;
+        for (let i = 0; i < cleanRows.length; i += batchSize) {
+          const batch = cleanRows.slice(i, i + batchSize);
+          const { error: insertErr } = await supabase.from(tableKey).insert(batch);
+          if (insertErr) {
+            console.error(`Error inserting into ${tableKey}:`, insertErr);
+            throw new Error(`Failed to upload ${config.name}: ${insertErr.message}`);
+          }
+          const currentProgress = Math.min(100, Math.round(((i + batch.length) / cleanRows.length) * 100));
+          setTableStatus(prev => ({
+            ...prev,
+            [tableKey]: { status: 'importing', rowCount: rows.length, progress: currentProgress }
+          }));
+        }
+
+        setTableStatus(prev => ({
+          ...prev,
+          [tableKey]: { status: 'done', rowCount: rows.length, progress: 100 }
+        }));
+
+        completedTables++;
+        setOverallProgress(Math.round((completedTables / totalTablesToUpload) * 100));
+      }
+
+      setOverallMessage("Refreshing application data...");
+      await forceRefreshDatabase();
+      triggerGlobalRefresh();
+      setImportComplete(true);
+      setOverallMessage("✅ All database tables imported successfully!");
+    } catch (err: any) {
+      console.error("Import failed:", err);
+      alert(`Import error: ${err.message}`);
+      setOverallMessage(`❌ Import failed: ${err.message}`);
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -715,10 +978,13 @@ function ImportPageInner() {
   // Dynamic asset mapping creator if missing
   // STRICT RULE: Only looks up/creates ledgers for the EXACT account (acid) of the portfolio.
   // NEVER cross-account: importing Pramesh (acid=30) must NEVER reuse Krisha's (acid=36) ledger.
+  // Dynamic asset mapping creator if missing
+  // STRICT RULE: Only looks up/creates ledgers for the EXACT account (acid) of the portfolio.
+  // NEVER cross-account: importing Pramesh (acid=30) must NEVER reuse Krisha's (acid=36) ledger.
   const ensureAssetLedgerExists = async (amid: number, name: string, portfolioId: number | string, assetType: number): Promise<number> => {
     // Get active account ID for the portfolio — STRICT, no fallback cross-account
     const pf = portfolios.find((p: any) => String(p.id) === String(portfolioId));
-    const acid = pf ? Number(pf.accountId) : 30;
+    const acid = pf ? Number(pf.accountId) : 31;
     const nameLower = String(name || '').toLowerCase().trim();
 
     // Step 1: In-memory lookup — EXACT acid match only
@@ -754,7 +1020,6 @@ function ImportPageInner() {
     }
 
     // Step 3: Create a NEW ledger for this exact acid
-    // Generate an ID that doesn't already exist in this acid
     const { data: maxIdRow } = await supabase.from('acmac1').select('id').order('id', { ascending: false }).limit(1);
     const nextId = (maxIdRow?.[0]?.id || 500000) + 1;
 
@@ -763,20 +1028,27 @@ function ImportPageInner() {
       : assetType === 80 ? 400000
       : 200050; // default: Stocks
 
-    const { error } = await supabase.from('acmac1').insert([{
+    const newLedgerRow = {
       id: nextId,
       name: name.trim(),
       parent_id: parentId,
       acid: acid,
-      is_group: false
-    }]);
+      is_group: false,
+      db_bal: 0,
+      cr_bal: 0,
+      flags: '65536',
+      special_type_id: 150
+    };
+
+    const { error } = await supabase.from('acmac1').insert([newLedgerRow]);
 
     if (error) {
-      console.error('[ensureLedger] Error creating ledger:', error);
-    } else {
-      console.log(`[ensureLedger] Created NEW ledger "${name.trim()}" id=${nextId} acid=${acid}`);
-      state.acmac1.push({ id: nextId, name: name.trim(), parent_id: parentId, acid, is_group: false });
+      console.error('❌ [ensureLedger] Error creating ledger:', error.message);
+      throw new Error(`Failed to create ledger for ${name}: ${error.message}`);
     }
+
+    console.log(`[ensureLedger] Created NEW ledger "${name.trim()}" id=${nextId} acid=${acid}`);
+    state.acmac1.push(newLedgerRow);
 
     return nextId;
   };
@@ -816,7 +1088,7 @@ function ImportPageInner() {
         let totalSells = 0;
 
         // Helper: buy transaction type codes from bs1
-        const isBuyTrty = (trty: number) => [19, 20, 12, 25, 30, 35, 40, 45, 46, 47].includes(trty);
+        const isBuyTrty = (trty: number) => [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(trty);
 
         for (const t of tradesInGroup) {
           const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, 50);
@@ -826,6 +1098,8 @@ function ImportPageInner() {
             totalBuys += gross;
             mappedLines.push({
               ledgerId,
+              amid: t.amid,
+              assetName: t.assetName,
               debit: gross,
               credit: 0,
               quantity: t.quantity,
@@ -875,6 +1149,8 @@ function ImportPageInner() {
             // Line 1: Cr Stock ledger at COST (removes investment from balance sheet)
             mappedLines.push({
               ledgerId,
+              amid: t.amid,
+              assetName: t.assetName,
               debit: 0,
               credit: costBasis,
               quantity: t.quantity,
@@ -968,6 +1244,9 @@ function ImportPageInner() {
       await forceRefreshDatabase();
       setRefreshKey(prev => prev + 1);
 
+      // Auto-trigger live price update for the imported assets
+      syncLivePrices(() => {}, true).catch(console.warn);
+
       setOverallMessage("✅ Contract note trades successfully imported!");
       setCnCharges({
         stt: 0,
@@ -1041,7 +1320,10 @@ function ImportPageInner() {
   // Check if CN number already exists in scnote1 table OR in voucher narrations
   const isDuplicateCN = cnNo
     ? (state.scnote1?.some((s: any) => s.cnnum && s.cnnum.toLowerCase() === cnNo.toLowerCase()) ||
-       getStoredVouchers().some((v: any) => v.narr?.toLowerCase().includes(`no: ${cnNo.toLowerCase()}`)))
+       getStoredVouchers().some((v: any) => {
+         const n = (v.narration || v.narr || '').toLowerCase();
+         return n.includes(`no: ${cnNo.toLowerCase()}`) || n.includes(cnNo.toLowerCase());
+       }))
     : false;
 
   const activeCnTrades = visibleCnTrades.filter(t => t.selected);
@@ -1049,77 +1331,6 @@ function ImportPageInner() {
   const totalCnSells = activeCnTrades.filter(t => t.type === "Sell").reduce((sum, t) => sum + (t.gross || 0), 0);
   const totalCnCharges = Number(cnCharges.stt) + Number(cnCharges.brokerage) + Number(cnCharges.gst) + Number(cnCharges.stamp) + Number(cnCharges.transCharges) + (Number(cnCharges.other) || 0);
   const netCnAmount = (totalCnBuys + totalCnCharges) - totalCnSells;
-
-  // ── Clear all staged files and reset state ────────────────────────────────
-  const clearStaged = () => {
-    setStagedFiles({});
-    setImportComplete(false);
-    setOverallProgress(0);
-    setOverallMessage('');
-    const resetStatus: Record<string, any> = {};
-    TABLE_CONFIGS.forEach(t => {
-      resetStatus[t.key] = { status: 'idle', rowCount: 0, progress: 0 };
-    });
-    setTableStatus(resetStatus);
-  };
-
-  // ── Run the actual Supabase upsert for each staged table ──────────────────
-  const startImport = async () => {
-    if (!hasStaged || missingRequired.length > 0 || isImporting) return;
-    setIsImporting(true);
-    setOverallProgress(0);
-    setImportComplete(false);
-
-    const tables = Object.keys(stagedFiles);
-    let done = 0;
-
-    for (const tableKey of tables) {
-      const cfg = TABLE_CONFIGS.find(t => t.key === tableKey);
-      if (!cfg) continue;
-      const { rows } = stagedFiles[tableKey];
-
-      setTableStatus(prev => ({ ...prev, [tableKey]: { ...prev[tableKey], status: 'importing', progress: 0 } }));
-      setOverallMessage(`Importing ${cfg.name}...`);
-
-      try {
-        // Delete existing rows then insert fresh
-        await supabase.from(tableKey as any).delete().neq(cfg.deleteKey, -999999);
-        
-        // Insert in batches of 500
-        const batchSize = 500;
-        for (let i = 0; i < rows.length; i += batchSize) {
-          const batch = rows.slice(i, i + batchSize);
-          const { error } = await supabase.from(tableKey as any).insert(batch);
-          if (error) throw new Error(error.message);
-          const pct = Math.round(((i + batch.length) / rows.length) * 100);
-          setTableStatus(prev => ({ ...prev, [tableKey]: { ...prev[tableKey], status: 'importing', progress: pct } }));
-        }
-
-        setTableStatus(prev => ({ 
-          ...prev, 
-          [tableKey]: { status: 'done', rowCount: rows.length, progress: 100 } 
-        }));
-      } catch (err: any) {
-        setTableStatus(prev => ({ 
-          ...prev, 
-          [tableKey]: { ...prev[tableKey], status: 'error', progress: 0 } 
-        }));
-        setOverallMessage(`❌ Error importing ${cfg.name}: ${err.message}`);
-        setIsImporting(false);
-        return;
-      }
-
-      done++;
-      setOverallProgress(Math.round((done / tables.length) * 100));
-    }
-
-    setOverallProgress(100);
-    setOverallMessage('✅ All tables imported successfully!');
-    setIsImporting(false);
-    setImportComplete(true);
-    await forceRefreshDatabase();
-  };
-
 
   // ── Top-level portfolio/date change handlers ─────────────────────────────
   const handleTopPortfolioChange = (portfolioId: string) => {
@@ -1238,53 +1449,149 @@ function ImportPageInner() {
       }
 
       for (const t of result.trades) {
-         const isin = t.isin || '';
-         const assetName = (t.assetName || '').trim();
+         const isin = (t.isin || '').toUpperCase().trim();
+         const symbol = (t.assetName || '').toUpperCase().trim();
          
-         // Step 1: Try in-memory match (by ISIN, then name, then NSE symbol)
-         let matchedAsset = state.assetMaster.find((a: any) => 
-           [10, 40, 50, 70].includes(a.asset_type) && (
-             (isin && a.isin && a.isin === isin) ||
-             (assetName && a.name && String(a.name).toUpperCase() === assetName.toUpperCase()) ||
-             (assetName && a.nse_symbol && String(a.nse_symbol).toUpperCase() === assetName.toUpperCase())
-           )
-         );
+         let finalAmid = -1;
+         let finalAssetName = symbol;
 
-         // Step 2: If not found in memory AND we have an ISIN, do a live DB lookup
-         if (!matchedAsset && isin) {
-           const { data: dbAssets } = await supabase
+         // ── ISIN-FIRST MATCHING PIPELINE ─────────────────────────────────────────
+         // ISIN is the authoritative global identifier for any listed security.
+         // Name can vary ("Aurobindo Pharma" vs "Aurobindo Pharma Limited", renames, etc.)
+         // Order of priority: ISIN DB lookup → isinDictionary → NSE symbol DB → name fallback → auto-create
+         // ─────────────────────────────────────────────────────────────────────────
+
+         // Step 1: DB lookup by ISIN (highest authority — catches any existing record regardless of name)
+         if (isin) {
+           // Check in-memory first (faster)
+           const inMemory = state.assetMaster.find((a: any) => a.isin && a.isin.toUpperCase() === isin)
+             || state.sam.find((s: any) => s.isin && s.isin.toUpperCase() === isin);
+           if (inMemory) {
+             finalAmid = Number(inMemory.amid);
+             finalAssetName = inMemory.name || inMemory.anm || finalAssetName;
+           } else {
+             // Live DB lookup by ISIN
+             const { data: byIsin } = await supabase
+               .from('asset_master')
+               .select('amid, name, nse_symbol, isin, asset_type')
+               .eq('isin', isin)
+               .limit(1);
+             if (byIsin && byIsin.length > 0) {
+               finalAmid = byIsin[0].amid;
+               finalAssetName = byIsin[0].name;
+               // Cache in memory
+               if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) {
+                 state.assetMaster.push(byIsin[0]);
+               }
+             }
+           }
+         }
+
+         // Step 2: isinDictionary lookup (covers pre-loaded canonical amids for 20,000+ NSE stocks)
+         // Only used if ISIN DB lookup failed — means no existing record in asset_master by ISIN yet
+         if (finalAmid === -1 && isin && isinToAmidMap[isin]) {
+           const dictAmid = isinToAmidMap[isin];
+           // Before committing to the dictionary amid, do a live DB verification
+           // to check if that amid actually exists (dictionary can be stale)
+           const { data: dictCheck } = await supabase
              .from('asset_master')
-             .select('amid, name, nse_symbol, isin, asset_type')
-             .eq('isin', isin)
-             .in('asset_type', [10, 40, 50, 70])
+             .select('amid, name, nse_symbol, isin')
+             .eq('amid', dictAmid)
              .limit(1);
-           if (dbAssets && dbAssets.length > 0) {
-             matchedAsset = dbAssets[0];
-             // Cache it in memory so next trade in same session is instant
-             state.assetMaster.push(matchedAsset);
+           if (dictCheck && dictCheck.length > 0) {
+             finalAmid = dictAmid;
+             finalAssetName = dictCheck[0].name || finalAssetName;
+             // Also write the ISIN back to asset_master if it was missing (key anti-duplicate measure)
+             if (!dictCheck[0].isin && isin) {
+               await supabase.from('asset_master').update({ isin, nse_symbol: symbol || dictCheck[0].nse_symbol }).eq('amid', dictAmid);
+               state.assetMaster.forEach((a: any) => { if (a.amid === dictAmid) { a.isin = isin; } });
+             }
+             if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) state.assetMaster.push(dictCheck[0]);
+           } else {
+             // Dictionary amid not in DB — use it as a provisional value
+             finalAmid = dictAmid;
+             const foundName = getAssetName(finalAmid);
+             if (foundName && !foundName.startsWith('Asset ')) finalAssetName = foundName;
            }
          }
 
-         // Step 3: If still not found, try DB lookup by partial name
-         if (!matchedAsset && assetName) {
-           const { data: dbAssets } = await supabase
+         // Step 3: NSE symbol lookup in DB — catch records where ISIN was null in asset_master
+         // (old imported records often have ISIN missing — this prevents Aurobindo-style duplicates)
+         if (symbol) {
+           const { data: byNse } = await supabase
              .from('asset_master')
-             .select('amid, name, nse_symbol, isin, asset_type')
-             .ilike('name', `%${assetName.split(' ')[0]}%`)
-             .in('asset_type', [10, 40, 50, 70])
-             .limit(5);
-           if (dbAssets && dbAssets.length === 1) {
-             matchedAsset = dbAssets[0];
-             state.assetMaster.push(matchedAsset);
-           } else if (dbAssets && dbAssets.length > 1) {
-             // Multiple matches - pick exact NSE symbol match if available
-             const exact = dbAssets.find((a: any) => a.nse_symbol && a.nse_symbol.toUpperCase().includes(assetName.toUpperCase().split(' ')[0]));
-             if (exact) { matchedAsset = exact; state.assetMaster.push(matchedAsset); }
+             .select('amid, name, nse_symbol, isin')
+             .eq('nse_symbol', symbol)
+             .limit(2); // get 2 to detect conflicts
+           
+           if (byNse && byNse.length > 0) {
+             // Prefer ISIN-matching record if there are multiple
+             const isinMatch = byNse.find((r: any) => r.isin && r.isin.toUpperCase() === isin);
+             const best = isinMatch || byNse[0];
+
+             if (finalAmid === -1) {
+               // No match yet — use this NSE symbol match
+               finalAmid = best.amid;
+               finalAssetName = best.name;
+               if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) state.assetMaster.push(best);
+             } else if (best.amid !== finalAmid) {
+               // We have a conflict: isinDictionary gave one amid, but DB has a different amid for this NSE symbol
+               // The DB record with this NSE symbol is the canonical one (it's already in use in the portfolio)
+               // Prefer the existing DB record to prevent creating duplicate holdings
+               console.log(`[CN Import] ISIN-DB conflict for ${symbol}: dict/ISIN-said amid=${finalAmid}, NSE-symbol-in-DB says amid=${best.amid}. Using DB record.`);
+               finalAmid = best.amid;
+               finalAssetName = best.name;
+               // Patch the missing ISIN into the existing DB record
+               if (!best.isin && isin) {
+                 await supabase.from('asset_master').update({ isin }).eq('amid', best.amid);
+                 if (!state.assetMaster.find((a: any) => a.amid === best.amid)) state.assetMaster.push({ ...best, isin });
+                 else state.assetMaster.forEach((a: any) => { if (a.amid === best.amid) a.isin = isin; });
+               }
+             }
+             // If finalAmid === best.amid, already correct — no conflict
            }
          }
 
-         const finalAssetName = matchedAsset ? matchedAsset.name : assetName;
-         const finalAmid = matchedAsset ? matchedAsset.amid : -1;
+         // Step 4: Name fallback — try matching by full name in state.assetMaster 
+         if (finalAmid === -1 && symbol) {
+           const byName = state.assetMaster.find((a: any) => 
+             a.name && a.name.toUpperCase().trim() === symbol
+           ) || state.sam.find((s: any) => 
+             s.anm && s.anm.toUpperCase().trim() === symbol
+           );
+           if (byName) {
+             finalAmid = Number(byName.amid);
+             finalAssetName = byName.name || byName.anm || finalAssetName;
+             // Patch the ISIN into this record too
+             if (!byName.isin && isin) {
+               await supabase.from('asset_master').update({ isin, nse_symbol: symbol }).eq('amid', finalAmid);
+               state.assetMaster.forEach((a: any) => { if (a.amid === finalAmid) { a.isin = isin; if (!a.nse_symbol) a.nse_symbol = symbol; } });
+             }
+           }
+         }
+
+         // Step 5: Auto-create in asset_master with full ISIN + NSE symbol — last resort
+         if (finalAmid === -1) {
+           const { data: maxRow } = await supabase.from('asset_master').select('amid').order('amid', { ascending: false }).limit(1);
+           const nextAmid = ((maxRow?.[0]?.amid || 500000) < 500000 ? 500000 : (maxRow?.[0]?.amid || 500000)) + 1;
+           const newAssetRow = {
+             amid: nextAmid,
+             name: symbol,
+             nse_symbol: symbol,
+             isin: isin || null,
+             asset_type: 50,
+             asset_type_name: 'Stocks'
+           };
+           const { error: insertErr } = await supabase.from('asset_master').insert(newAssetRow);
+           if (!insertErr) {
+             state.assetMaster.push(newAssetRow);
+             finalAmid = nextAmid;
+             finalAssetName = symbol;
+             console.log(`[CN Import] Auto-created asset_master amid=${nextAmid} for ${symbol} ISIN=${isin}`);
+           }
+         }
+         // ─────────────────────────────────────────────────────────────────────────
+
 
          if (t.buyQty > 0) {
            newTrades.push({
@@ -1366,6 +1673,16 @@ function ImportPageInner() {
       
       {/* Tab Navigation Menu */}
       <div style={{ display: "flex", gap: "10px", background: "#f1f5f9", padding: "6px", borderRadius: "12px", marginBottom: "32px", width: "fit-content" }}>
+        <button onClick={() => setActiveTab('db')} style={{
+          ...tabStyle(activeTab === 'db'),
+          background: activeTab === 'db' ? '#2563eb' : 'none',
+          color: activeTab === 'db' ? '#fff' : '#2563eb',
+          boxShadow: activeTab === 'db' ? '0 4px 12px rgba(37,99,235,0.25)' : 'none',
+          border: activeTab !== 'db' ? '2px solid #2563eb' : 'none',
+        }}>
+          <Database size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '4px' }} />
+          MProfit DB Import
+        </button>
         <button onClick={() => setActiveTab('contract-note')} style={tabStyle(activeTab === 'contract-note')}>
           Broker Contract Note
         </button>
@@ -1377,6 +1694,15 @@ function ImportPageInner() {
           border: activeTab !== 'mf-cas' ? '2px solid #ea580c' : 'none',
         }}>
           📊 MF CAS Import
+        </button>
+        <button onClick={() => setActiveTab('db-converter')} style={{
+          ...tabStyle(activeTab === 'db-converter'),
+          background: activeTab === 'db-converter' ? '#8b5cf6' : 'none',
+          color: activeTab === 'db-converter' ? '#fff' : '#8b5cf6',
+          boxShadow: activeTab === 'db-converter' ? '0 4px 12px rgba(139,92,246,0.25)' : 'none',
+          border: activeTab !== 'db-converter' ? '2px solid #8b5cf6' : 'none',
+        }}>
+          🛠️ DB to CSV
         </button>
       </div>
 
@@ -1427,14 +1753,14 @@ function ImportPageInner() {
                 ref={fileInputRef} 
                 onChange={handleFileSelect} 
                 multiple 
-                accept=".csv" 
+                accept=".csv,.db,.sqlite,.bak"
                 style={{ display: "none" }} 
               />
               <div style={{ display: "inline-flex", padding: "16px", background: "#eff6ff", borderRadius: "50%", color: "#2563eb", marginBottom: "16px" }}>
                 <FileUp size={32} />
               </div>
               <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#1e293b", margin: "0 0 6px 0" }}>
-                Drag and drop MProfit CSVs here, or click to browse
+                Drag and drop MProfit CSVs, DB or BAK backup files here, or click to browse
               </h3>
               <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>
                 You can select multiple files at once. The system will match them automatically by name.
@@ -1442,7 +1768,7 @@ function ImportPageInner() {
             </div>
           )}
 
-          {!isImporting && !importComplete && missingRequired.length > 0 && (
+          {hasStaged && !isImporting && !importComplete && missingRequired.length > 0 && (
             <div style={{ padding: "16px 20px", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: "12px", display: "flex", gap: "14px", alignItems: "flex-start", marginBottom: "32px" }}>
               <AlertTriangle color="#d97706" style={{ flexShrink: 0, marginTop: "2px" }} />
               <div>
@@ -2018,6 +2344,10 @@ function ImportPageInner() {
         </div>
       )}
 
+      {activeTab === 'db-converter' && (
+        <DbConverter />
+      )}
+
       {/* Spinner animation keyframes and custom table inputs styling */}
       <style>{`
         @keyframes spin {
@@ -2072,6 +2402,147 @@ function ImportPageInner() {
           box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
         }
       `}</style>
+    </div>
+  );
+}
+
+function DbConverter() {
+  const [file, setFile] = useState<File | null>(null);
+  const [tables, setTables] = useState<{ name: string; rowCount: number; data: any[] }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+    setFile(selectedFile);
+    setLoading(true);
+    setError('');
+    setTables([]);
+
+    try {
+      const initSqlJs = await loadSqlJs();
+      const SQL = await initSqlJs({
+        locateFile: (f: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}`
+      });
+      const buffer = await selectedFile.arrayBuffer();
+      
+      let db;
+      try {
+        db = new SQL.Database(new Uint8Array(buffer));
+      } catch (e: any) {
+        throw new Error(`Could not parse ${selectedFile.name} as a SQLite database. Error: ${e.message}`, { cause: e });
+      }
+
+      const tablesResult = db.exec("SELECT name FROM sqlite_master WHERE type='table'");
+      if (tablesResult.length > 0) {
+        const allTables = tablesResult[0].values.map((v: any) => v[0] as string);
+        const extractedTables = [];
+        for (const tableName of allTables) {
+          const dataRes = db.exec(`SELECT * FROM "${tableName}"`);
+          if (dataRes.length > 0) {
+            const cols = dataRes[0].columns;
+            const rows = dataRes[0].values;
+            const formattedData = rows.map((row: any) => {
+              const obj: any = {};
+              cols.forEach((col: string, idx: number) => {
+                obj[col] = row[idx];
+              });
+              return obj;
+            });
+            extractedTables.push({ name: tableName, rowCount: rows.length, data: formattedData });
+          } else {
+            extractedTables.push({ name: tableName, rowCount: 0, data: [] });
+          }
+        }
+        setTables(extractedTables);
+      } else {
+        setError('No tables found in this SQLite database.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Unknown error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadCsv = (table: { name: string; data: any[] }) => {
+    if (table.data.length === 0) {
+      alert("Table is empty.");
+      return;
+    }
+    const csvStr = Papa.unparse(table.data);
+    const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.setAttribute('download', `${table.name}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  return (
+    <div style={{ padding: "32px", background: "#fff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+      <h2 style={{ fontSize: "24px", fontWeight: 800, marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+        <Database size={24} color="#8b5cf6" /> MProfit DB to CSV Converter
+      </h2>
+      <p style={{ color: "#64748b", marginBottom: "24px", lineHeight: 1.5 }}>
+        Select your MProfit backup file (<code>.db</code>, <code>.sqlite</code>, or <code>.bak</code>). The system will read all tables inside it and let you download them as individual CSV files.
+      </p>
+
+      <div style={{ marginBottom: "24px" }}>
+        <input 
+          type="file" 
+          accept=".db,.sqlite,.bak" 
+          onChange={handleFileChange} 
+          style={{ display: 'none' }}
+          id="db-file-upload"
+        />
+        <label 
+          htmlFor="db-file-upload" 
+          style={{ padding: "12px 24px", background: "#8b5cf6", color: "#fff", borderRadius: "8px", cursor: "pointer", fontWeight: 600, display: "inline-block" }}
+        >
+          {loading ? "Reading Database..." : "Select SQLite Database File"}
+        </label>
+        {file && <span style={{ marginLeft: "16px", color: "#475569", fontWeight: 600 }}>{file.name}</span>}
+      </div>
+
+      {error && (
+        <div style={{ padding: "16px", background: "#fef2f2", color: "#b91c1c", borderRadius: "8px", marginBottom: "24px", border: "1px solid #f87171" }}>
+          {error}
+        </div>
+      )}
+
+      {tables.length > 0 && (
+        <div>
+          <h3 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "16px", color: "#1e293b" }}>
+            Found {tables.length} Tables
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
+            {tables.map(t => (
+              <div key={t.name} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "#f8fafc" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, color: "#334155", wordBreak: "break-all" }}>{t.name}</span>
+                  <span style={{ fontSize: "12px", background: "#e2e8f0", padding: "4px 8px", borderRadius: "100px", color: "#475569", fontWeight: 600 }}>
+                    {t.rowCount} rows
+                  </span>
+                </div>
+                <button 
+                  onClick={() => downloadCsv(t)}
+                  disabled={t.rowCount === 0}
+                  style={{ 
+                    padding: "8px", background: t.rowCount === 0 ? "#cbd5e1" : "#10b981", color: "#fff", 
+                    border: "none", borderRadius: "6px", fontWeight: 600, cursor: t.rowCount === 0 ? "not-allowed" : "pointer" 
+                  }}
+                >
+                  Download {t.name}.csv
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

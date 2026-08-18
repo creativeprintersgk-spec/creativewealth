@@ -235,7 +235,9 @@ export default function VoucherModal({
   const difference = Math.abs(totalDebit - totalCredit);
   const isBalanced = isSimpleMode ? (totalDebit > 0 && !!simpleAccount && !!mainAccount) : (difference < 0.01 && totalDebit > 0);
 
-  const currentTypeMeta = VOUCHER_TYPES.find(t => t.key === type)!;
+  // Safety: if type is an unrecognized value (e.g. 'buy'/'sell' from old PMS data), default to 'journal'
+  // Without this guard, currentTypeMeta would be undefined and crash the render with a blank screen
+  const currentTypeMeta = VOUCHER_TYPES.find(t => t.key === type) ?? VOUCHER_TYPES.find(t => t.key === 'journal')!;
 
   // Balance hint is only shown for the currently-selected counter ledger, not in every dropdown row
   // (calling getLedgerWithBalance on every row causes severe slowdown with 1000+ ledgers)

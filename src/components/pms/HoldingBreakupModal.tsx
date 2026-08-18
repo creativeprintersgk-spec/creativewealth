@@ -113,11 +113,11 @@ export default function HoldingBreakupModal({
                   </td>
 
                   <td style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', textAlign: 'right' }}>
-                    Rs. {item.amtInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {item.amtInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
 
                   <td style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ fontWeight: 500 }}>Rs. {(item.quantity * holding.currentPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style={{ fontWeight: 500 }}>{(item.quantity * holding.currentPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -149,10 +149,10 @@ export default function HoldingBreakupModal({
                   {totalQty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                 </td>
                 <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0f172a' }}>
-                  Rs. {totalInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {totalInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
                 <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0f172a' }}>
-                  Rs. {totalCurrentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {totalCurrentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
               </tr>
             </tfoot>
@@ -174,7 +174,7 @@ export default function HoldingBreakupModal({
           </div>
 
           <div style={{ fontWeight: 600 }}>
-            Total Value: Rs. {holding.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Total Value: {holding.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
       </div>

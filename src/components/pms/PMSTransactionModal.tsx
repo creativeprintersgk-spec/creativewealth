@@ -187,8 +187,10 @@ export default function PMSTransactionModal({
         let extractedOther = 0;
         let extractedCounterId = '';
 
+        const allLedgers = getStoredLedgers(); // Search all ledgers across accounts
+
         v.lines.forEach((l: any) => {
-          const ledger = ledgers.find(a => String(a.id) === String(l.ledgerId));
+          const ledger = allLedgers.find(a => String(a.id) === String(l.ledgerId)) || ledgers.find(a => String(a.id) === String(l.ledgerId));
           const ledgerName = (ledger ? ledger.name : (l.ledgerName || l.ledgerId || '')).toLowerCase();
           
           if (ledgerName.includes('stt')) {
@@ -206,24 +208,45 @@ export default function PMSTransactionModal({
           } else if (ledger && isBrokerOrBankOrCash(ledger)) {
             extractedCounterId = String(l.ledgerId);
           } else {
+            const assetGroupIds = [200050, 200051, 200061, 200062, 200075, 200077, 200040, 200070, 200058, 200155, 200150, 200145, 200160, 200095, 200115, 200120, 200135, 200140, 200141, 200195, 36, 75, 50, 60, 61, 62];
+            
+            let tQty = Number(l.quantity) || 0;
+            let tPrice = Number(l.price) || 0;
+            const lAmt = Number(l.debit || l.credit || 0);
+
+            // Parse quantity @ price from narration if missing (e.g. "780 @ 109")
+            const narrText = (l.narration || v.narration || '').trim();
+            const match = narrText.match(/([\d\.,]+)\s*@\s*([\d\.,]+)/);
+            if (match) {
+              const parsedQ = parseFloat(match[1].replace(/,/g, ''));
+              const parsedP = parseFloat(match[2].replace(/,/g, ''));
+              if (!isNaN(parsedQ) && parsedQ > 0 && tQty === 0) tQty = parsedQ;
+              if (!isNaN(parsedP) && parsedP > 0 && tPrice === 0) tPrice = parsedP;
+            }
+
             const isAsset = Number(l.ledgerId) >= 100000 || 
-                            (ledger && [200050, 200051, 200061, 200062, 50, 60, 61, 62].includes(Number(ledger.groupId)));
+                            tQty > 0 || tPrice > 0 || match !== null ||
+                            (ledger && assetGroupIds.includes(Number(ledger.groupId))) ||
+                            (!ledger && !ledgerName.includes('broker') && !ledgerName.includes('bank') && !ledgerName.includes('cash') && !ledgerName.includes('stt') && !ledgerName.includes('stamp') && !ledgerName.includes('gst') && !ledgerName.includes('charge') && !ledgerName.includes('brokerage'));
+            
             if (isAsset) {
-              const tQty = Number(l.quantity) || 0;
-              const tPrice = Number(l.price) || 0;
-              const lAmt = Number(l.debit || l.credit || 0);
-              
+              const tradeVal = tQty > 0 && tPrice > 0 ? tQty * tPrice : lAmt;
+              const lineOtherCharges = lAmt > tradeVal && tradeVal > 0 ? lAmt - tradeVal : 0;
+              if (lineOtherCharges > 0) {
+                extractedOther += lineOtherCharges;
+              }
+
               parsedTrades.push({
                 id: String(l.id || Math.random()),
                 ledgerId: String(l.ledgerId),
                 assetName: ledger ? ledger.name : (l.ledgerName || l.ledgerId || ''),
-                type: l.debit > 0 ? 'BUY' : 'SELL',
+                type: (l.debit || 0) > 0 ? 'BUY' : 'SELL',
                 quantity: tQty,
                 price: tPrice,
-                amount: lAmt
+                amount: tradeVal
               });
             } else {
-              extractedOther += (l.debit || l.credit || 0);
+              extractedOther += lAmt;
             }
           }
         });
@@ -232,7 +255,7 @@ export default function PMSTransactionModal({
         let determinedAssetType: 'EQ' | 'MF' = 'EQ';
         if (parsedTrades.length > 0) {
           const firstTrade = parsedTrades[0];
-          const ledger = ledgers.find(l => String(l.id) === String(firstTrade.ledgerId));
+          const ledger = allLedgers.find(l => String(l.id) === String(firstTrade.ledgerId)) || ledgers.find(l => String(l.id) === String(firstTrade.ledgerId));
           if (ledger) {
             let currentGroup = groups.find(g => g.id === ledger.groupId);
             while (currentGroup) {
@@ -249,12 +272,12 @@ export default function PMSTransactionModal({
         if (parsedTrades.length === 0 && v.lines.length > 0) {
           const assetLine = v.lines.find((l: any) => l.quantity > 0) || v.lines[0];
           if (assetLine) {
-            const ledger = ledgers.find(l => String(l.id) === String(assetLine.ledgerId));
+            const ledger = allLedgers.find(l => String(l.id) === String(assetLine.ledgerId)) || ledgers.find(l => String(l.id) === String(assetLine.ledgerId));
             parsedTrades.push({
               id: String(assetLine.id || Math.random()),
               ledgerId: String(assetLine.ledgerId),
               assetName: ledger ? ledger.name : (assetLine.ledgerName || assetLine.ledgerId || ''),
-              type: assetLine.debit > 0 ? 'BUY' : 'SELL',
+              type: (assetLine.debit || 0) > 0 ? 'BUY' : 'SELL',
               quantity: assetLine.quantity || 0,
               price: assetLine.price || 0,
               amount: (assetLine.quantity || 0) * (assetLine.price || 0)
@@ -381,7 +404,6 @@ export default function PMSTransactionModal({
     // Trade Asset Lines
     const nonSttCharges = stampCharges + otherCharges + gst + transCharges + brokerage;
     for (const trade of trades) {
-      const assetLedger = await ensureLedgerExists(trade.assetName, assetType === 'EQ' ? 'stocks' : 'mf_equity', acidNum);
       const isTradeBuy = trade.type === 'BUY';
       
       let finalTradeAmount = trade.amount;
@@ -391,12 +413,19 @@ export default function PMSTransactionModal({
         finalTradeAmount += (nonSttCharges * proportion);
       }
 
+      // Use direct ledgerId (amid) if it's already set — avoids mismatching Gold/Silver/Bond assets
+      // to the 'stocks' ledger group which would break bs1 insertion
+      const directLedgerId = trade.ledgerId && String(trade.ledgerId).trim() !== ''
+        ? trade.ledgerId
+        : (await ensureLedgerExists(trade.assetName, assetType === 'EQ' ? 'stocks' : 'mf_equity', acidNum))?.id ?? '';
+
       lines.push({
-        ledgerId: assetLedger?.id ?? "",
+        ledgerId: directLedgerId,
         debit: isTradeBuy ? finalTradeAmount : 0,
         credit: !isTradeBuy ? trade.amount : 0,
         quantity: trade.quantity,
-        price: trade.price
+        price: trade.price,
+        tradeType: trade.type // Explicitly pass BUY/SELL to preserve direction even if amount is 0
       });
     }
 
@@ -434,6 +463,10 @@ export default function PMSTransactionModal({
     const defaultNarr = `${narrationParts.join(', ')}`;
     const finalNarration = narration || (voucherNo ? `Share Contract Note,  No.:${voucherNo}` : `Contract Note - ${defaultNarr}`);
 
+    // Pass direct assetId from the first trade so createVoucher can write bs1 correctly
+    // for any asset type (Gold, Silver, Bonds, MF, Stocks, FD, etc.)
+    const primaryTradeAssetId = trades[0]?.ledgerId || undefined;
+
     const updatedVoucher = {
       ...originalVoucher,
       date,
@@ -441,6 +474,7 @@ export default function PMSTransactionModal({
       voucherNo,
       accountId,
       lines,
+      assetId: primaryTradeAssetId,
       type: originalVoucher?.type || (assetType === 'MF' ? 'contra' : 'journal'),
       stt,
       stampCharges,
@@ -659,7 +693,7 @@ export default function PMSTransactionModal({
             </div>
             
             {/* Trades Grid Table */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'visible' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc' }}>

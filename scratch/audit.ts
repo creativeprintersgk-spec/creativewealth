@@ -31,7 +31,7 @@ const BOND_ISIN_TO_NSE_SYMBOL: Record<string, string> = {
   'IN0020210145': 'SGBSEP29VI',
   'IN0020200195': 'SGBSEP28VI',
   'IN0020170166': 'SGBJAN26XIV',
-  'IN0020180314': 'SGBNOV26III',
+  'IN0020180314': 'SGBNOV26',
 };
 
 async function safeFetch(table: string): Promise<any[]> {

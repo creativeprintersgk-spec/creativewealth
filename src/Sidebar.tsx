@@ -1,8 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database } from 'lucide-react';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown } from 'lucide-react';
 import { getIndices } from './services/priceService';
+import { getStoredFamilies } from './logic';
 import React, { useState, useEffect } from 'react';
 import { useTestMode } from './contexts/TestModeContext';
+import { useFamily } from './contexts/FamilyContext';
 
 function getRefreshInterval(): number {
   const now = new Date()
@@ -20,6 +22,8 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isTestMode, startTestMode, endTestMode } = useTestMode();
+  const { activeFamilyId, setActiveFamilyId } = useFamily();
+  const families = getStoredFamilies();
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
@@ -187,56 +191,6 @@ export default function Sidebar() {
 
 
 
-        {/* TEST MODE BUTTON */}
-        <div style={{ padding: '0 12px 10px' }}>
-          <button
-            disabled={false}
-            onClick={() => {
-              if (isTestMode) {
-                endTestMode();
-              } else {
-                startTestMode();
-              }
-            }}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: isTestMode ? '1px solid #f97316' : '1px solid rgba(255,255,255,0.1)',
-              background: isTestMode ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.04)',
-              color: isTestMode ? '#f97316' : 'rgba(255,255,255,0.5)',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s',
-              letterSpacing: '0.03em',
-            }}
-          >
-            <FlaskConical size={13} />
-            {isTestMode ? (
-              <span style={{ flex: 1, textAlign: 'left' }}>
-                🟠 Test Mode ON
-                <span style={{ display: 'block', fontSize: '9px', opacity: 0.7, fontWeight: 400 }}>New entries shown orange · Click to end</span>
-              </span>
-            ) : (
-              <span style={{ flex: 1, textAlign: 'left' }}>
-                Start Test Mode
-                <span style={{ display: 'block', fontSize: '9px', opacity: 0.5, fontWeight: 400 }}>Highlights new imports & entries</span>
-              </span>
-            )}
-          </button>
-        </div>
-
-        <div className="sidebar-user-row">
-          <div className="sidebar-avatar">W</div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>Test User</div>
-            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>test@demo.com</div>
-          </div>
-        </div>
         <button 
           className="sidebar-nav-item" 
           style={{ marginTop: '4px', opacity: 0.8 }}
@@ -247,6 +201,37 @@ export default function Sidebar() {
         >
           <LogOut /> Change Family
         </button>
+
+        {/* FAMILY CONTEXT SELECTOR */}
+        <div style={{ padding: '8px 12px 4px', marginTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ fontSize: '9px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.05em', marginBottom: '6px', textTransform: 'uppercase' }}>Family Context</div>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={activeFamilyId || ''}
+              onChange={(e) => setActiveFamilyId(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '7px 24px 7px 10px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(255,255,255,0.06)',
+                color: '#fff',
+                fontSize: '11px',
+                fontWeight: 600,
+                outline: 'none',
+                cursor: 'pointer',
+                appearance: 'none',
+              }}
+            >
+              {families.map(f => (
+                <option key={f.id} value={f.id} style={{ background: '#0f172a', color: '#fff' }}>
+                  {f.familyName || f.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={12} color="rgba(255,255,255,0.5)" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+          </div>
+        </div>
       </div>
 
       <style>{`

@@ -26,7 +26,7 @@ const COLS = [
 ];
  
 const fmt = (n: number, decimals = 2) =>
-  'Rs. ' + (n || 0).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  (n || 0).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const fmtQty = (n: number) => (n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 });
 const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
  
@@ -156,45 +156,88 @@ export default function HoldingsGrid({
   const toggleCategory = (cat: string) =>
     setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
  
-  const sortedData = React.useMemo(() => {
-    const list = [...enrichedData];
-    list.sort((a, b) => {
-      if (sortBy === 'name') {
-        return String(a.assetName || '').localeCompare(String(b.assetName || ''));
-      }
-      if (sortBy === 'value') {
-        const valA = a.currentPrice > 0 ? (a.currentValue || 0) : a.amtInvested;
-        const valB = b.currentPrice > 0 ? (b.currentValue || 0) : b.amtInvested;
-        return valB - valA;
-      }
-      if (sortBy === 'todaysGainPct') {
-        return (b.todaysGainPct || 0) - (a.todaysGainPct || 0);
-      }
-      if (sortBy === 'overallGainPct') {
-        return (b.overallGainPct || 0) - (a.overallGainPct || 0);
-      }
-      if (sortBy === 'overallGain') {
-        return (b.overallGain || 0) - (a.overallGain || 0);
-      }
-      if (sortBy === 'todaysGain') {
-        return (b.todaysGain || 0) - (a.todaysGain || 0);
-      }
-      return 0;
-    });
-    return list;
-  }, [enrichedData, sortBy]);
+  const [sortColumn, setSortColumn] = useState<string>('currentValue');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  // Group by assetType if groupByCategory
+  // Sync with external sortBy prop if changed
+  useEffect(() => {
+    if (sortBy === 'name') {
+      setSortColumn('assetName');
+      setSortDir('asc');
+    } else if (sortBy === 'value') {
+      setSortColumn('currentValue');
+      setSortDir('desc');
+    } else if (sortBy === 'todaysGain' || sortBy === 'todaysGainPct') {
+      setSortColumn('todaysGain');
+      setSortDir('desc');
+    } else if (sortBy === 'overallGain' || sortBy === 'overallGainPct') {
+      setSortColumn('overallGain');
+      setSortDir('desc');
+    }
+  }, [sortBy]);
+
+  const handleHeaderClick = (colKey: string) => {
+    if (sortColumn === colKey) {
+      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortColumn(colKey);
+      setSortDir(colKey === 'assetName' ? 'asc' : 'desc');
+    }
+  };
+
+  const sortRows = React.useCallback((list: AssetHolding[]) => {
+    return [...list].sort((a, b) => {
+      if (sortColumn === 'assetName') {
+        const cmp = String(a.assetName || '').localeCompare(String(b.assetName || ''), undefined, { sensitivity: 'base' });
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      let valA = 0;
+      let valB = 0;
+      if (sortColumn === 'quantity') {
+        valA = a.quantity || 0;
+        valB = b.quantity || 0;
+      } else if (sortColumn === 'avgPrice') {
+        valA = a.avgPrice || 0;
+        valB = b.avgPrice || 0;
+      } else if (sortColumn === 'amtInvested') {
+        valA = a.amtInvested || 0;
+        valB = b.amtInvested || 0;
+      } else if (sortColumn === 'currentPrice') {
+        valA = a.currentPrice || 0;
+        valB = b.currentPrice || 0;
+      } else if (sortColumn === 'todaysGain') {
+        valA = a.todaysGain || 0;
+        valB = b.todaysGain || 0;
+      } else if (sortColumn === 'overallGain') {
+        valA = a.overallGain || 0;
+        valB = b.overallGain || 0;
+      } else if (sortColumn === 'currentValue') {
+        valA = a.currentPrice > 0 ? (a.currentValue || 0) : (a.amtInvested || 0);
+        valB = b.currentPrice > 0 ? (b.currentValue || 0) : (b.amtInvested || 0);
+      }
+      return sortDir === 'asc' ? valA - valB : valB - valA;
+    });
+  }, [sortColumn, sortDir]);
+
+  const sortedData = React.useMemo(() => {
+    return sortRows(enrichedData);
+  }, [enrichedData, sortRows]);
+
+  // Group by assetType if groupByCategory, and sort WITHIN each category
   const grouped = React.useMemo(() => {
     if (!groupByCategory) return { ALL: sortedData };
     const map: Record<string, AssetHolding[]> = {};
-    sortedData.forEach(h => {
+    enrichedData.forEach(h => {
       const key = String(h.assetType);
       if (!map[key]) map[key] = [];
       map[key].push(h);
     });
+    // Sort rows within each category
+    Object.keys(map).forEach(key => {
+      map[key] = sortRows(map[key]);
+    });
     return map;
-  }, [sortedData, groupByCategory]);
+  }, [enrichedData, groupByCategory, sortRows, sortedData]);
  
   // Summary totals
   const totals = React.useMemo(() => ({
@@ -317,25 +360,25 @@ export default function HoldingsGrid({
       <React.Fragment key={key}>
         <tr
           onClick={() => toggleCategory(key)}
-          style={{ background: '#f1f5f9', cursor: 'pointer', borderBottom: '2px solid #e2e8f0' }}
+          style={{ position: 'sticky', top: '31px', zIndex: 8, background: '#f1f5f9', cursor: 'pointer', borderBottom: '2px solid #cbd5e1' }}
         >
-          <td style={{ padding: '4px 16px', fontWeight: 700, fontSize: '12px', color: '#475569' }} colSpan={3}>
+          <td style={{ padding: '6px 16px', fontWeight: 700, fontSize: '12px', color: '#334155' }} colSpan={3}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               {label} ({rows.length})
             </div>
           </td>
-          <td style={{ padding: '4px 16px', textAlign: 'right', fontSize: '12px', color: '#64748b' }} colSpan={1}>
+          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', color: '#64748b' }} colSpan={1}>
             {fmt(totalInvested, 0)}
           </td>
-          <td style={{ padding: '4px 16px' }} colSpan={1} />
-          <td style={{ padding: '4px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: gainColor(totalTodaysGain) }} colSpan={1}>
+          <td style={{ padding: '6px 16px' }} colSpan={1} />
+          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: gainColor(totalTodaysGain) }} colSpan={1}>
             {totalTodaysGain !== 0 ? fmt(totalTodaysGain, 0) : '—'}
           </td>
-          <td style={{ padding: '4px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: gainColor(totalGain) }} colSpan={1}>
+          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: gainColor(totalGain) }} colSpan={1}>
             {totalValue > 0 ? fmt(totalGain, 0) : '—'}
           </td>
-          <td style={{ padding: '4px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#1e293b' }} colSpan={1}>
+          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#1e293b' }} colSpan={1}>
             {fmt(totalValue > 0 ? totalValue : totalInvested, 0)}
           </td>
         </tr>
@@ -347,20 +390,40 @@ export default function HoldingsGrid({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Table */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 220px)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-          <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fff', boxShadow: '0 1px 0 #e2e8f0' }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#ffffff' }}>
             <tr>
-              {COLS.map(col => (
-                <th key={col.key} style={{
-                  padding: '6px 16px', textAlign: col.align as any,
-                  fontSize: '11px', fontWeight: 700, color: '#64748b',
-                  textTransform: 'uppercase', letterSpacing: '0.05em',
-                  width: col.width, whiteSpace: 'nowrap'
-                }}>
-                  {col.label}
-                </th>
-              ))}
+              {COLS.map(col => {
+                const isActive = sortColumn === col.key;
+                return (
+                  <th 
+                    key={col.key} 
+                    onClick={() => handleHeaderClick(col.key)}
+                    style={{
+                      position: 'sticky', top: 0, zIndex: 10, background: '#ffffff',
+                      padding: '8px 16px', textAlign: col.align as any,
+                      fontSize: '11px', fontWeight: 700, 
+                      color: isActive ? '#2563eb' : '#475569',
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
+                      width: col.width, whiteSpace: 'nowrap',
+                      borderBottom: isActive ? '2px solid #2563eb' : '2px solid #cbd5e1',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={`Sort by ${col.label} (${isActive && sortDir === 'asc' ? 'Descending' : 'Ascending'})`}
+                    className="pms-sortable-th"
+                  >
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start', width: '100%' }}>
+                      <span>{col.label}</span>
+                      <span style={{ fontSize: '10px', opacity: isActive ? 1 : 0.3, color: isActive ? '#2563eb' : '#94a3b8' }}>
+                        {isActive ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>

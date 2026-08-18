@@ -382,12 +382,12 @@ export default function VoucherGrid({
             <td></td>
             <td style={{ padding: "10px 12px", textAlign: "right" }}>
               <span style={{ fontSize: "13px", fontWeight: 800, color: "#059669" }}>
-                Rs. {totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </td>
             <td style={{ padding: "10px 12px", textAlign: "right" }}>
               <span style={{ fontSize: "13px", fontWeight: 800, color: "#dc2626" }}>
-                Rs. {totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </td>
             <td style={{ padding: "10px 4px", textAlign: "center" }}>
@@ -411,7 +411,7 @@ export default function VoucherGrid({
             <tr>
               <td colSpan={6} style={{ padding: "4px 12px 8px", textAlign: "right" }}>
                 <span style={{ fontSize: "11px", fontWeight: 700, color: "#f59e0b" }}>
-                  Diff: Rs. {Math.abs(difference).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  Diff: {Math.abs(difference).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
               </td>
             </tr>

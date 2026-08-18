@@ -14,16 +14,16 @@ export default function LedgerPage() {
   const { activeFamilyId } = useFamily();
   const { isTestMode, isTestEntry } = useTestMode();
   const [selectedLedgerId, setSelectedLedgerId] = useState(paramId || "Bank")
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("")
   const [showModal, setShowModal] = useState(false)
   const [showLedgerModal, setShowLedgerModal] = useState(false)
   const [editingLedger, setEditingLedger] = useState<any>(null)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
   const [, setRefresh] = useState(0)
 
-  const ledgers = getStoredLedgers();
-  const groups = getStoredGroups();
+  const { selectedFY, reportFilter: globalFilter, customRange: globalRange, globalRefreshTrigger, selectedAccountId } = useFY()
+
   const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
+  const ledgers = getStoredLedgers(selectedAccountId ? Number(selectedAccountId) : undefined);
 
   useEffect(() => {
     if (paramId) {
@@ -38,11 +38,7 @@ export default function LedgerPage() {
     }
   }, [ledgers, selectedLedgerId]);
 
-  useEffect(() => {
-    if (selectedAccountId && !accounts.some(a => a.id === selectedAccountId)) {
-      setSelectedAccountId('');
-    }
-  }, [accounts, selectedAccountId]);
+
 
   const handleEdit = useCallback((id: string) => {
     setEditingVoucherId(id)
@@ -74,7 +70,6 @@ export default function LedgerPage() {
     setRefresh(r => r + 1);
   }, []);
 
-  const { selectedFY, reportFilter: globalFilter, customRange: globalRange, globalRefreshTrigger } = useFY()
 
   const [localReportFilter, setLocalReportFilter] = useState<string>(globalFilter || 'current')
   const [isDetailed, setIsDetailed] = useState(false)
@@ -192,9 +187,13 @@ export default function LedgerPage() {
                     margin: 0
                   }}
                 >
-                  {ledgers.map(l => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
+                  {ledgers.map(l => {
+                    const accName = !selectedAccountId ? accounts.find(a => a.id === String(l.acid))?.accountName : '';
+                    const displayName = accName ? `${l.name} (${accName})` : l.name;
+                    return (
+                      <option key={`${l.id}_${l.acid}`} value={l.id}>{displayName}</option>
+                    );
+                  })}
                 </select>
                 <button
                   onClick={handleEditLedger}
@@ -211,21 +210,6 @@ export default function LedgerPage() {
                 </button>
               </div>
 
-              <div style={{ height: '24px', width: '1px', background: '#eee' }} />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#f8fafc', padding: '4px 12px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Account:</span>
-                <select
-                  value={selectedAccountId}
-                  onChange={e => setSelectedAccountId(e.target.value)}
-                  style={{ background: 'transparent', border: 'none', fontSize: '12px', fontWeight: 700, color: '#0f172a', outline: 'none', cursor: 'pointer' }}
-                >
-                  <option value="">Consolidated (All Members)</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{acc.accountName}</option>
-                  ))}
-                </select>
-              </div>
             </div>
           </div>
         </div>
@@ -313,6 +297,8 @@ export default function LedgerPage() {
             </div>
           )}
         </div>
+
+
 
         {/* Search box */}
         <div style={{ flex: 1, minWidth: '150px' }}>

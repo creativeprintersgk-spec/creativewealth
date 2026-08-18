@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-08-18T07:27:28.373Z",
+  "tables": {
+    "acc_pflink": 25,
+    "acmac1": 2445,
+    "asset_master": 65105,
+    "bs1": 16085,
+    "portfolios": 39,
+    "scnote1": 4061,
+    "sum_table": 2745,
+    "trans1": 19160,
+    "transc1": 22351,
+    "vouchers1": 9407,
+    "vouchersc1": 8166
+  }
+}

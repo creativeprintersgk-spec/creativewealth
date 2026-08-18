@@ -191,6 +191,9 @@ const amfiPlugin = () => ({
 
 export default defineConfig({
   plugins: [react(), localDbPlugin(), casParserPlugin(), cnParserPlugin(), amfiPlugin()],
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'lucide-react', 'react-router-dom', '@supabase/supabase-js']
+  },
   server: {
     port: 5173,
     strictPort: true,

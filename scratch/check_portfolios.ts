@@ -1,27 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const supabase = createClient(
+const s = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.VITE_SUPABASE_ANON_KEY!
 );
 
-async function run() {
-  const { data: portfolios, error } = await supabase
-    .from('portfolios')
-    .select('*');
-
-  if (error) {
-    console.error("Error fetching portfolios:", error);
-    return;
+async function checkPortfolios() {
+  const { data } = await s.from('portfolios').select('id, full_name, investor_name');
+  console.log('Portfolios count:', data?.length);
+  if (data) {
+    for (const p of data) {
+      console.log(`ID: ${p.id}`.padEnd(10), `Name: ${p.full_name || p.investor_name}`);
+    }
   }
-
-  console.log(`=== ALL PORTFOLIOS (${portfolios.length}) ===`);
-  portfolios.forEach(p => {
-    console.log(`id: ${p.id} | client_id: ${p.client_id} | name: "${p.investor_name}" | is_group: ${p.is_group} | type: ${p.pfolio_type} | full_name: "${p.full_name}" | pan: "${p.pan}"`);
-  });
 }
-
-run().catch(console.error);
+checkPortfolios();

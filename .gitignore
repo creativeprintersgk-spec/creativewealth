@@ -27,3 +27,4 @@ dist-ssr
 .env
 supabase.exe
 supabase/.temp
+.env*

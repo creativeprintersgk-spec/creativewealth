@@ -99,8 +99,8 @@ export async function getTrialBalance(endDate: string, accountId?: string) {
 
 
   ledgers.forEach((l: any) => {
-    let dr = l.openingType === "DR" ? l.openingBalance || 0 : 0;
-    let cr = l.openingType === "CR" ? l.openingBalance || 0 : 0;
+    let dr = 0;
+    let cr = 0;
 
     entries.forEach((e: any) => {
       if (String(e.ledgerId) === String(l.id)) {
@@ -238,8 +238,8 @@ export async function getBatchLedgers(
     const groupType = getGroupType(l.groupId);
 
     // 1. Calculate Opening Balance (inception up to startDate - 1 day)
-    let opDr = l.openingType === "DR" ? l.openingBalance || 0 : 0;
-    let opCr = l.openingType === "CR" ? l.openingBalance || 0 : 0;
+    let opDr = 0;
+    let opCr = 0;
 
     entries.forEach((e: any) => {
       if (String(e.ledgerId) === String(l.id)) {

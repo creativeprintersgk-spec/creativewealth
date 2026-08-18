@@ -1,4 +1,4 @@
-import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, getStoredPortfolios } from "../logic";
+import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, getStoredPortfolios } from "../logic.ts";
 
 export async function getBalanceSheet(_startDate: string, endDate: string, accountId?: string) {
 
@@ -33,7 +33,8 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
 
   // Local balance calculator iterating over entries directly to handle vid=0 (opening entries)
   const calcLedgerBal = (ledger: any, groupType: string): number => {
-    let debit = 0, credit = 0;
+    let debit = 0;
+    let credit = 0;
     entries.forEach((e: any) => {
       if (String(e.ledgerId) === String(ledger.id)) {
         const v = voucherMap[e.voucherId]
@@ -100,44 +101,87 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
     missingLedgerIds.forEach(id => {
       const globalLedger = allLedgers.find((l: any) => String(l.id) === String(id));
       if (globalLedger) {
+        // If we are rendering for a specific account, only include cross-account ledgers
+        // that actually belong to this account. Skip those from other accounts entirely.
+        if (accountId && globalLedger.acid && Number(globalLedger.acid) !== Number(accountId)) {
+          // This ledger belongs to a different family member's account — skip it.
+          // It will be correctly shown on their balance sheet instead.
+          return;
+        }
         ledgers.push(globalLedger);
       } else {
-        // Create a virtual ledger for missing/null IDs to preserve double-entry balance
-        ledgers.push({
-          id: id,
-          name: `Unassigned Ledger (${id})`,
-          groupId: 'suspense_virtual',
-          accountId: accountId || 31
-        } as any)
-
+        // Truly unresolvable ledger ID — create a virtual one only for non-filtered views
+        if (!accountId) {
+          ledgers.push({
+            id: id,
+            name: `Unassigned Ledger (${id})`,
+            groupId: 'suspense_virtual',
+            accountId: accountId || 31
+          } as any);
+        }
       }
     });
   }
 
-  // Ensure a Suspense group exists for orphaned ledgers
-  if (!groupMap['suspense_virtual']) {
-    groupMap['suspense_virtual'] = { 
-      id: 'suspense_virtual', 
-      name: 'Suspense / Unassigned', 
-      type: 'LIABILITY', 
-      balance: 0, 
-      children: [], 
-      ledgers: [] 
-    };
-  }
+  // Attach acid-filtered and portfolio-linked ledgers to their groups
+  const allLedgers = getStoredLedgers();
+  const seenLids = new Set<string>();
+  const ledgersToInclude: any[] = [];
 
-  // Attach acid-filtered (plus any missing) ledgers to their groups
+  // 1. First add standard account ledgers (including P&L Capital Gains ledgers)
   ledgers.forEach((l: any) => {
-    let targetGroup = l.groupId;
-    if (!groupMap[targetGroup]) {
-      targetGroup = 'suspense_virtual'; // Never drop ledgers!
+    seenLids.add(String(l.id));
+    ledgersToInclude.push(l);
+  });
+
+  // 2. Add all asset ledgers that have entries belonging to this account / linked portfolios
+  entries.forEach((e: any) => {
+    const v = voucherMap[e.voucherId];
+    const entryDate = e.date || v?.date;
+    const entryAcid = e.accountId || v?.accountId;
+    const entryPfid = v?.portfolioId;
+
+    const isOpeningBalance = !entryDate || entryDate === '' || entryDate === 'undefined';
+    const dateOk = isOpeningBalance || entryDate <= endDate;
+
+    if (dateOk) {
+      const belongsToAccount = !accountId ||
+        (entryAcid === accountId) ||
+        (entryPfid && portfolioIds?.includes(entryPfid));
+
+      if (belongsToAccount && !seenLids.has(String(e.ledgerId))) {
+        seenLids.add(String(e.ledgerId));
+        const l = allLedgers.find((x: any) => String(x.id) === String(e.ledgerId));
+        if (l) {
+          ledgersToInclude.push(l);
+        }
+      }
     }
-    const type = getGroupType(targetGroup)
-    const bal = calcLedgerBal(l, type)
-    // Expenses are DR-heavy → displayBalance is a positive magnitude for clean rendering
-    const displayBalance = type === 'EXPENSE' ? Math.abs(bal) : bal
-    groupMap[targetGroup].ledgers.push({ ...l, balance: bal, displayBalance, groupType: type })
-  })
+  });
+
+  // Attach ledgers to groupMap
+  ledgersToInclude.forEach((l: any) => {
+    let targetGroup = String(l.groupId);
+    if (!groupMap[targetGroup]) {
+      const gGlobal = groups.find((g: any) => String(g.id) === targetGroup);
+      if (gGlobal) targetGroup = String(gGlobal.id);
+      else if (Number(l.id) >= 100000) targetGroup = '50'; // Default unmapped securities to Investments
+      else if (!accountId) targetGroup = 'suspense_virtual';
+      else return;
+    }
+
+    const type = getGroupType(targetGroup);
+    const bal = calcLedgerBal(l, type);
+    const displayBalance = type === 'EXPENSE' ? Math.abs(bal) : bal;
+
+    // Keep P&L Capital Gain ledgers and standard account ledgers visible for drilldown even if zero balance
+    const isPnlOrSpecial = ['460', '465', '470', '475', '485', '490', '480', '180'].includes(String(l.id)) || Number(l.id) < 100000;
+    if (Math.abs(bal) < 0.01 && !isPnlOrSpecial) return;
+
+    if (groupMap[targetGroup]) {
+      groupMap[targetGroup].ledgers.push({ ...l, balance: bal, displayBalance, groupType: type });
+    }
+  });
 
   // Build tree (parent-child hierarchy)
   const tree: any[] = []

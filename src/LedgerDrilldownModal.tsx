@@ -189,25 +189,25 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
           <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
             <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Opening</div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#374151', marginTop: '4px' }}>
-              Rs. {formatCurrency(summary.opening)} <span style={{ fontSize: '12px', fontWeight: 500 }}>{getDrCr(summary.opening)}</span>
+              {formatCurrency(summary.opening)} <span style={{ fontSize: '12px', fontWeight: 500 }}>{getDrCr(summary.opening)}</span>
             </div>
           </div>
           <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
             <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Debit (+)</div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#059669', marginTop: '4px' }}>
-              Rs. {formatCurrency(summary.debit)}
+              {formatCurrency(summary.debit)}
             </div>
           </div>
           <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
             <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Credit (-)</div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#dc2626', marginTop: '4px' }}>
-              Rs. {formatCurrency(summary.credit)}
+              {formatCurrency(summary.credit)}
             </div>
           </div>
           <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', borderBottom: '3px solid hsl(213, 94%, 55%)' }}>
             <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Closing</div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: 'hsl(213, 94%, 55%)', marginTop: '4px' }}>
-              Rs. {formatCurrency(summary.closing)} <span style={{ fontSize: '12px', fontWeight: 500 }}>{getDrCr(summary.closing)}</span>
+              {formatCurrency(summary.closing)} <span style={{ fontSize: '12px', fontWeight: 500 }}>{getDrCr(summary.closing)}</span>
             </div>
           </div>
         </div>

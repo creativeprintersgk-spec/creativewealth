@@ -128,8 +128,8 @@ export default function ReportPrinting() {
           const type = getGroupType(l.groupId);
           if (type !== 'INCOME' && type !== 'EXPENSE') return;
 
-          let dr = l.openingType === 'DR' ? (l.openingBalance || 0) : 0;
-          let cr = l.openingType === 'CR' ? (l.openingBalance || 0) : 0;
+          let dr = 0;
+          let cr = 0;
 
           entries.forEach((e: any) => {
             if (String(e.ledgerId) === String(l.id)) {

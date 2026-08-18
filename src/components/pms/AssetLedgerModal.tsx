@@ -82,7 +82,7 @@ export default function AssetLedgerModal({
         setTempEnd('2025-03-31');
         break;
       case 'Till Current Financial Year (all)':
-        setTempStart('2014-04-01');
+        setTempStart('1990-04-01');
         setTempEnd('2027-03-31');
         break;
     }
@@ -315,7 +315,7 @@ export default function AssetLedgerModal({
                 <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{fmtQty(openingQty)}</td>
                 <td style={{ padding: '12px 16px', width: '15%' }}></td>
                 <td style={{ padding: '12px 16px', width: '14%' }}></td>
-                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right' }}>{openingCost > 0 ? `Rs. ${fmtAmt(openingCost)}` : ''}</td>
+                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right' }}>{openingCost > 0 ? `${fmtAmt(openingCost)}` : ''}</td>
                 <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800 }}>{fmtQty(openingQty)}</td>
               </tr>
 
@@ -374,10 +374,10 @@ export default function AssetLedgerModal({
                       </td>
                       <td style={{ padding: '12px 16px', width: '12%', fontWeight: 600, color: '#0f172a' }}>{formatDate(tx.date)}</td>
                       <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right', fontWeight: 600 }}>{fmtQty(tx.quantity)}</td>
-                      <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{tx.price > 0 ? `Rs. ${tx.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : ''}</td>
-                      <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', color: '#94a3b8' }}>{tx.brokerage > 0 ? `Rs. ${tx.brokerage.toLocaleString()}` : ''}</td>
+                      <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{tx.price > 0 ? `${tx.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : ''}</td>
+                      <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', color: '#94a3b8' }}>{tx.brokerage > 0 ? `${tx.brokerage.toLocaleString()}` : ''}</td>
                       <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 600, color: isCorporate ? '#6b7280' : isBuyColor ? '#0f172a' : '#16a34a' }}>
-                        {tx.amount > 0 ? `Rs. ${fmtAmt(tx.amount)}` : (isCorporate ? <span style={{color:'#94a3b8',fontSize:'11px'}}>Cost basis transfer</span> : '')}
+                        {tx.amount > 0 ? `${fmtAmt(tx.amount)}` : (isCorporate ? <span style={{color:'#94a3b8',fontSize:'11px'}}>Cost basis transfer</span> : '')}
                       </td>
                       <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800, background: '#f8fafc' }}>
                         {fmtQty(tx.balanceQty)}
@@ -394,7 +394,7 @@ export default function AssetLedgerModal({
                 <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{fmtQty(closingQty)}</td>
                 <td style={{ padding: '12px 16px', width: '15%' }}></td>
                 <td style={{ padding: '12px 16px', width: '14%' }}></td>
-                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right' }}>{closingCost > 0 ? `Rs. ${fmtAmt(closingCost)}` : ''}</td>
+                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right' }}>{closingCost > 0 ? `${fmtAmt(closingCost)}` : ''}</td>
                 <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800 }}>{fmtQty(closingQty)}</td>
               </tr>
             </tbody>

@@ -8,7 +8,7 @@
  * - Price caching to avoid repeated API calls
  */
 
-import { supabase } from '../supabase';
+import { supabase } from '../supabase.ts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -129,7 +129,8 @@ function getMfapiUrl(amfiCode: number): string {
 
 async function fetchMFNav(amfiCode: number): Promise<{ price: number; change: number; change_pct: number; date: string } | null> {
   try {
-    const res = await fetch(getMfapiUrl(amfiCode));
+    const headers = typeof window === 'undefined' ? { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } : undefined;
+    const res = await fetch(getMfapiUrl(amfiCode), { headers });
     if (!res.ok) return null;
     const data = await res.json();
     const today = data?.data?.[0];
@@ -238,10 +239,22 @@ const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
   105051: 'ADANIPOWER.NS',    // Adani Power
   104499: 'BIOCON.NS',        // Biocon Limited
   100345: 'LT.NS',            // Larsen & Toubro
+  500246: 'LTF.NS',           // L&T Finance
+  500030: 'LTF.NS',           // L&T Finance
+  503185: 'LTF.NS',           // L&T Finance
+  500307: 'LTF.NS',           // L&T Finance
+  255000: 'LTF.NS',           // L&T Finance
+  121942: 'LTF.NS',           // L&T Finance
 };
 
 const AMFI_OVERRIDES: Record<number, number> = {
   245407: 148457, // Nippon India Multi Asset Allocation Fund - Direct Plan - Growth Option
+  231551: 148457, // Nippon India Multi Asset Fund - Direct Plan - Growth Option
+  503159: 148457, // Nippon India Multi Asset Fund - Direct Plan - Growth Option
+  503145: 148457, // Nippon India Multi Asset Fund - Direct Plan - Growth Option
+  503062: 148457, // Nippon India Multi Asset Fund - Direct Plan - Growth Option
+  503133: 148457, // Nippon India Multi Asset Fund - Direct Plan - Growth Option
+  503041: 148457, // Nippon India Multi Asset Fund - Direct Plan - Growth Option
   245412: 148459, // Nippon India Multi Asset Allocation Fund - Regular Plan - Growth Option
   234448: 152645, // Mirae Asset Nifty MidSmallcap400 Momentum Quality 100 ETF Fund of Fund - Direct Plan - Growth
 };
@@ -488,8 +501,11 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   }
 
   // Mutual Fund — use mfapi.in
-  const amfiCode = asset.amfi_code || AMFI_OVERRIDES[asset.amid];
-  if ((asset.asset_type === 60 || asset.asset_type === 61 || asset.asset_type === 62) && amfiCode) {
+  let amfiCode = asset.amfi_code || AMFI_OVERRIDES[asset.amid];
+  if (!amfiCode && cleanName.includes('NIPPON') && cleanName.includes('MULTI ASSET') && cleanName.includes('DIRECT') && cleanName.includes('GROWTH')) {
+    amfiCode = 148457;
+  }
+  if ((asset.asset_type === 60 || asset.asset_type === 61 || asset.asset_type === 62 || amfiCode) && amfiCode) {
     const nav = await fetchMFNav(amfiCode);
     if (nav) {
       result = {
@@ -509,7 +525,16 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
     let quote = null;
 
     // Check for hardcoded ticker overrides first (to handle bad/abbreviated NSE symbols in database)
-    const overrideSymbol = STOCK_SYMBOL_OVERRIDES[asset.amid];
+    let overrideSymbol = STOCK_SYMBOL_OVERRIDES[asset.amid];
+    if (!overrideSymbol && (cleanName === 'L&T FINANCE' || cleanName.startsWith('L&T FINANCE '))) {
+      overrideSymbol = 'LTF.NS';
+    }
+    if (!overrideSymbol && cleanName.includes('MAYUR') && cleanName.includes('FLOOR')) {
+      overrideSymbol = 'MAYURFL.BO';
+    }
+    if (!overrideSymbol && cleanName.includes('ORGANIC') && cleanName.includes('COAT')) {
+      overrideSymbol = '531157.BO';
+    }
     if (overrideSymbol) {
       quote = await fetchStockPrice(overrideSymbol);
     }

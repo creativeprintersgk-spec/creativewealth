@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Plus, RefreshCw, FileDown, FileUp, Calendar, FileText } from 'lucide-react';
+import { ChevronDown, Plus, RefreshCw, FileDown, FileUp, Calendar, FileText, ShieldCheck } from 'lucide-react';
 import { useFY } from './FYContext';
 import { handleYearClose, getStoredVouchers, getStoredEntries, getStoredLedgers, getStoredAccounts } from './logic';
 // import { save as dbSave } from './db/helpers';
 import VoucherModal from './VoucherModal';
+import PriceAuditModal from './components/pms/PriceAuditModal';
 import YearEndCloseModal from './components/YearEndCloseModal';
 
 export default function TopNavbar() {
   const navigate = useNavigate();
-  const { selectedFY, setSelectedFY, reportFilter, setReportFilter, customRange, setCustomRange, selectedAccountId, triggerGlobalRefresh } = useFY();
+  const { selectedFY, setSelectedFY, reportFilter, setReportFilter, customRange, setCustomRange, selectedAccountId, setSelectedAccountId, triggerGlobalRefresh } = useFY();
   
   const [showActions, setShowActions] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [isYearEndModalOpen, setIsYearEndModalOpen] = useState(false);
+  const [isPriceAuditOpen, setIsPriceAuditOpen] = useState(false);
 
   const years = [
     "2020-2021", "2021-2022", "2022-2023", "2023-2024", "2024-2025", 
@@ -88,8 +90,42 @@ export default function TopNavbar() {
         )}
       </div>
 
+      {/* Member Filter (Global) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '4px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginLeft: '12px' }}>
+        <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Member:</span>
+        <select
+          value={selectedAccountId}
+          onChange={(e) => setSelectedAccountId(e.target.value)}
+          style={{ padding: '6px 8px', border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', fontWeight: 700, color: '#1d4ed8', cursor: 'pointer' }}
+        >
+          <option value="">All Members</option>
+          {getStoredAccounts().map(acc => (
+            <option key={acc.id} value={acc.id}>{acc.accountName}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Right: Actions Menu */}
-      <div style={{ display: 'flex', alignItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <button
+          onClick={() => setIsPriceAuditOpen(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 14px',
+            borderRadius: '8px',
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            color: '#1d4ed8',
+            fontSize: '13px',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          <ShieldCheck size={16} color="#2563eb" /> Price Audit
+        </button>
+
         <div style={{ position: 'relative' }}>
           <button 
             className="btn-primary" 
@@ -102,6 +138,8 @@ export default function TopNavbar() {
           {showActions && (
             <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', width: '240px', zIndex: 50 }}>
               <div style={{ padding: '8px 0' }}>
+                <button onClick={() => { setIsPriceAuditOpen(true); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><ShieldCheck size={14} /> Price Audit & Health Engine</button>
+                <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
                 <button onClick={() => { setIsVoucherModalOpen(true); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Plus size={14} /> New Voucher</button>
                 <button onClick={() => {
                   const currentMemberName = getStoredAccounts().find(a => a.id === selectedAccountId)?.name || 'the selected member';
@@ -111,7 +149,7 @@ export default function TopNavbar() {
                   setShowActions(false);
                 }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px', color: '#7c3aed' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Calendar size={14} /> Create Year End Voucher</button>
                 <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
-                <button onClick={async () => { await triggerGlobalRefresh(); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><RefreshCw size={14} /> Recalculate</button>
+                <button onClick={async () => { await triggerGlobalRefresh(true); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><RefreshCw size={14} /> Recalculate & Clear Cache</button>
                 <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
                 <button onClick={() => { handleImport(); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><FileUp size={14} /> Import Data</button>
                 <button onClick={() => { handleExport(); setShowActions(false); }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><FileDown size={14} /> Export Data</button>
@@ -120,6 +158,15 @@ export default function TopNavbar() {
           )}
         </div>
       </div>
+
+      {isPriceAuditOpen && (
+        <PriceAuditModal 
+          onClose={() => setIsPriceAuditOpen(false)}
+          onRefresh={async () => {
+            await triggerGlobalRefresh();
+          }}
+        />
+      )}
 
       {isVoucherModalOpen && (
         <VoucherModal 

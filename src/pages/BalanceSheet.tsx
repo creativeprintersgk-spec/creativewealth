@@ -6,7 +6,7 @@ import { v4 as uuid } from "uuid"
 import LedgerDrilldownModal from "../LedgerDrilldownModal"
 import VoucherModal from "../VoucherModal"
 import { useFamily } from "../contexts/FamilyContext"
-import { Users } from 'lucide-react'
+import { Users, ChevronRight, ChevronDown, Folder, FileText } from 'lucide-react'
 
 export default function BalanceSheet() {
   const { selectedFY, reportFilter, customRange, selectedAccountId, setSelectedAccountId, globalRefreshTrigger } = useFY()
@@ -117,32 +117,39 @@ export default function BalanceSheet() {
     const sortedChildren = [...group.children].sort((a: any, b: any) => a.name.localeCompare(b.name));
 
     return (
-      <div key={group.id} style={{ marginBottom: level === 0 ? 6 : 2 }}>
+      <div key={group.id} style={{ marginBottom: level === 0 ? 8 : 4 }}>
         <div
           style={{
             fontWeight: level === 0 ? 700 : 600,
-            fontSize: level === 0 ? 14 : 12,
+            fontSize: level === 0 ? 14 : 13,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            color: level === 0 ? '#111827' : '#374151',
+            color: level === 0 ? '#1e293b' : '#475569',
             cursor: hasChildren ? 'pointer' : 'default',
-            padding: '2px 8px',
-            borderRadius: 4,
-            background: level === 0 ? '#f9fafb' : 'transparent',
+            padding: level === 0 ? '6px 12px' : '4px 8px',
+            borderRadius: 6,
+            background: level === 0 ? 'rgba(241, 245, 249, 0.7)' : 'transparent',
+            border: level === 0 ? '1px solid rgba(226, 232, 240, 0.5)' : 'none',
             gap: 8,
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
           onClick={() => hasChildren && toggle(group.id)}
+          onMouseEnter={e => { if (hasChildren && level > 0) e.currentTarget.style.background = 'rgba(241, 245, 249, 0.5)' }}
+          onMouseLeave={e => { if (hasChildren && level > 0) e.currentTarget.style.background = 'transparent' }}
         >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
             {hasChildren
-              ? <span style={{ fontSize: 8, color: '#6b7280', display: 'inline-block', width: 12, flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
-              : <span style={{ display: 'inline-block', width: 12, flexShrink: 0 }} />}
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }} title={cleanLedgerName(group.name)}>
+              ? <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </span>
+              : <span style={{ display: 'inline-block', width: 16, flexShrink: 0 }} />}
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px' }} title={cleanLedgerName(group.name)}>
+              {level === 0 && <Folder size={15} color="#6366f1" />}
               {cleanLedgerName(group.name)}
             </span>
           </span>
-          <span style={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0, marginLeft: 8 }}>
+          <span style={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0, marginLeft: 8, fontWeight: level === 0 ? 800 : 600, color: level === 0 ? '#0f172a' : '#334155' }}>
             {group.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
@@ -150,9 +157,10 @@ export default function BalanceSheet() {
         {isOpen && (
           <div style={{ 
             position: 'relative', 
-            marginLeft: 14, 
-            borderLeft: '1px solid #d1d5db', 
-            paddingLeft: 6 
+            marginLeft: 16, 
+            borderLeft: '1px solid #e2e8f0', 
+            paddingLeft: 8,
+            marginTop: 4
           }}>
             {sortedLedgers.map((l: any) => {
               if (!showZeroValues && Math.abs(l.displayBalance ?? l.balance) < 0.1) return null;
@@ -163,20 +171,22 @@ export default function BalanceSheet() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    fontSize: 12,
-                    color: l.readOnly ? '#7c3aed' : '#2563eb',
+                    fontSize: 13,
+                    color: l.readOnly ? '#8b5cf6' : '#3b82f6',
                     fontStyle: l.readOnly ? 'italic' : 'normal',
                     cursor: l.readOnly ? 'default' : 'pointer',
-                    padding: '1px 8px',
-                    borderRadius: 4,
-                    background: l.readOnly ? 'rgba(124,58,237,0.05)' : 'transparent',
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    background: l.readOnly ? 'rgba(139, 92, 246, 0.05)' : 'transparent',
                     gap: 8,
+                    transition: 'all 0.2s',
                   }}
                   onClick={() => !l.readOnly && openLedger(l.id)}
-                  onMouseEnter={e => { if (!l.readOnly) e.currentTarget.style.background = '#eff6ff' }}
+                  onMouseEnter={e => { if (!l.readOnly) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.05)' }}
                   onMouseLeave={e => { if (!l.readOnly) e.currentTarget.style.background = 'transparent' }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    <FileText size={13} color={l.readOnly ? '#8b5cf6' : '#94a3b8'} style={{ flexShrink: 0 }} />
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }} title={cleanLedgerName(l.name)}>
                       {cleanLedgerName(l.name)}
                     </span>
@@ -246,8 +256,8 @@ export default function BalanceSheet() {
     })
 
     const getLedgerBalance = (ledger: any) => {
-      let dr = ledger.openingType === 'DR' ? (ledger.openingBalance || 0) : 0
-      let cr = ledger.openingType === 'CR' ? (ledger.openingBalance || 0) : 0
+      let dr = 0;
+      let cr = 0;
       ;(entriesByLedger[ledger.id] || []).forEach((e: any) => {
         dr += e.debit || 0
         cr += e.credit || 0

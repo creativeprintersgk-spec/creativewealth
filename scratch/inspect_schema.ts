@@ -7,26 +7,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const supabase = createClient(
+const s = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.VITE_SUPABASE_ANON_KEY!
 );
 
-async function run() {
-  const { data: info, error } = await supabase.from('bs1').select('*').limit(1);
-  if (error) {
-    console.error('Error fetching bs1:', error.message);
-    return;
-  }
-  if (info && info.length > 0) {
-    console.log('Sample row from bs1:', info[0]);
-    console.log('Types of keys:');
-    for (const key of Object.keys(info[0])) {
-      console.log(`  ${key}: ${typeof info[0][key]} (value: ${info[0][key]})`);
+const tables = [
+  'portfolios', 'investor_group_members', 'acc_pflink', 'acmac1', 'sam',
+  'bs1', 'sum_table', 'vouchersc1', 'vouchers1', 'transc1', 'trans1', 'mprices', 'scnote1'
+];
+
+async function inspectSchema() {
+  for (const t of tables) {
+    const { data, error } = await s.from(t).select('*').limit(1);
+    if (data && data.length > 0) {
+      console.log('TABLE:', t);
+      console.log('  Cols:', Object.keys(data[0]).sort().join(', '));
+    } else {
+      console.log('TABLE:', t, 'Empty or error:', error?.message);
     }
-  } else {
-    console.log('No rows found in bs1.');
   }
 }
-
-run().catch(console.error);
+inspectSchema();

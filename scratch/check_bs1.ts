@@ -1,6 +1,1 @@
-import { supabase } from '../src/supabaseClient';
-async function main() { 
-  const { data, error } = await supabase.from('bs1').select('*').limit(1); 
-  console.log(Object.keys(data[0] || {})); 
-} 
-main();
+import { createClient } from '@supabase/supabase-js'; import dotenv from 'dotenv'; dotenv.config({ path: '.env' }); const s = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY); async function run() { const { data } = await s.from('bs1').select('acid, amid, trid').limit(5); console.log(data); } run();  
