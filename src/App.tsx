@@ -20,6 +20,7 @@ import { FamilyProvider, useFamily } from "./contexts/FamilyContext"
 import { TestModeProvider } from "./contexts/TestModeContext"
 import TopNavbar from "./TopNavbar"
 import AppShell from "./AppShell"
+import AuthGate from "./AuthGate"
 
 function AppContent() {
   const [ready, setReady] = React.useState(false);
@@ -114,10 +115,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <FYProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
-    </FYProvider>
+    <AuthGate>
+      <FYProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </FYProvider>
+    </AuthGate>
   );
-}
+}

@@ -1,10 +1,11 @@
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown } from 'lucide-react';
 import { getIndices } from './services/priceService';
 import { getStoredFamilies } from './logic';
-import React, { useState, useEffect } from 'react';
 import { useTestMode } from './contexts/TestModeContext';
 import { useFamily } from './contexts/FamilyContext';
+import { useAuth } from './AuthGate';
 
 function getRefreshInterval(): number {
   const now = new Date()
@@ -52,6 +53,8 @@ export default function Sidebar() {
   }, []);
 
 
+
+  const { signOut } = useAuth();
 
   return (
     <aside className="sidebar print-hide">
@@ -191,16 +194,32 @@ export default function Sidebar() {
 
 
 
-        <button 
-          className="sidebar-nav-item" 
-          style={{ marginTop: '4px', opacity: 0.8 }}
-          onClick={() => {
-            localStorage.removeItem('activeFamilyId');
-            window.location.reload();
-          }}
-        >
-          <LogOut /> Change Family
-        </button>
+        <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+          <button 
+            className="sidebar-action-btn"
+            style={{ flex: 1, padding: '0 4px', fontSize: '10px' }}
+            title="Change active family context"
+            onClick={() => {
+              localStorage.removeItem('activeFamilyId');
+              window.location.reload();
+            }}
+          >
+            <LogOut size={12} /> Family
+          </button>
+          <button 
+            className="sidebar-action-btn"
+            style={{ flex: 1, padding: '0 4px', fontSize: '10px', color: '#fca5a5' }}
+            title="Sign out of WealthCore session"
+            onClick={async () => {
+              if (window.confirm('Are you sure you want to sign out?')) {
+                await signOut();
+                window.location.reload();
+              }
+            }}
+          >
+            <LogOut size={12} color="#f87171" /> Sign Out
+          </button>
+        </div>
 
         {/* FAMILY CONTEXT SELECTOR */}
         <div style={{ padding: '8px 12px 4px', marginTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
