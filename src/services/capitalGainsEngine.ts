@@ -14,6 +14,7 @@ export interface CapGainMatch {
   gain: number;
   gainType: 'Intraday' | 'STCG' | 'LTCG';
   isin?: string;
+  folio?: string;
   fmvPrice?: number;
   fmvValue?: number;
   caPrice?: number;
@@ -22,6 +23,7 @@ export interface CapGainMatch {
 export interface CapGainScripSummary {
   assetId: string;
   assetName: string;
+  folio?: string;
   qtySold: number;
   saleAmt: number;
   acquisitionCost: number;

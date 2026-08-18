@@ -390,7 +390,7 @@ export function getAssetName(amid: number): string {
   if (a && a.name) return a.name;
   const ac = state.acmac1.find((x: any) => !x.is_group && Number(x.exint1) === amid && Number(x.id) >= 100000);
   if (ac && ac.name) return ac.name;
-  const mp = state.mappings?.find((x: any) => Number(x.amid) === amid);
+  const mp = (state as any).mappings?.find((x: any) => Number(x.amid) === amid);
   if (mp && mp.descr) return mp.descr.split('/')[0] || mp.descr;
   return `Asset ${amid}`;
 }

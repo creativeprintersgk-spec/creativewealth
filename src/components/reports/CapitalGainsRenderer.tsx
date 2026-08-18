@@ -826,7 +826,7 @@ export default function CapitalGainsRenderer({
       });
 
       // Stamp final dynamic page numbers (e.g. "1 of 4", "2 of 4") on all pages
-      const totalDocPages = doc.internal.getNumberOfPages();
+      const totalDocPages = (doc.internal as any).getNumberOfPages?.() || (doc as any).getNumberOfPages?.() || 1;
       for (let p = 1; p <= totalDocPages; p++) {
         doc.setPage(p);
         doc.setFont('helvetica', 'normal');

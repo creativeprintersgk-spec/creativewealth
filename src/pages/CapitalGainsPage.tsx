@@ -708,8 +708,8 @@ function PortfolioTaxModal({
               isOpen={true}
               onClose={() => {}}
               reportConfig={{
-                type: 'capital_gains',
-                title: `${displayName} Capital Gains Report`,
+                category: 'Capital Gains',
+                reportName: 'Capital Gains - Income Tax Return Format',
                 options: {
                   portfolios: [String(portfolio.id)],
                   assetTypes: ['All Assets'],
