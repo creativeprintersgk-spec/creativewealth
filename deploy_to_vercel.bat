@@ -30,7 +30,7 @@ echo.
 echo [3/3] If Git push succeeded, Vercel will deploy automatically!
 echo If you prefer direct CLI deployment, running Vercel CLI now:
 echo.
-call npx vercel --prod
+call npx vercel --prod --yes -Q "%APPDATA%\xdg.data\com.vercel.cli"
 
 echo.
 echo ======================================================================
