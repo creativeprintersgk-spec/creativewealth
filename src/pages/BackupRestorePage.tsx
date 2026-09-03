@@ -14,6 +14,16 @@ const TABLES = [
   { name: 'transc1', pk: 'transid', label: 'Cash Transactions (C1)' },
   { name: 'trans1', pk: 'transid', label: 'Account Transactions' },
   { name: 'mprices', pk: 'row_id', label: 'Market Prices' },
+  // Previously missing from backup/restore entirely. scnote1 is the
+  // consequential one: contract-note charges (brokerage/STT/etc.) feed
+  // directly into the Capital Gains engine's net-sell-amount calculation
+  // (see scMap/cnTrades in getCapitalGains, logic.ts). Without it, a restore
+  // would bring bs1/transc1 back correctly but silently leave Capital Gains
+  // figures on affected trades slightly wrong until re-imported separately --
+  // not a true rollback.
+  { name: 'scnote1', pk: 'cnid', label: 'Contract Notes (SCNOTE1)' },
+  { name: 'sum_table', pk: 'sid', label: 'Holdings Summary (SumTable)' },
+  { name: 'investor_group_members', pk: 'pfolio_id', label: 'Investor Group Members' },
 ];
 
 const PAGE_SIZE = 1000;

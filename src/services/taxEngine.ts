@@ -107,8 +107,43 @@ export function classifyAssetCategory(
     return 'UNLISTED_SHARE';
   }
 
+  // 7.5. Safety net: NO structured equity-allocation/SEBI-category field exists
+  // anywhere in asset_master today (only the coarse atyid code), so classification
+  // for mutual funds ultimately depends on scheme-name pattern matching above.
+  // If a fund is already tagged atyid 61/62 (debt/hybrid, per the import source --
+  // see ATYID_TO_CG_CLASS in capitalGainsEngine.ts) but its name didn't match any
+  // pattern in step 4, it must NOT be allowed to fall through to the step-8
+  // default below. That default (LISTED_EQUITY_SHARE) is meant for individually
+  // held shares, not fund units, and previously any unmatched debt/hybrid fund
+  // silently got equity's lower rate + Sec 112A exemption instead of the
+  // mandatory Sec 50AA slab-rate treatment -- a materially wrong tax outcome
+  // driven purely by an AMC's naming convention not matching our regex list.
+  // TODO: the durable fix is a `sebi_category` / `equity_allocation_pct` column
+  // on asset_master, populated from AMFI scheme master data, used as the PRIMARY
+  // signal ahead of any name matching. Until that exists, defaulting an
+  // unmatched debt/hybrid-coded fund to DEBT_MF_SPECIFIED errs toward the
+  // higher-tax outcome rather than silently under-taxing it.
+  if (atyid === 61 || atyid === 62) {
+    return 'DEBT_MF_SPECIFIED';
+  }
+
   // 8. Default: Listed Equity Shares
   return 'LISTED_EQUITY_SHARE';
+}
+
+// ─── Budget 2024 rate-change cutoff (23-Jul-2024) ────────────────────────────
+// STCG on equity/equity-oriented-MF (Sec 111A) went 15% -> 20%, LTCG (Sec 112A)
+// went 10% -> 12.5%, and the Sec 112A pooled exemption went ₹1L -> ₹1.25L, all
+// effective for TRANSFERS (i.e. the sale date) on/after 23-Jul-2024. A flat
+// 20%/12.5% applied to every sale regardless of date would overstate tax on
+// any equity sale in Apr-Jul 2024 (and understate the exemption available to it).
+const BUDGET_2024_CUTOFF = '2024-07-23';
+
+export function getEquityRates(saleDate: string): { stcgRate: number; ltcgRate: number; exemptionLimit: number } {
+  if (saleDate && saleDate < BUDGET_2024_CUTOFF) {
+    return { stcgRate: 15, ltcgRate: 10, exemptionLimit: 100000 };
+  }
+  return { stcgRate: 20, ltcgRate: 12.5, exemptionLimit: 125000 };
 }
 
 // ─── Sub-logic 3a: Listed Instruments (365-day threshold) ────────────────────
@@ -299,11 +334,30 @@ export function real_estate_logic(
     };
   }
 
-  // Acquired BEFORE 23-July-2024: Taxpayer's Statutory Choice (Pick Lower of Option A or Option B)
+  // Acquired BEFORE 23-July-2024.
   const ciiBuy = getCII(purchaseDate);
   const ciiSale = getCII(saleDate);
   const indexedCost = cost * (ciiSale / ciiBuy);
   const indexedGain = proceeds - indexedCost;
+
+  // If ALSO sold before 23-July-2024, the Budget 2024 12.5%-no-indexation
+  // option did not exist in law on the date of this transfer — old law applies
+  // plainly (20% with indexation), not as a "choose the lower" comparison.
+  if (saleDate < '2024-07-23') {
+    return {
+      gainType: 'LTCG',
+      taxRate: 20,
+      holdingDays,
+      costBasis: indexedCost,
+      saleProceeds: proceeds,
+      gainLoss: indexedGain,
+      indexationUsed: true,
+      estimatedTax: indexedGain > 0 ? indexedGain * 0.20 : 0,
+      notes: 'Real Estate: Sold before 23-Jul-2024 (pre-Budget 2024) — 20% with indexation; the 12.5% no-indexation option was not yet available for this transfer date'
+    };
+  }
+
+  // Acquired before 23-Jul-2024, SOLD on/after 23-Jul-2024: Taxpayer's Statutory Choice (Pick Lower of Option A or Option B)
   const taxA = indexedGain > 0 ? indexedGain * 0.20 : 0;
 
   const unindexedGain = proceeds - cost;
@@ -348,11 +402,19 @@ export function computeAssetTax(
     case 'DEBT_MF_SPECIFIED':
       return debt_specified_mf_logic(cost, proceeds, purchaseDate, saleDate);
 
-    case 'EQUITY_ORIENTED_MF':
-      return listed_365_logic(cost, proceeds, purchaseDate, saleDate, 20, 12.5, true);
+    case 'EQUITY_ORIENTED_MF': {
+      const { stcgRate, ltcgRate, exemptionLimit } = getEquityRates(saleDate);
+      const res = listed_365_logic(cost, proceeds, purchaseDate, saleDate, stcgRate, ltcgRate, true);
+      if (res.gainType === 'LTCG') res.notes = `Eligible for Sec 112A pooled FY exemption (limit for this transfer date: ₹${exemptionLimit.toLocaleString('en-IN')})`;
+      return res;
+    }
 
-    case 'LISTED_EQUITY_SHARE':
-      return listed_365_logic(cost, proceeds, purchaseDate, saleDate, 20, 12.5, true);
+    case 'LISTED_EQUITY_SHARE': {
+      const { stcgRate, ltcgRate, exemptionLimit } = getEquityRates(saleDate);
+      const res = listed_365_logic(cost, proceeds, purchaseDate, saleDate, stcgRate, ltcgRate, true);
+      if (res.gainType === 'LTCG') res.notes = `Eligible for Sec 112A pooled FY exemption (limit for this transfer date: ₹${exemptionLimit.toLocaleString('en-IN')})`;
+      return res;
+    }
 
     case 'LISTED_BOND_NCD':
       return listed_365_logic(cost, proceeds, purchaseDate, saleDate, 'slab', 12.5, false);
@@ -369,7 +431,75 @@ export function computeAssetTax(
     case 'GOLD_SILVER_FOF_OR_HYBRID_LT65_OR_INTL_MF':
       return unlisted_730_logic(cost, proceeds, purchaseDate, saleDate);
 
-    default:
-      return listed_365_logic(cost, proceeds, purchaseDate, saleDate, 20, 12.5, false);
+    default: {
+      const { stcgRate, ltcgRate } = getEquityRates(saleDate);
+      return listed_365_logic(cost, proceeds, purchaseDate, saleDate, stcgRate, ltcgRate, false);
+    }
   }
+}
+
+// ─── Section 112A pooled ₹1.25L (₹1L pre-23-Jul-2024) FY exemption ───────────
+// Previously, listed_365_logic only wrote a *note* saying a row was "eligible"
+// for the Sec 112A exemption -- estimatedTax was never actually reduced by it,
+// so every equity/equity-MF LTCG estimate was overstated by the exemption
+// amount. This function nets the exemption against the FY's pooled LTCG total
+// per portfolio, then reduces each row's estimatedTax proportionally.
+//
+// ASSUMPTION (law does not explicitly mandate an ordering): the exemption is
+// consumed against the EARLIEST sales in the FY first (chronological, by
+// sellDate). This is a common, defensible convention, not a certainty -- if
+// your CA/tax filing software uses a different ordering, the FY total exemption
+// used and total tax will still match; only which individual trades show as
+// "exempted" vs "taxed" could differ.
+//
+// Call this ONCE on the full results array from getCapitalGains(), after all
+// rows have been generated, so every downstream consumer (reports, summaries)
+// sees already-corrected tax figures.
+export function applySection112AExemption(results: any[]): any[] {
+  const getFY = (dateStr: string): string => {
+    if (!dateStr) return 'unknown';
+    const d = new Date(dateStr);
+    const y = d.getFullYear();
+    const m = d.getMonth(); // 0-11, April = 3
+    const fyStartYear = m >= 3 ? y : y - 1;
+    return `${fyStartYear}-${fyStartYear + 1}`;
+  };
+
+  // Group eligible rows (Sec 112A LTCG only) by portfolioId + FY
+  const groups: Record<string, any[]> = {};
+  results.forEach(r => {
+    if (r.gainType !== 'LTCG' || typeof r.notes !== 'string' || !r.notes.includes('Sec 112A')) return;
+    const key = `${r.portfolioId}_${getFY(r.sellDate)}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r);
+  });
+
+  Object.values(groups).forEach(rows => {
+    // Exemption limit for the FY: if ANY sale in this FY+portfolio group falls
+    // before 23-Jul-2024, that portion is only eligible for the old ₹1L limit;
+    // CBDT clarified the transition-year (FY2024-25) limit is a single pooled
+    // ₹1.25L for the whole FY, so we use ₹1.25L whenever any post-cutoff sale
+    // exists in the group, else ₹1L for a FY entirely before the cutoff.
+    const anyPostCutoff = rows.some(r => r.sellDate >= '2024-07-23');
+    const exemptionLimit = anyPostCutoff ? 125000 : 100000;
+
+    let exemptionRemaining = exemptionLimit;
+    rows
+      .slice()
+      .sort((a, b) => (a.sellDate || '').localeCompare(b.sellDate || ''))
+      .forEach(r => {
+        const gain = Number(r.gainLoss) || 0;
+        if (gain <= 0) return; // losses don't consume exemption and aren't taxed
+        const exempted = Math.min(exemptionRemaining, gain);
+        exemptionRemaining -= exempted;
+        const taxableGain = gain - exempted;
+        const rate = typeof r.taxRate === 'number' ? r.taxRate : 0;
+        r.estimatedTax = taxableGain > 0 ? taxableGain * (rate / 100) : 0;
+        r.notes = exempted > 0
+          ? `${(r.notes || '').replace(/Eligible for Sec 112A.*/, '').trim()} ₹${exempted.toLocaleString('en-IN')} of this gain covered by Sec 112A FY exemption (limit ₹${exemptionLimit.toLocaleString('en-IN')}).`.trim()
+          : r.notes;
+      });
+  });
+
+  return results;
 }

@@ -15,7 +15,31 @@ interface LedgerDrilldownModalProps {
 
 export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, accountId, onClose, onVoucherClick, onNewVoucher }: LedgerDrilldownModalProps) {
   const { selectedFY, reportFilter: globalFilter, customRange: globalRange, globalRefreshTrigger } = useFY();
-  const ledger = useMemo(() => getStoredLedgers().find(l => String(l.id) === String(ledgerId)), [ledgerId, getStoredLedgers()]);
+  const ledger = useMemo(() => {
+    const found = getStoredLedgers(accountId).find(l => String(l.id) === String(ledgerId))
+        || getStoredLedgers().find(l => String(l.id) === String(ledgerId));
+    if (found) return found;
+
+    // Fallback for synthetic/virtual ledgers so modal always opens
+    const names: Record<string, string> = {
+      '230': 'Capital Account',
+      '100001': 'R K Global',
+      '100002': 'RKSV',
+      '100004': 'Direct',
+      '100007': 'Zerodha',
+      '460': 'Capital Gains – Eq LTCG',
+      '465': 'Capital Gains – Eq STCG',
+    };
+    return {
+      id: String(ledgerId),
+      name: names[String(ledgerId)] || `Ledger ${ledgerId}`,
+      groupId: String(ledgerId) === '230' ? '64' : '75',
+      openingBalance: 0,
+      openingType: 'CR' as const,
+      currentBalance: 0,
+      currentType: 'DR' as const
+    };
+  }, [ledgerId, accountId, globalRefreshTrigger]);
   
   const [reportFilter, setReportFilter] = useState<string>(globalFilter || 'current');
   const [isDetailed, setIsDetailed] = useState(false);

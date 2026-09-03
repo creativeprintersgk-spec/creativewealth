@@ -60,7 +60,7 @@ export default function BalanceSheet() {
   async function load() {
     if (!selectedAccountId && accounts.length > 0) return;
     const res = await getBalanceSheet(effectiveDates.start, effectiveDates.end, selectedAccountId)
-    setData(res); fetch('http://localhost:3005', { method: 'POST', body: JSON.stringify(res.assets) }).catch(e => console.log(e));
+    setData(res)
   }
 
   function cleanLedgerName(name: string): string {
@@ -134,13 +134,25 @@ export default function BalanceSheet() {
             gap: 8,
             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
-          onClick={() => hasChildren && toggle(group.id)}
+          onClick={() => {
+            if (group.ledgers.length === 1 && group.children.length === 0) {
+              openLedger(group.ledgers[0].id);
+            } else if (hasChildren) {
+              toggle(group.id);
+            }
+          }}
           onMouseEnter={e => { if (hasChildren && level > 0) e.currentTarget.style.background = 'rgba(241, 245, 249, 0.5)' }}
           onMouseLeave={e => { if (hasChildren && level > 0) e.currentTarget.style.background = 'transparent' }}
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
             {hasChildren
-              ? <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              ? <span 
+                  style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggle(group.id);
+                  }}
+                >
                   {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </span>
               : <span style={{ display: 'inline-block', width: 16, flexShrink: 0 }} />}

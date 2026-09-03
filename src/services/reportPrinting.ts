@@ -99,8 +99,8 @@ export async function getTrialBalance(endDate: string, accountId?: string) {
 
 
   ledgers.forEach((l: any) => {
-    let dr = 0;
-    let cr = 0;
+    let dr = (l.openingBalance && l.openingType === 'DR') ? l.openingBalance : 0;
+    let cr = (l.openingBalance && l.openingType === 'CR') ? l.openingBalance : 0;
 
     entries.forEach((e: any) => {
       if (String(e.ledgerId) === String(l.id)) {

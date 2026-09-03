@@ -6,7 +6,7 @@ import { supabase } from "./supabase.ts";
 import { get, set } from 'idb-keyval';
 import { getLivePrice, clearPriceCache } from "./services/assetMasterService.ts";
 import isinDict from './services/isinDictionary.json' with { type: 'json' };
-import { computeAssetTax } from "./services/taxEngine.ts";
+import { computeAssetTax, applySection112AExemption } from "./services/taxEngine.ts";
 
 // ── HELPER UTILS ─────────────────────────────────────────────────────────────
 export function formatInvestorName(name?: string): string {
@@ -221,8 +221,17 @@ async function safeFetch(table: string, max = 500000): Promise<any[]> {
     let page = 0;
     const size = 1000;
     while (all.length < max) {
-      const { data, error } = await supabase
-        .from(table).select('*').order(pkMap[table] || 'id').range(page * size, (page + 1) * size - 1);
+      let query = supabase.from(table).select('*');
+      if (table === 'acmac1') {
+        query = query.order('acid').order('id').order('is_group');
+      } else if (table === 'vouchersc1' || table === 'vouchers1') {
+        query = query.order('acid').order('vid');
+      } else if (table === 'transc1' || table === 'trans1') {
+        query = query.order('acid').order('transid');
+      } else {
+        query = query.order(pkMap[table] || 'id');
+      }
+      const { data, error } = await query.range(page * size, (page + 1) * size - 1);
       if (error) { console.warn(`⚠️ ${table}:`, error.message); break; }
       if (!data || data.length === 0) break;
       all = all.concat(data);
@@ -299,9 +308,10 @@ async function performBackgroundSync() {
       assetMaster,
       bs1,
       sumTable,
-      vouchersC1: vouchersC1.map((v: any) => ({ ...v, _src: 'c' })),
+      // Exclude legacy orphan voucher 400 (from 2013 with unmapped broker 215)
+      vouchersC1: vouchersC1.filter((v: any) => !(v.vid === 400 && String(v.dt).startsWith('2013'))).map((v: any) => ({ ...v, _src: 'c' })),
       vouchers1: vouchers1.map((v: any)  => ({ ...v, _src: 't' })),
-      transC1: transC1.map((e: any)    => ({ ...e, _src: 'c' })),
+      transC1: transC1.filter((e: any) => !(e.vid === 400 && String(e.dt).startsWith('2013'))).map((e: any)    => ({ ...e, _src: 'c' })),
       trans1: trans1.map((e: any)     => ({ ...e, _src: 't' })),
       mprices,
       scnote1: scnote1 || []
@@ -318,6 +328,9 @@ async function performBackgroundSync() {
     });
     newState.sam.forEach((s: any) => {
       state.assetNameMap[s.amid] = s.anm;
+      // MProfit v10: Trans1 investment maids use 500000 + SAM.amid
+      // Register both keys so getAssetName works for both raw and prefixed amids
+      state.assetNameMap[500000 + Number(s.amid)] = s.anm;
       const isinVal = s.isin || s.isincode || s.isin_code;
       if (isinVal) state.isinMap[s.amid] = String(isinVal).trim();
     });
@@ -334,9 +347,13 @@ async function performBackgroundSync() {
 
     rebuildAllIndexes();
 
-    await set('wealthcore_state_v22', JSON.parse(JSON.stringify(newState)));
-    console.log('Background sync complete and cached.');
-    window.dispatchEvent(new Event('wealthcore-sync-complete'));
+    if (typeof indexedDB !== 'undefined') {
+      await set('wealthcore_state_v27', JSON.parse(JSON.stringify(newState)));
+      console.log('Background sync complete and cached.');
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('wealthcore-sync-complete'));
+    }
   } catch (err) {
     console.error('Background sync failed:', err);
   } finally {
@@ -349,7 +366,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v22') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v27') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -361,7 +378,10 @@ export async function initDatabase() {
       sortedMprices.forEach((p: any) => {
         state.priceMap[p.amid] = { curr: Number(p.currp) || 0, prev: Number(p.prevp) || 0 };
       });
-      (state.sam || []).forEach((s: any) => { state.assetNameMap[s.amid] = s.anm; });
+      (state.sam || []).forEach((s: any) => {
+        state.assetNameMap[s.amid] = s.anm;
+        state.assetNameMap[500000 + Number(s.amid)] = s.anm; // MProfit v10: maid = 500000 + SAM.amid
+      });
       (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
       (state.acmac1 || []).forEach((a: any) => { if (!state.assetNameMap[a.id]) state.assetNameMap[a.id] = a.name; });
 
@@ -384,15 +404,34 @@ export async function initDatabase() {
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 export function getAssetName(amid: number): string {
   if (state.assetNameMap[amid]) return state.assetNameMap[amid];
-  const s = state.sam.find((x: any) => x.amid === amid);
+
+  // Direct SAM lookup (raw amid)
+  const s = state.sam.find((x: any) => Number(x.amid) === amid);
   if (s && s.anm) return s.anm;
-  const a = state.assetMaster.find((x: any) => x.amid === amid);
+
+  // MProfit v10: Trans1 investment maids use maid = 500000 + SAM.amid
+  // Strip the 500000 offset and retry the SAM/assetMaster lookup
+  if (amid >= 500000) {
+    const samAmid = amid - 500000;
+    const s2 = state.sam.find((x: any) => Number(x.amid) === samAmid);
+    if (s2 && s2.anm) return s2.anm;
+    const a2 = state.assetMaster.find((x: any) => Number(x.amid) === samAmid);
+    if (a2 && a2.name) return a2.name;
+  }
+
+  // Direct assetMaster lookup (raw amid)
+  const a = state.assetMaster.find((x: any) => Number(x.amid) === amid);
   if (a && a.name) return a.name;
+
+  // ACMAC1 cross-reference via exint1
   const ac = state.acmac1.find((x: any) => !x.is_group && Number(x.exint1) === amid && Number(x.id) >= 100000);
   if (ac && ac.name) return ac.name;
+
+  // Mappings table
   const mp = (state as any).mappings?.find((x: any) => Number(x.amid) === amid);
   if (mp && mp.descr) return mp.descr.split('/')[0] || mp.descr;
-  return `Asset ${amid}`;
+
+  return '';
 }
 export function getAssetPrice(amid: number) {
   return state.priceMap[amid] || { curr: 0, prev: 0 };
@@ -511,12 +550,14 @@ export function getStoredLedgers(acid?: string | number): Ledger[] {
     .map((a: any) => {
       const db = Number(a.db_bal) || 0;
       const cr = Number(a.cr_bal) || 0;
+      // db_bal/cr_bal are MProfit NET stored balances. When equal, account is zeroed/closed.
+      const net = db - cr;
       return {
         id: String(a.id),
         name: a.name,
         groupId: String(a.parent_id),
-        openingBalance: Math.abs(db - cr),
-        openingType: db >= cr ? 'DR' as const : 'CR' as const,
+        openingBalance: Math.abs(net),
+        openingType: net >= 0 ? 'DR' as const : 'CR' as const,
         currentBalance: 0,
         currentType: 'DR' as const,
         amid: a.id >= 100000 ? a.id : undefined,
@@ -1007,70 +1048,98 @@ export function getLedgerWithBalance(
   ledgerId: string | number, startDate?: string,
   endDate?: string, acid?: string | number
 ) {
-  const lid = Number(ledgerId);
-  const acidNum = acid ? Number(acid) : null;
+  const lid = String(ledgerId);
+  const acidNum = acid && acid !== 'undefined' ? Number(acid) : null;
 
-  // Collect entries from BOTH tables using our prebuilt O(1) maps
-  const rawC1 = transC1ByMaid.get(lid) || [];
-  const c1Entries = rawC1.filter((e: any) =>
-    !acidNum || e.acid === acidNum
-  ).map((e: any) => ({ ...e, _src: 'c' }));
+  // Find ledger definition in state.acmac1
+  const ledgerRow = (state.acmac1 || []).find((a: any) => 
+    !a.is_group && String(a.id) === lid && (!acidNum || a.acid === acidNum)
+  );
 
-  const raw1 = trans1ByMaid.get(lid) || [];
-  const t1Entries = raw1.filter((e: any) =>
-    !acidNum || e.acid === acidNum
-  ).map((e: any) => ({ ...e, _src: 't' }));
+  const allEntries = getStoredEntries();
+  const allVouchers = getStoredVouchers();
+  const voucherMap: Record<string, any> = {};
+  allVouchers.forEach((v: any) => { voucherMap[v.id] = v; });
 
-  // Combine and sort by date
-  let entries = [...c1Entries, ...t1Entries]
-    .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
+  const allPortfolios = getStoredPortfolios();
+  const portfolioIds = acidNum
+    ? allPortfolios.filter((p: any) => Number(p.accountId) === acidNum).map((p: any) => String(p.id))
+    : null;
 
-  let openingBalance = 0, runningBalance = 0;
+  // Filter entries for this ledger (and this account/portfolio if acid is provided)
+  const entries = allEntries
+    .filter((e: any) => {
+      if (String(e.ledgerId) !== lid) return false;
+      if (acidNum) {
+        const v = voucherMap[e.voucherId];
+        const entryAcid = e.accountId || v?.accountId;
+        const entryPfid = v?.portfolioId;
+        const belongs = (Number(entryAcid) === acidNum) ||
+          (entryPfid && portfolioIds && portfolioIds.includes(String(entryPfid)));
+        if (!belongs) return false;
+      }
+      return true;
+    })
+    .sort((a: any, b: any) => (a.date || '').localeCompare(b.date || ''));
+
+  // If no transactions exist, check if acmac1 has a static balance (e.g. legacy ledgers with no vouchers)
+  if (entries.length === 0) {
+    const initialDb = Number(ledgerRow?.db_bal) || 0;
+    const initialCr = Number(ledgerRow?.cr_bal) || 0;
+    const initialNet = initialDb - initialCr;
+    return { transactions: [], openingBalance: initialNet, closingBalance: initialNet };
+  }
+
+  // NOTE: acmac1.db_bal/cr_bal in MProfit are cumulative lifetime totals, NOT starting balances.
+  // Starting balance vouchers (VID=0 / DT=0001-01-01) are already included in entries.
+  // Therefore, runningBalance MUST start at 0 to avoid double-counting.
+  let openingBalance = 0;
+  let runningBalance = 0;
   const transactions: any[] = [];
+
   entries.forEach((e: any) => {
-    const dr = Number(e.dramt) || 0;
-    const cr = Number(e.cramt) || 0;
-    const before = startDate ? e.dt < startDate : false;
-    const inRange = (!startDate || e.dt >= startDate) && (!endDate || e.dt <= endDate);
-    if (before) { runningBalance += dr - cr; openingBalance = runningBalance; }
-    else if (inRange) {
+    const dr = Number(e.debit) || 0;
+    const cr = Number(e.credit) || 0;
+    const v = voucherMap[e.voucherId];
+    const entryDate = e.date || v?.date || '';
+    const isOpening = !entryDate || entryDate === '' || entryDate === 'undefined' || String(entryDate).startsWith('0001');
+
+    const before = startDate ? (isOpening || entryDate < startDate) : isOpening;
+    const inRange = (!startDate || entryDate >= startDate) && (!endDate || entryDate <= endDate) && !isOpening;
+
+    if (before) {
       runningBalance += dr - cr;
-      
-      // O(1) Voucher lookup
-      const v = e._src === 'c'
-        ? vouchersC1Map.get(e.vid)
-        : vouchers1Map.get(e.vid);
-      
+      openingBalance = runningBalance;
+    } else if (inRange) {
+      runningBalance += dr - cr;
+
+      // Find counter ledger name in the same voucher
       let againstName = '';
-      if (e.vid) {
-        // O(1) lookup of other legs of the same voucher
-        const sourceTrans = e._src === 'c'
-          ? (transC1ByVid.get(e.vid) || [])
-          : (trans1ByVid.get(e.vid) || []);
-        
-        const otherLegs = sourceTrans.filter((t: any) =>
-          t.maid !== lid && (!acidNum || t.acid === acidNum)
-        );
+      if (e.voucherId) {
+        const otherLegs = allEntries.filter((t: any) => t.voucherId === e.voucherId && t.id !== e.id);
         if (otherLegs.length === 1) {
-          const otherMaid = otherLegs[0].maid;
-          const matchingLedgers = acmac1Map.get(otherMaid) || [];
-          const otherLedger = matchingLedgers.find((a: any) => !acidNum || a.acid === acidNum);
-          againstName = otherLedger ? otherLedger.name : '';
+          const otherMaid = otherLegs[0].ledgerId;
+          const otherLedger = (state.acmac1 || []).find((a: any) => String(a.id) === String(otherMaid) && (!acidNum || a.acid === acidNum));
+          againstName = otherLedger ? otherLedger.name : getAssetName(Number(otherMaid)) || `Ledger ${otherMaid}`;
         } else if (otherLegs.length > 1) {
           againstName = 'Multiple Accounts';
         }
       }
 
-      const vtypMap: Record<number, string> = { 2: 'payment', 4: 'receipt', 5: 'journal', 14: 'purchase', 15: 'sale' };
+      const vtypMap: Record<string, string> = { '2': 'payment', '4': 'receipt', '5': 'journal', '14': 'purchase', '15': 'sale' };
       transactions.push({
-        date: e.dt || v?.dt, voucherId: e.vid,
-        voucherType: v?.vtyp ? vtypMap[v.vtyp] || 'journal' : 'journal',
-        narration: v?.narr || '',
-        debit: dr, credit: cr, balance: runningBalance,
+        date: entryDate,
+        voucherId: e.voucherId,
+        voucherType: v?.type ? (vtypMap[v.type] || v.type) : 'journal',
+        narration: v?.narration || '',
+        debit: dr,
+        credit: cr,
+        balance: runningBalance,
         againstLedger: againstName || '-'
       });
     }
   });
+
   return { transactions, openingBalance, closingBalance: runningBalance };
 }
 
@@ -1157,11 +1226,522 @@ export function getTrialBalance(asOfDate?: string, acid?: string | number) {
 
 // ── CAPITAL GAINS ─────────────────────────────────────────────────────────────
 
-export function getCapitalGains(portfolioIds: (number | string)[], fromDate: string, toDate: string) {
-  const numIds = portfolioIds.map(Number);
-  const expandedSet = new Set<number>(numIds);
+// ── SHARED FIFO CONSTANTS ───────────────────────────────────────────────────
+// Single source of truth for which transaction-type codes count as a "buy" vs
+// a "sell" for cost-basis purposes. Both getCapitalGains() (the Capital Gains
+// report) and createVoucher() (manual sale P&L booking) must use these same
+// sets — previously they each had their own, slightly different, list, which
+// meant the two engines could compute different cost bases for the same trade.
+// Complete MProfit inflow / buy transaction types: 20 (Buy), 12/25 (IPO/Rights),
+// 19 (Op Bal), 30 (Investment), 35 (Div Reinvest), 38 (Merger), 40 (Bonus), 46/47 (Demerger)
+export const FIFO_BUY_TRTY = new Set([12, 15, 19, 20, 25, 30, 35, 38, 40, 46, 47]);
+export const FIFO_SELL_TRTY = new Set([99, 101, 150]);
 
-  // Multi-pass expansion via accPflink links ONLY
+/**
+ * Builds the FIFO delivery-lot ledger for ONE asset's full transaction history
+ * (already filtered to a single pfid+amid[+sid] and sorted by date ascending).
+ *
+ * This is the single implementation of: settlement-cycle short-cover
+ * detection, same-day intraday netting (stocks only), stock-split/bonus
+ * adjustment, and FIFO lot depletion. It is used both to generate the
+ * Capital Gains report (results within fromDate..toDate) and, by
+ * createVoucher(), to find the still-open lots as of a given sale date so a
+ * manually entered sale can be costed identically to how the report would
+ * cost it.
+ *
+ * IMPORTANT: this function does NOT mutate the transaction objects passed in
+ * (it clones before any date reordering), so it's safe to call repeatedly or
+ * on objects that are live references into state.bs1.
+ *
+ * @returns results: realized-gain rows whose sellDate falls within [fromDate, toDate]
+ * @returns openLots: remaining un-sold delivery lots after processing all of txListIn
+ */
+export function buildAssetFifoLedger(
+  txListIn: any[],
+  fromDate: string,
+  toDate: string,
+  scMap: Map<number, { sellExp: number; buyExp: number }>,
+  cnTrades: Record<number, { totalAmt: number }>
+): { results: any[]; openLots: any[] } {
+  const regularBuyTrty = FIFO_BUY_TRTY;
+  const regularSellTrty = FIFO_SELL_TRTY;
+  const results: any[] = [];
+
+  // Clone every transaction before any in-place reordering/redating below.
+  // The originals are live references into state.bs1 — mutating them here
+  // would permanently corrupt the source trade dates for every other
+  // consumer of state.bs1 (holdings, other reports, subsequent calls).
+  const txList = txListIn.map(t => ({ ...t }));
+
+  // Pre-pass: If a sell occurs without prior inventory and is covered within 5 days (settlement cycle / short cover),
+  // ensure the buy is processed first so the short trade is closed cleanly and does not leave a phantom buy lot.
+  for (let i = 0; i < txList.length - 1; i++) {
+    const cur = txList[i];
+    const next = txList[i + 1];
+    if (cur && next && regularSellTrty.has(Number(cur.trty)) && regularBuyTrty.has(Number(next.trty))) {
+      let priorNetQty = 0;
+      for (let j = 0; j < i; j++) {
+        if (regularBuyTrty.has(Number(txList[j].trty))) priorNetQty += Number(txList[j].qn) || 0;
+        if (regularSellTrty.has(Number(txList[j].trty))) priorNetQty -= Number(txList[j].qn) || 0;
+      }
+      if (priorNetQty < (Number(cur.qn) || 0)) {
+        const dCur = new Date((cur.dt || '').substring(0, 10)).getTime();
+        const dNext = new Date((next.dt || '').substring(0, 10)).getTime();
+        if (Math.abs(dNext - dCur) <= 5 * 86400000) {
+          cur.dt = next.dt;
+          txList[i] = next;
+          txList[i + 1] = cur;
+        }
+      }
+    }
+  }
+
+  // Group transactions by date for same-day intraday netting
+  const byDate: Record<string, { buys: any[]; sells: any[]; corp: any[] }> = {};
+  txList.forEach(t => {
+    const dt = (t.dt || '').slice(0, 10);
+    if (!byDate[dt]) byDate[dt] = { buys: [], sells: [], corp: [] };
+    const trty = Number(t.trty);
+    if ([85, 45].includes(trty)) {
+      byDate[dt].corp.push(t);
+    } else if (regularBuyTrty.has(trty)) {
+      byDate[dt].buys.push({ ...t, remQty: Number(t.qn) || 0 });
+    } else if (regularSellTrty.has(trty)) {
+      byDate[dt].sells.push({ ...t, remQty: Number(t.qn) || 0 });
+    }
+  });
+
+  const deliveryLots: any[] = [];
+  const isMf = txList[0] && (txList[0].atyid === 60 || txList[0].atyid === 61 || txList[0].atyid === 62);
+
+  Object.keys(byDate).sort().forEach(dt => {
+    const day = byDate[dt];
+
+    // Match same-day buys and sells first ONLY for Stocks/Equities (Intraday netting)
+    if (!isMf) {
+      day.buys.forEach(b => {
+        day.sells.forEach(s => {
+          if (b.remQty > 0 && s.remQty > 0) {
+            const match = Math.min(b.remQty, s.remQty);
+            b.remQty -= match;
+            s.remQty -= match;
+
+            const buyPrice = Number(b.netpr) || Number(b.purpr) || 0;
+            const grossSellAmt = Number(s.amt) || (Number(s.qn) * (Number(s.netpr) || Number(s.purpr) || 0));
+            const cnid = Number(s.cnid);
+            let transferExp = 0;
+            if (cnid && cnid > 0 && scMap.has(cnid)) {
+              const totalCnAmt = cnTrades[cnid]?.totalAmt || grossSellAmt;
+              const cnInfo = scMap.get(cnid);
+              const totalCnExp = cnInfo ? cnInfo.sellExp : 0;
+              transferExp = totalCnAmt > 0 ? (grossSellAmt / totalCnAmt) * totalCnExp : 0;
+            }
+            const netSellAmtVal = Math.max(0, grossSellAmt - transferExp);
+            const sellPrice = Number(s.qn) > 0 ? (netSellAmtVal / Number(s.qn)) : (Number(s.netpr) || Number(s.purpr) || 0);
+
+            const buyVal = match * buyPrice;
+            const sellVal = match * sellPrice;
+            const gain = sellVal - buyVal;
+
+            if (dt >= fromDate && dt <= toDate) {
+              const port = state.portfolios.find((p: any) => p.id === s.pfid);
+              const atyid = resolveAssetType(Number(s.pfid), Number(s.amid), Number(s.atyid));
+              const isin = getAssetISIN(Number(s.amid));
+              const folio = getFolioNumber(s.sid, s.amid, s.pfid);
+              results.push({
+                portfolioId: s.pfid,
+                portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
+                assetName: getAssetName(s.amid),
+                isin,
+                folio,
+                amid: s.amid,
+                assetType: atyid,
+                assetTypeName: ASSET_TYPE_MAP[atyid] || 'Stocks',
+                buyDate: dt,
+                sellDate: dt,
+                holdingDays: 0,
+                quantity: match,
+                buyPrice,
+                sellPrice,
+                costBasis: buyVal,
+                saleProceeds: sellVal,
+                gainLoss: gain,
+                gainType: 'Intraday',
+                taxRate: 0,
+                estimatedTax: 0,
+                indexationUsed: false,
+                notes: 'Same-day square off (Intraday)'
+              });
+            }
+          }
+        });
+      });
+    }
+
+    // Handle Stock Split Outflow (85) & Inflow (45)
+    day.corp.forEach(t => {
+      const trty = Number(t.trty);
+      if (trty === 85) {
+        const inflow = day.corp.find(x => Number(x.trty) === 45);
+        if (inflow && Number(t.qn) > 0) {
+          const ratio = Number(inflow.qn) / Number(t.qn);
+          deliveryLots.forEach(lot => {
+            lot.qty *= ratio;
+            lot.remaining *= ratio;
+            lot.costPerUnit /= ratio;
+          });
+        }
+      }
+    });
+
+    // Enqueue remaining buys as delivery lots
+    day.buys.forEach(b => {
+      if (b.remQty > 0) {
+        const trty = Number(b.trty);
+        const qn = Number(b.qn) || 0;
+        const unitPrice = Number(b.netpr) || Number(b.purpr) || 0;
+        const amtVal = Number(b.amt) || 0;
+        const totalAmt = trty === 40 ? 0 : (amtVal > 0 ? amtVal : qn * unitPrice);
+        const costPerUnit = trty === 40 ? 0 : (qn > 0 ? (totalAmt / qn) : unitPrice);
+        deliveryLots.push({
+          date: dt,
+          qty: b.remQty,
+          remaining: b.remQty,
+          totalAmt: costPerUnit * b.remQty,
+          costPerUnit,
+          amid: b.amid,
+          atyid: b.atyid,
+          pfid: b.pfid,
+          sid: b.sid,
+          trid: b.trid,
+          // Merger (38) / Demerger (46, 47): under Sec 47(vii)/49(2), amalgamation
+          // is not a "transfer" -- the ORIGINAL acquisition date of the pre-merger
+          // holding should carry forward for holding-period purposes, not the
+          // corporate-action date. This engine does not currently have access to
+          // that original date (it processes one asset's transactions in
+          // isolation and has no link back to the extinguished holding in the
+          // other, pre-merger asset's transaction history), so `date` here is
+          // the corporate-action date -- likely UNDERSTATING the true holding
+          // period. Flagged via corpActionOrigin so results rows can carry a
+          // visible warning instead of silently presenting a possibly-wrong
+          // STCG/LTCG classification as certain.
+          corpActionOrigin: [38, 46, 47].includes(trty)
+        });
+      }
+    });
+
+    // Process remaining sells against earlier delivery FIFO lots
+    day.sells.forEach(s => {
+      let delQty = s.remQty;
+      if (delQty <= 0) return;
+
+      const qn = Number(s.qn) || 0;
+      const grossSellAmt = Number(s.amt) || (qn * (Number(s.netpr) || Number(s.purpr) || 0));
+      const sellPrice = qn > 0 ? (grossSellAmt / qn) : (Number(s.netpr) || Number(s.purpr) || 0);
+      const port = state.portfolios.find((p: any) => p.id === s.pfid);
+      const isInPeriod = dt >= fromDate && dt <= toDate;
+
+      while (delQty > 0.000001 && deliveryLots.length > 0) {
+        const lot = deliveryLots[0];
+        const mq = Math.min(delQty, lot.remaining);
+        const cost = mq * lot.costPerUnit;
+        const proceeds = mq * sellPrice;
+
+        lot.remaining -= mq;
+        delQty -= mq;
+
+        if (isInPeriod) {
+          const resolvedAtty = resolveAssetType(s.pfid, s.amid, s.atyid);
+          const aname = getAssetName(s.amid);
+          const taxRes = computeAssetTax(resolvedAtty, aname, cost, proceeds, lot.date || '', dt || '');
+          const folio = getFolioNumber(s.sid || lot.sid, s.amid, s.pfid);
+
+          const corpActionNote = lot.corpActionOrigin
+            ? 'REVIEW: cost basis originates from a merger/demerger. Holding period is calculated from the corporate-action date -- Sec 47(vii)/49(2) may entitle this lot to an earlier original acquisition date from the pre-merger holding, which this engine cannot look up automatically. Verify manually before filing.'
+            : '';
+
+          results.push({
+            portfolioId: s.pfid,
+            portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
+            assetName: aname,
+            isin: getAssetISIN(s.amid) || s.isin || '',
+            folio,
+            amid: s.amid,
+            assetType: resolvedAtty,
+            assetTypeName: ASSET_TYPE_MAP[resolvedAtty] || 'Other',
+            buyDate: lot.date,
+            sellDate: dt,
+            holdingDays: taxRes.holdingDays,
+            quantity: mq,
+            buyPrice: lot.costPerUnit,
+            sellPrice,
+            costBasis: taxRes.costBasis,
+            saleProceeds: taxRes.saleProceeds,
+            gainLoss: taxRes.gainLoss,
+            gainType: taxRes.gainType,
+            taxRate: typeof taxRes.taxRate === 'number' ? taxRes.taxRate : 30,
+            estimatedTax: taxRes.estimatedTax,
+            indexationUsed: taxRes.indexationUsed,
+            notes: corpActionNote ? `${corpActionNote} ${taxRes.notes || ''}`.trim() : taxRes.notes,
+            needsReview: !!lot.corpActionOrigin,
+            realEstateComparison: taxRes.realEstateComparison
+          });
+        }
+
+        if (lot.remaining <= 0.000001) deliveryLots.shift();
+      }
+
+      if (delQty > 0.000001 && isInPeriod) {
+        const proceeds = delQty * sellPrice;
+        const resolvedAtty = resolveAssetType(s.pfid, s.amid, s.atyid);
+        const aname = getAssetName(s.amid);
+        const purDt = (s.purdt || s.dt || '').slice(0, 10);
+        const taxRes = computeAssetTax(resolvedAtty, aname, 0, proceeds, purDt, dt);
+        const folio = getFolioNumber(s.sid, s.amid, s.pfid);
+
+        results.push({
+          portfolioId: s.pfid,
+          portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
+          assetName: aname,
+          isin: getAssetISIN(s.amid) || s.isin || '',
+          amid: s.amid,
+          assetType: resolvedAtty,
+          assetTypeName: ASSET_TYPE_MAP[resolvedAtty] || 'Other',
+          buyDate: purDt,
+          sellDate: dt,
+          holdingDays: taxRes.holdingDays,
+          quantity: delQty,
+          buyPrice: 0,
+          sellPrice,
+          costBasis: 0,
+          saleProceeds: proceeds,
+          gainLoss: proceeds,
+          gainType: taxRes.gainType,
+          taxRate: typeof taxRes.taxRate === 'number' ? taxRes.taxRate : 30,
+          estimatedTax: taxRes.estimatedTax,
+          indexationUsed: taxRes.indexationUsed,
+          notes: taxRes.notes,
+          realEstateComparison: taxRes.realEstateComparison
+        });
+      }
+    });
+  });
+
+  return { results, openLots: deliveryLots };
+}
+
+/**
+ * Depletes a FIFO openLots array (as returned by buildAssetFifoLedger) by
+ * `qty`, in lot order, WITHOUT mutating the input array or its lot objects.
+ * Used by createVoucher() to cost a new manual sale against exactly the same
+ * open-lot state the Capital Gains report would see for that asset as of
+ * that date.
+ */
+export function depleteFifoLots(openLots: any[], qty: number): { totalCost: number; matchedLots: { date: string; qty: number; costPerUnit: number }[] } {
+  let remaining = qty;
+  let totalCost = 0;
+  const matchedLots: { date: string; qty: number; costPerUnit: number }[] = [];
+  for (const src of openLots) {
+    if (remaining <= 0.000001) break;
+    if (src.remaining <= 0.000001) continue;
+    const mq = Math.min(remaining, src.remaining);
+    totalCost += mq * src.costPerUnit;
+    matchedLots.push({ date: src.date, qty: mq, costPerUnit: src.costPerUnit });
+    remaining -= mq;
+  }
+  return { totalCost, matchedLots };
+}
+
+export interface PreCutoffPosition {
+  pfid: number;
+  amid: number;
+  atyid: number;
+  quantity: number;
+  costBasis: number;
+  avgRate: number;
+  openLots: any[];
+}
+
+export interface PortfolioOpeningConsolidation {
+  portfolioId: number;
+  totalCost: number;
+  positions: PreCutoffPosition[];
+}
+
+/**
+ * Computes consolidated opening positions as of `cutoffDate` (default: '2015-04-01')
+ * from raw pre-cutoff transaction history in bs1.
+ *
+ * Uses the exact same FIFO engine (buildAssetFifoLedger) that powers the Capital
+ * Gains report, ensuring that:
+ * 1. Fully-exited positions before cutoff (e.g. voucher 400 trade) leave 0 lots and vanish completely.
+ * 2. Still-held positions carry forward their verified open delivery lots and weighted-average purchase cost.
+ * 3. Pre-cutoff history is consolidated per-portfolio without cross-contamination.
+ */
+export function computePreCutoffOpeningPositions(
+  bs1Rows: any[],
+  cutoffDate: string = '2015-04-01'
+): Map<number, PortfolioOpeningConsolidation> {
+  const result = new Map<number, PortfolioOpeningConsolidation>();
+  if (!bs1Rows || !Array.isArray(bs1Rows)) return result;
+
+  // Filter strictly pre-cutoff records
+  const preCutoffTxs = bs1Rows.filter((t: any) => (t.dt || '').slice(0, 10) < cutoffDate);
+
+  // Group by pfid -> amid
+  const groupedByPf = new Map<number, Map<number, any[]>>();
+  preCutoffTxs.forEach((t: any) => {
+    const pfid = Number(t.pfid);
+    const amid = Number(t.amid);
+    if (!pfid || !amid) return;
+
+    if (!groupedByPf.has(pfid)) groupedByPf.set(pfid, new Map());
+    const pfMap = groupedByPf.get(pfid)!;
+    if (!pfMap.has(amid)) pfMap.set(amid, []);
+    pfMap.get(amid)!.push(t);
+  });
+
+  for (const [pfid, assetMap] of groupedByPf.entries()) {
+    const positions: PreCutoffPosition[] = [];
+    let totalPortfolioCost = 0;
+
+    for (const [amid, txs] of assetMap.entries()) {
+      const sortedTxs = [...txs].sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
+      const { openLots } = buildAssetFifoLedger(sortedTxs, '0001-01-01', cutoffDate, new Map(), {});
+
+      const remainingQty = openLots.reduce((s: number, l: any) => s + (Number(l.remaining) || 0), 0);
+      const totalCost = openLots.reduce((s: number, l: any) => s + ((Number(l.remaining) || 0) * (Number(l.costPerUnit) || 0)), 0);
+
+      // Only remainingQty gates inclusion -- totalCost legitimately can be 0
+      // (e.g. a pre-cutoff bonus-share holding with no purchase cost). Requiring
+      // totalCost > 0 would silently drop that as if it were fully exited, which
+      // it isn't.
+      if (remainingQty > 0.000001) {
+        const avgRate = totalCost > 0.000001 ? totalCost / remainingQty : 0;
+        const atyid = openLots[0]?.atyid || sortedTxs[0]?.atyid || 50;
+
+        positions.push({
+          pfid,
+          amid,
+          atyid,
+          quantity: Number(remainingQty.toFixed(4)),
+          costBasis: Number(totalCost.toFixed(2)),
+          avgRate: Number(avgRate.toFixed(4)),
+          openLots
+        });
+        totalPortfolioCost += Number(totalCost.toFixed(2));
+      }
+    }
+
+    if (positions.length > 0) {
+      result.set(pfid, {
+        portfolioId: pfid,
+        totalCost: Number(totalPortfolioCost.toFixed(2)),
+        positions
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * @deprecated This function (and the pre-2015 bs1 consolidation feature it
+ * powered) caused two confirmed live-data incidents: collapsing stock/MF
+ * trade history into a single weighted-average position destroys the
+ * individual lot dates and costs that determine STCG vs LTCG classification
+ * for capital gains tax -- exactly the thing this app exists to get right.
+ * Stocks and mutual funds must import with FULL, untouched trade history;
+ * buildAssetFifoLedger already computes correct cost basis and holding
+ * periods directly from that history, so there was never a real need to
+ * synthesize a consolidated position for bs1 data at all.
+ *
+ * Kept in the codebase (unused) only so its history and the lessons in its
+ * comments aren't lost. Do NOT wire this back into the import pipeline.
+ * See computeLedgerOpeningBalanceGaps below for the correct fix to the
+ * underlying problem this was trying to solve (missing opening value for
+ * ledgers whose history predates MProfit's own accounting-module start
+ * date) -- applied to the GENERAL LEDGER (transc1/acmac1) only, never to
+ * bs1.
+ */
+
+export interface LedgerOpeningGap {
+  ledgerId: number;
+  acid: number;
+  ledgerName: string;
+  impliedOpeningBalance: number; // positive = net debit (asset-side), negative = net credit (liability-side)
+}
+
+/**
+ * Computes the "implied opening balance" gap for every ledger: MProfit's own
+ * ledger-master cr_bal/db_bal fields are CUMULATIVE LIFETIME TOTALS (all
+ * credits ever, all debits ever) as of the export snapshot -- not merely an
+ * opening balance. If a ledger's true history predates whatever date range
+ * the imported transc1 rows actually cover (e.g. MProfit's own accounting
+ * module only started tracking discrete transactions from a later date, with
+ * everything before that folded into the cumulative totals with no
+ * transaction-level detail exported at all), there will be a gap between
+ * (db_bal - cr_bal) and the net of what actually got imported into transc1.
+ *
+ * Confirmed against real data: a PPF ledger's db_bal/cr_bal implied a
+ * ₹11,02,943.23 opening balance with no corresponding transaction row
+ * anywhere in the import, silently understating that ledger (and the
+ * Balance Sheet) by exactly that amount. The same gap affects ANY ledger
+ * with pre-accounting-module history -- bank accounts, jewellery, real
+ * estate deposits, broker payables -- not just PPF.
+ *
+ * Deliberately operates on transc1/acmac1 only. bs1 (stock/MF trade
+ * history) is a separate, parallel tracking system for FIFO cost basis and
+ * is never touched here -- see the deprecation note above for why.
+ *
+ * @param acmac1Rows raw ledger-master rows (must include id, acid, name, cr_bal, db_bal, is_group)
+ * @param transc1Rows raw transaction rows actually imported (must include maid, dramt, cramt)
+ * @param threshold gaps smaller than this (in rupees) are ignored as rounding noise
+ */
+export function computeLedgerOpeningBalanceGaps(
+  acmac1Rows: any[],
+  transc1Rows: any[],
+  threshold: number = 0.01
+): LedgerOpeningGap[] {
+  const netByLedger = new Map<number, number>();
+  transc1Rows.forEach((t: any) => {
+    const maid = Number(t.maid);
+    const net = (Number(t.dramt) || 0) - (Number(t.cramt) || 0);
+    netByLedger.set(maid, (netByLedger.get(maid) || 0) + net);
+  });
+
+  const gaps: LedgerOpeningGap[] = [];
+  acmac1Rows.forEach((ledger: any) => {
+    if (ledger.is_group) return; // groups don't carry their own balance
+    const id = Number(ledger.id);
+    const dbBal = Number(ledger.db_bal) || 0;
+    const crBal = Number(ledger.cr_bal) || 0;
+    const cumulativeNet = dbBal - crBal;
+    const importedNet = netByLedger.get(id) || 0;
+    const gap = cumulativeNet - importedNet;
+
+    if (Math.abs(gap) >= threshold) {
+      gaps.push({
+        ledgerId: id,
+        acid: Number(ledger.acid),
+        ledgerName: ledger.name || `Ledger ${id}`,
+        impliedOpeningBalance: Number(gap.toFixed(2)),
+      });
+    }
+  });
+
+  return gaps;
+}
+
+/**
+ * Expands a set of portfolio/account ids to include everything linked to them
+ * via accPflink (family/account groupings), following links in both
+ * directions until no new ids are found. Shared by getCapitalGains() and the
+ * XIRR engine (xirrEngine.ts) so "which portfolios belong together" can never
+ * disagree between the two.
+ */
+export function expandPortfolioFamily(ids: (number | string)[]): number[] {
+  const expandedSet = new Set<number>(ids.map(Number));
   let changed = true;
   while (changed) {
     const sizeBefore = expandedSet.size;
@@ -1171,11 +1751,13 @@ export function getCapitalGains(portfolioIds: (number | string)[], fromDate: str
     });
     if (expandedSet.size === sizeBefore) changed = false;
   }
+  return Array.from(expandedSet);
+}
+
+export function getCapitalGains(portfolioIds: (number | string)[], fromDate: string, toDate: string) {
+  const expandedSet = new Set<number>(expandPortfolioFamily(portfolioIds));
 
   const pSet = expandedSet;
-  // Complete MProfit inflow / buy transaction types: 20 (Buy), 12/25 (IPO/Rights), 19 (Op Bal), 30 (Investment), 35 (Div Reinvest), 38 (Merger), 40 (Bonus), 46/47 (Demerger)
-  const regularBuyTrty = new Set([12, 15, 19, 20, 25, 30, 35, 38, 40, 46, 47]);
-  const regularSellTrty = new Set([99, 101, 150]);
 
   function getScnoteTransferCharges(sc: any, isSell: boolean) {
     if (!sc) return 0;
@@ -1239,247 +1821,21 @@ export function getCapitalGains(portfolioIds: (number | string)[], fromDate: str
   const results: any[] = [];
 
   Object.values(txByAsset).forEach(txList => {
-    // Pre-pass: If a sell occurs without prior inventory and is covered within 5 days (settlement cycle / short cover),
-    // ensure the buy is processed first so the short trade is closed cleanly and does not leave a phantom buy lot.
-    for (let i = 0; i < txList.length - 1; i++) {
-      const cur = txList[i];
-      const next = txList[i + 1];
-      if (cur && next && regularSellTrty.has(Number(cur.trty)) && regularBuyTrty.has(Number(next.trty))) {
-        let priorNetQty = 0;
-        for (let j = 0; j < i; j++) {
-          if (regularBuyTrty.has(Number(txList[j].trty))) priorNetQty += Number(txList[j].qn) || 0;
-          if (regularSellTrty.has(Number(txList[j].trty))) priorNetQty -= Number(txList[j].qn) || 0;
-        }
-        if (priorNetQty < (Number(cur.qn) || 0)) {
-          const dCur = new Date((cur.dt || '').substring(0, 10)).getTime();
-          const dNext = new Date((next.dt || '').substring(0, 10)).getTime();
-          if (Math.abs(dNext - dCur) <= 5 * 86400000) {
-            cur.dt = next.dt;
-            txList[i] = next;
-            txList[i + 1] = cur;
-          }
-        }
-      }
-    }
-
-    // Group transactions by date for same-day intraday netting
-    const byDate: Record<string, { buys: any[]; sells: any[]; corp: any[] }> = {};
-    txList.forEach(t => {
-      const dt = (t.dt || '').slice(0, 10);
-      if (!byDate[dt]) byDate[dt] = { buys: [], sells: [], corp: [] };
-      const trty = Number(t.trty);
-      if ([85, 45].includes(trty)) {
-        byDate[dt].corp.push(t);
-      } else if (regularBuyTrty.has(trty)) {
-        byDate[dt].buys.push({ ...t, remQty: Number(t.qn) || 0 });
-      } else if (regularSellTrty.has(trty)) {
-        byDate[dt].sells.push({ ...t, remQty: Number(t.qn) || 0 });
-      }
-    });
-
-    const deliveryLots: any[] = [];
-    const isMf = txList[0] && (txList[0].atyid === 60 || txList[0].atyid === 61 || txList[0].atyid === 62);
-
-    Object.keys(byDate).sort().forEach(dt => {
-      const day = byDate[dt];
-
-      // Match same-day buys and sells first ONLY for Stocks/Equities (Intraday netting)
-      if (!isMf) {
-        day.buys.forEach(b => {
-          day.sells.forEach(s => {
-            if (b.remQty > 0 && s.remQty > 0) {
-              const match = Math.min(b.remQty, s.remQty);
-              b.remQty -= match;
-              s.remQty -= match;
-
-              const buyPrice = Number(b.netpr) || Number(b.purpr) || 0;
-              const grossSellAmt = Number(s.amt) || (Number(s.qn) * (Number(s.netpr) || Number(s.purpr) || 0));
-              const cnid = Number(s.cnid);
-              let transferExp = 0;
-              if (cnid && cnid > 0 && scMap.has(cnid)) {
-                const totalCnAmt = cnTrades[cnid]?.totalAmt || grossSellAmt;
-                const cnInfo = scMap.get(cnid);
-                const totalCnExp = cnInfo ? cnInfo.sellExp : 0;
-                transferExp = totalCnAmt > 0 ? (grossSellAmt / totalCnAmt) * totalCnExp : 0;
-              }
-              const netSellAmtVal = Math.max(0, grossSellAmt - transferExp);
-              const sellPrice = Number(s.qn) > 0 ? (netSellAmtVal / Number(s.qn)) : (Number(s.netpr) || Number(s.purpr) || 0);
-
-              const buyVal = match * buyPrice;
-              const sellVal = match * sellPrice;
-              const gain = sellVal - buyVal;
-
-              if (dt >= fromDate && dt <= toDate) {
-                const port = state.portfolios.find((p: any) => p.id === s.pfid);
-                const atyid = resolveAssetType(Number(s.pfid), Number(s.amid), Number(s.atyid));
-                const isin = getAssetISIN(Number(s.amid));
-                const folio = getFolioNumber(s.sid, s.amid, s.pfid);
-                results.push({
-                  portfolioId: s.pfid,
-                  portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
-                  assetName: getAssetName(s.amid),
-                  isin,
-                  folio,
-                  amid: s.amid,
-                  assetType: atyid,
-                  assetTypeName: ASSET_TYPE_MAP[atyid] || 'Stocks',
-                  buyDate: dt,
-                  sellDate: dt,
-                  holdingDays: 0,
-                  quantity: match,
-                  buyPrice,
-                  sellPrice,
-                  costBasis: buyVal,
-                  saleProceeds: sellVal,
-                  gainLoss: gain,
-                  gainType: 'Intraday',
-                  taxRate: 0,
-                  estimatedTax: 0,
-                  indexationUsed: false,
-                  notes: 'Same-day square off (Intraday)'
-                });
-              }
-            }
-          });
-        });
-      }
-
-      // Handle Stock Split Outflow (85) & Inflow (45)
-      day.corp.forEach(t => {
-        const trty = Number(t.trty);
-        if (trty === 85) {
-          const inflow = day.corp.find(x => Number(x.trty) === 45);
-          if (inflow && Number(t.qn) > 0) {
-            const ratio = Number(inflow.qn) / Number(t.qn);
-            deliveryLots.forEach(lot => {
-              lot.qty *= ratio;
-              lot.remaining *= ratio;
-              lot.costPerUnit /= ratio;
-            });
-          }
-        }
-      });
-
-      // Enqueue remaining buys as delivery lots
-      day.buys.forEach(b => {
-        if (b.remQty > 0) {
-          const trty = Number(b.trty);
-          const qn = Number(b.qn) || 0;
-          const unitPrice = Number(b.netpr) || Number(b.purpr) || 0;
-          const amtVal = Number(b.amt) || 0;
-          const totalAmt = trty === 40 ? 0 : (amtVal > 0 ? amtVal : qn * unitPrice);
-          const costPerUnit = trty === 40 ? 0 : (qn > 0 ? (totalAmt / qn) : unitPrice);
-          deliveryLots.push({
-            date: dt,
-            qty: b.remQty,
-            remaining: b.remQty,
-            totalAmt: costPerUnit * b.remQty,
-            costPerUnit,
-            amid: b.amid,
-            atyid: b.atyid,
-            pfid: b.pfid,
-            sid: b.sid,
-            trid: b.trid
-          });
-        }
-      });
-
-      // Process remaining sells against earlier delivery FIFO lots
-      day.sells.forEach(s => {
-        let delQty = s.remQty;
-        if (delQty <= 0) return;
-
-        const qn = Number(s.qn) || 0;
-        const grossSellAmt = Number(s.amt) || (qn * (Number(s.netpr) || Number(s.purpr) || 0));
-        const sellPrice = qn > 0 ? (grossSellAmt / qn) : (Number(s.netpr) || Number(s.purpr) || 0);
-        const port = state.portfolios.find((p: any) => p.id === s.pfid);
-        const isInPeriod = dt >= fromDate && dt <= toDate;
-
-        while (delQty > 0.000001 && deliveryLots.length > 0) {
-          const lot = deliveryLots[0];
-          const mq = Math.min(delQty, lot.remaining);
-          const cost = mq * lot.costPerUnit;
-          const proceeds = mq * sellPrice;
-
-          lot.remaining -= mq;
-          delQty -= mq;
-
-          if (isInPeriod) {
-            const resolvedAtty = resolveAssetType(s.pfid, s.amid, s.atyid);
-            const aname = getAssetName(s.amid);
-            const taxRes = computeAssetTax(resolvedAtty, aname, cost, proceeds, lot.date || '', dt || '');
-            const folio = getFolioNumber(s.sid || lot.sid, s.amid, s.pfid);
-
-            results.push({
-              portfolioId: s.pfid,
-              portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
-              assetName: aname,
-              isin: getAssetISIN(s.amid) || s.isin || '',
-              folio,
-              amid: s.amid,
-              assetType: resolvedAtty,
-              assetTypeName: ASSET_TYPE_MAP[resolvedAtty] || 'Other',
-              buyDate: lot.date,
-              sellDate: dt,
-              holdingDays: taxRes.holdingDays,
-              quantity: mq,
-              buyPrice: lot.costPerUnit,
-              sellPrice,
-              costBasis: taxRes.costBasis,
-              saleProceeds: taxRes.saleProceeds,
-              gainLoss: taxRes.gainLoss,
-              gainType: taxRes.gainType,
-              taxRate: typeof taxRes.taxRate === 'number' ? taxRes.taxRate : 30,
-              estimatedTax: taxRes.estimatedTax,
-              indexationUsed: taxRes.indexationUsed,
-              notes: taxRes.notes,
-              realEstateComparison: taxRes.realEstateComparison
-            });
-          }
-
-          if (lot.remaining <= 0.000001) deliveryLots.shift();
-        }
-
-        if (delQty > 0.000001 && isInPeriod) {
-          const proceeds = delQty * sellPrice;
-          const resolvedAtty = resolveAssetType(s.pfid, s.amid, s.atyid);
-          const aname = getAssetName(s.amid);
-          const purDt = (s.purdt || s.dt || '').slice(0, 10);
-          const taxRes = computeAssetTax(resolvedAtty, aname, 0, proceeds, purDt, dt);
-          const folio = getFolioNumber(s.sid, s.amid, s.pfid);
-
-          results.push({
-            portfolioId: s.pfid,
-            portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
-            assetName: aname,
-            isin: getAssetISIN(s.amid) || s.isin || '',
-            amid: s.amid,
-            assetType: resolvedAtty,
-            assetTypeName: ASSET_TYPE_MAP[resolvedAtty] || 'Other',
-            buyDate: purDt,
-            sellDate: dt,
-            holdingDays: taxRes.holdingDays,
-            quantity: delQty,
-            buyPrice: 0,
-            sellPrice,
-            costBasis: 0,
-            saleProceeds: proceeds,
-            gainLoss: proceeds,
-            gainType: taxRes.gainType,
-            taxRate: typeof taxRes.taxRate === 'number' ? taxRes.taxRate : 30,
-            estimatedTax: taxRes.estimatedTax,
-            indexationUsed: taxRes.indexationUsed,
-            notes: taxRes.notes,
-            realEstateComparison: taxRes.realEstateComparison
-          });
-        }
-      });
-    });
+    const ledger = buildAssetFifoLedger(txList, fromDate, toDate, scMap, cnTrades);
+    results.push(...ledger.results);
   });
+
+  // IMPORTANT: this only computes the correct Sec 112A exemption when
+  // [fromDate, toDate] spans a FULL financial year (e.g. 2024-04-01 to
+  // 2025-03-31). If this is called for a partial period (e.g. one quarter),
+  // the exemption is calculated only against that partial window's LTCG,
+  // which will over-exempt if the report is run repeatedly for sub-periods
+  // of the same FY. For anything other than a full-FY call, treat the
+  // exemption/estimatedTax figures here as indicative, not final.
+  applySection112AExemption(results);
 
   return results;
 }
-
 
 // ── VOUCHER HELPERS ───────────────────────────────────────────────────────────
 export function getNextVoucherNo(type: string, fy: string): string {
@@ -1670,7 +2026,6 @@ export function getVoucherById(id: string | number) {
       }
       if (!v && tx.cnid && Number(tx.cnid) > 0) {
         v = state.vouchersC1.find((v: any) => v.cnid === Number(tx.cnid));
-        transSrc = state.transC1;
         if (!v) {
           v = state.vouchers1.find((v: any) => v.cnid === Number(tx.cnid));
           transSrc = state.trans1;
@@ -1716,6 +2071,131 @@ function nextTransid(): number {
 function nextTrid(): number {
   const allIds = state.bs1.map((t: any) => Number(t.trid) || 0);
   return allIds.length > 0 ? Math.max(...allIds) + 1 : 1;
+}
+
+export const ASSET_GROUP_IDS = [200050, 200051, 200061, 200062, 200075, 200077, 200040, 200070, 200058, 200155, 200150, 200145, 200160, 200095, 200115, 200120, 200135, 200140, 200141, 200195, 36, 75];
+
+/**
+ * Given one voucher line, resolves its amid (asset master id) and builds the
+ * bs1 row it should produce -- the SAME logic createVoucher() has always used
+ * for its single-voucher path, extracted so createVouchersBulk() can share it
+ * exactly rather than needing its own re-implementation (which previously
+ * didn't exist at all -- bulk-imported trades never reached bs1, see the
+ * Step-6/7 audit notes).
+ *
+ * `trid` is passed in (not computed via nextTrid()) so a caller processing
+ * many lines/vouchers in one batch can allocate a distinct, sequential trid
+ * per line without re-querying state.bs1 on every call (which would be
+ * O(n^2) for a large bulk import and, until the final batched write, would
+ * not yet reflect earlier rows in the same batch anyway).
+ */
+export function resolveAssetLineToBsRow(
+  data: any,
+  assetLine: any,
+  pfid: number,
+  vid: number,
+  trid: number,
+  linesToProcessCount: number
+): { bsRow: any; amid: number } | null {
+  if (!assetLine) return null;
+  let amid = assetLine.amid ? Number(assetLine.amid) : (data.assetId ? Number(data.assetId) : undefined);
+
+  if (!amid) {
+    const ledgerIdNum = Number(assetLine.ledgerId);
+    const ledger = state.acmac1.find((l: any) => l.id === ledgerIdNum);
+    if (ledger) {
+      if (ledger.exint1) amid = Number(ledger.exint1);
+      if (!amid) {
+        const cleanLedgerName = ledger.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const matchedAsset = state.assetMaster.find((a: any) => {
+          const cleanAssetName = a.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return cleanAssetName === cleanLedgerName || cleanAssetName.startsWith(cleanLedgerName) || cleanLedgerName.startsWith(cleanAssetName);
+        }) || state.sam.find((s: any) => {
+          const cleanAssetName = s.anm.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return cleanAssetName === cleanLedgerName || cleanAssetName.startsWith(cleanLedgerName) || cleanLedgerName.startsWith(cleanAssetName);
+        });
+        if (matchedAsset) amid = matchedAsset.amid;
+      }
+    }
+    if (!amid) amid = ledgerIdNum;
+  }
+
+  if (!amid) return null;
+
+  const isAddQtyType = data.type === 'bonus' || data.type === 'split' || data.type === 'rights' || data.type === 'ipo' || data.type === 'reinvest';
+  const isBuy = isAddQtyType || (assetLine ? (assetLine.tradeType === 'BUY' || Number(assetLine.debit) > 0) : (data.type !== 'dividend' && data.type !== 'buyback' && data.type !== 'writeoff'));
+  const qty = Number(assetLine.quantity) || (linesToProcessCount === 1 ? Number(data.quantity) || 0 : 0);
+  const price = Number(assetLine.price) || (linesToProcessCount === 1 ? Number(data.price) || 0 : 0);
+  const amt = Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcessCount === 1 ? Number(data.amount) || qty * price || 0 : qty * price);
+
+  const asset = state.assetMaster.find((a: any) => a.amid === amid);
+  const atyid = asset ? asset.asset_type : (assetLine.atyid ? Number(assetLine.atyid) : 50);
+
+  let trty = isBuy ? 20 : 99;
+  let trstr = isBuy ? 'Buy' : 'Sell';
+
+  if (data.isOpeningBalance || data.type === 'opening_balance') {
+    trty = 19;
+    trstr = 'Opening Balance';
+  } else if (data.type === 'dividend') {
+    trty = 62;
+    trstr = 'Dividend Payout';
+  } else if (data.type === 'bonus') {
+    trty = 40;
+    trstr = 'Bonus';
+  } else if (data.type === 'split') {
+    trty = 45;
+    trstr = '*Split';
+  } else if (data.type === 'demerger') {
+    trty = 46;
+    trstr = '*DeMerger';
+  } else if (data.type === 'merger') {
+    if (isBuy) {
+      // Inflow (new/merged-into company) leg: use 38 so the FIFO engine
+      // picks this up as a buy (FIFO_BUY_TRTY) and the Step-4
+      // corpActionOrigin review-flag fires on it.
+      trty = 38;
+    } else {
+      // Outflow (original/merging-away company) leg: explicitly pinned to
+      // 45 (matching this app's original, pre-audit behavior) rather than
+      // left at the generic default of 99 (a regular sell). 99 would make
+      // the FIFO engine treat the merger as an actual taxable "transfer" of
+      // the old holding -- fabricating a capital-gains event that Sec 47(vii)
+      // explicitly says a genuine amalgamation is NOT. 45 is a no-op in the
+      // FIFO engine (it's not picked up as a buy or a sell), which does NOT
+      // correctly close out the old holding either -- but that is a smaller,
+      // visible problem (a stale open lot) than an invented tax liability. A
+      // real fix needs a dedicated trty code and product decision, not a
+      // guess made here.
+      trty = 45;
+    }
+    trstr = '*Merged';
+  } else if (data.type === 'writeoff') {
+    trty = 99;
+    trstr = 'Write Off';
+  }
+
+  const bsRow = {
+    trid,
+    pfid,
+    amid,
+    atyid,
+    sid: -1,
+    cnid: -1,
+    trty,
+    trstr,
+    acvch: vid,
+    dt: data.date,
+    qn: qty,
+    purpr: price,
+    brkg: 0,
+    netpr: price,
+    amt,
+    chrgs: 0,
+    narr: data.narration || ''
+  };
+
+  return { bsRow, amid };
 }
 
 
@@ -1815,25 +2295,76 @@ async function syncPortfolioStats(portfolioId: number, amid: number) {
   rebuildAllIndexes();
 }
 
+/**
+ * Classifies a voucher line's cash-flow nature, per corrected Jcode point 1.
+ * This DOCUMENTS the distinction the existing `assetLines` filter (below,
+ * in createVoucher/createVouchersBulk) already enforces -- only lines that
+ * classify as 'ASSET' ever contribute to quantity totals (bs1/sum_table).
+ * Lines classified INCOME/EXPENSE/INTERNAL never carry a `quantity` in this
+ * app's data model, so they were never actually at risk of double-counting
+ * a position -- but naming the categories explicitly here makes that
+ * guarantee auditable rather than implicit in a set of unlabeled conditions.
+ *
+ * NOTE: only the ASSET/NON_ASSET distinction is asserted with confidence --
+ * ASSET_GROUP_IDS is the one list actually verified against this app's real
+ * Chart of Accounts (it's the same list resolveAssetLineToBsRow already
+ * uses). The finer INFLOW/OUTFLOW/INCOME/INTERNAL breakdown Gemini's
+ * proposal asked for would need the actual cash/bank/income group ids from
+ * your live acmac1 table (run SCHEMA_EXPORT_INSTRUCTIONS.md and check the
+ * `groups` table) before those can be asserted as fact rather than guessed --
+ * left as 'NON_ASSET' pending that confirmation rather than fabricating ids.
+ */
+export function classifyLedgerFlow(ledgerId: number): 'ASSET' | 'NON_ASSET' | 'UNKNOWN' {
+  if (ledgerId >= 500000) return 'ASSET'; // synthetic asset-ledger id range used elsewhere in this file
+  const ledger = state.acmac1.find((a: any) => a.id === ledgerId);
+  if (!ledger) return 'UNKNOWN';
+  return ASSET_GROUP_IDS.includes(Number(ledger.parent_id)) ? 'ASSET' : 'NON_ASSET';
+}
+
 export async function createVoucher(data: any, reuseVid?: number) {
   const acid = data.accountId ? Number(data.accountId) : null;
-  const vid = reuseVid ?? nextVid();
   const vtyp = VTYP_MAP[data.type] ?? 5; // default journal
 
-  // 1. Insert voucher into vouchersc1
-  const voucherRow = {
-    vid,
-    acid,
-    dt: data.date,
-    narr: data.narration || '',
-    vtyp,
-    pfid: data.portfolioId ? Number(data.portfolioId) : null,
-  };
-
-  const { error: vErr } = await supabase.from('vouchersc1').insert(voucherRow);
-  if (vErr) {
-    console.error('❌ Failed to save voucher:', vErr.message);
-    throw new Error(`Failed to save voucher: ${vErr.message}`);
+  // 1. Insert voucher into vouchersc1, retrying with a higher vid on
+  // collision. vid is computed as max(existing)+1 in JS (not database-
+  // generated), which was found to be a real, confirmed cause of data loss
+  // when called rapidly across many portfolios in one run (the pre-2015
+  // consolidation post-mortem) -- see the identical fix in
+  // ensureLedgerExists. Previously ANY insert failure here threw
+  // immediately, uncaught, which is what silently aborted the entire
+  // remaining consolidation loop after the first portfolio succeeded.
+  let vid!: number;
+  let voucherRow: any;
+  {
+    const MAX_ATTEMPTS = 10;
+    let lastError: any = null;
+    let inserted = false;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS && !inserted; attempt++) {
+      vid = reuseVid ?? (nextVid() + attempt);
+      voucherRow = {
+        vid,
+        acid,
+        dt: data.date,
+        narr: data.narration || '',
+        vtyp,
+        pfid: data.portfolioId ? Number(data.portfolioId) : null,
+      };
+      const { error: vErr } = await supabase.from('vouchersc1').insert(voucherRow);
+      if (!vErr) {
+        inserted = true;
+        break;
+      }
+      lastError = vErr;
+      const isConflict = (vErr as any).code === '23505' || /duplicate key/i.test(vErr.message || '');
+      if (reuseVid || !isConflict || attempt === MAX_ATTEMPTS - 1) {
+        console.error('❌ Failed to save voucher:', vErr.message);
+        throw new Error(`Failed to save voucher: ${vErr.message}`);
+      }
+      console.warn(`⚠️ voucher vid ${vid} collided (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying with a higher vid...`);
+    }
+    if (!inserted) {
+      throw new Error(`Failed to save voucher: ${lastError?.message || 'unknown error'}`);
+    }
   }
 
   // 2. Process lines to auto-book P&L for Asset Sales
@@ -1867,39 +2398,45 @@ export async function createVoucher(data: any, reuseVid?: number) {
       }
 
       if (amid) {
-        // Calculate FIFO Cost using existing bs1 data
-        const buyTrty = new Set([19,20,12,25,30,35,40]);
-        const allBuys = state.bs1.filter((t: any) => t.pfid === pfid && t.amid === amid && buyTrty.has(t.trty)).sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
-        
-        let remainingToSell = qtySold;
-        let totalCost = 0;
+        // Calculate FIFO cost using the SAME lot-building engine as the Capital
+        // Gains report (buildAssetFifoLedger), instead of a separate inline
+        // implementation. This guarantees the P&L booked on a manual sale
+        // voucher matches what the Capital Gains report would compute for the
+        // identical trade — previously the two used different buy/sell
+        // transaction-type sets and this copy skipped stock-split adjustment
+        // and the settlement-cover heuristic entirely, so the two could and
+        // did diverge.
+        const priorTxForAsset = state.bs1
+          .filter((t: any) => t.pfid === pfid && t.amid === amid && (t.dt || '') <= (data.date || '') && (FIFO_BUY_TRTY.has(Number(t.trty)) || FIFO_SELL_TRTY.has(Number(t.trty)) || [85, 45].includes(Number(t.trty))))
+          .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
 
-        // Note: Need to subtract previously sold quantities from existing buys
-        const sellTrty = new Set([99,101]);
-        const allSells = state.bs1.filter((t: any) => t.pfid === pfid && t.amid === amid && sellTrty.has(t.trty)).sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
-        
-        // Build lots
-        const lots = allBuys.map((t: any) => ({ dt: t.dt, qty: Number(t.qn) || 0, remaining: Number(t.qn) || 0, costPerUnit: (Number(t.qn) || 0) > 0 ? (Number(t.amt)||0)/(Number(t.qn)||1) : 0 }));
-        
-        // Deplete lots from past sales
-        allSells.forEach((pastSell: any) => {
-          let pastSellQty = Number(pastSell.qn) || 0;
-          for (const lot of lots) {
-            if (pastSellQty <= 0) break;
-            if (lot.remaining <= 0) continue;
-            const mq = Math.min(pastSellQty, lot.remaining);
-            lot.remaining -= mq;
-            pastSellQty -= mq;
-          }
-        });
+        // scMap/cnTrades affect only the *realized-gain rows* buildAssetFifoLedger
+        // would return, not the open-lot quantities/costs we need here, so empty
+        // maps are safe — we only consume `openLots` below.
+        const { openLots } = buildAssetFifoLedger(priorTxForAsset, '0001-01-01', data.date, new Map(), {});
+        const { totalCost, matchedLots } = depleteFifoLots(openLots, qtySold);
 
-        // Now calculate cost for this sale
-        for (const lot of lots) {
-          if (remainingToSell <= 0) break;
-          if (lot.remaining <= 0) continue;
-          const mq = Math.min(remainingToSell, lot.remaining);
-          totalCost += (mq * lot.costPerUnit);
-          remainingToSell -= mq;
+        // Persist which lot(s) this sale actually consumed -- a queryable
+        // audit trail for "why did this sale cost what it did," per the
+        // corrected Jcode point 2 (see supabase_step8_precision_and_audit.sql).
+        // This does NOT feed back into any calculation -- buildAssetFifoLedger
+        // keeps recomputing fresh from bs1 every time, as it always has.
+        // Non-blocking: an audit-trail write failure shouldn't prevent the
+        // actual sale from being recorded.
+        if (matchedLots.length > 0) {
+          const consumptionRows = matchedLots.map(m => ({
+            vid,
+            pfid,
+            amid,
+            sell_date: data.date,
+            lot_date: m.date,
+            qty_consumed: m.qty,
+            cost_per_unit: m.costPerUnit,
+            cost_consumed: m.qty * m.costPerUnit,
+          }));
+          supabase.from('tax_lot_consumption').insert(consumptionRows).then(({ error }) => {
+            if (error) console.error('⚠️ Failed to write tax_lot_consumption audit trail (sale itself was NOT affected):', error.message);
+          });
         }
 
         const proceeds = Number(l.credit);
@@ -1916,9 +2453,10 @@ export async function createVoucher(data: any, reuseVid?: number) {
           LTCG_BONDS:  485,  // Long Term Gain (Bonds)
         };
 
-        // Find first matched buy lot date to calculate holding period
-        const firstLot = lots.find((lt: any) => lt.qty > 0);
-        const firstBuyDate = firstLot ? firstLot.dt : data.date;
+        // Earliest matched lot date, for holding-period calculation — same
+        // definition the Capital Gains report uses per matched lot, simplified
+        // here to the earliest lot consumed by this sale.
+        const firstBuyDate = matchedLots.length > 0 ? matchedLots[0].date : data.date;
         const holdingDays = Math.abs((new Date(data.date).getTime() - new Date(firstBuyDate).getTime()) / 86400000);
 
         // Find asset type (atyid) from bs1
@@ -1957,28 +2495,77 @@ export async function createVoucher(data: any, reuseVid?: number) {
   }
 
   const lines = processedLines;
-  let currentTransid = nextTransid();
-  const transRows: any[] = [];
 
-  for (const line of lines) {
-    const row = {
-      transid: currentTransid++,
-      vid,
-      acid,
-      maid: Number(line.ledgerId),
-      dramt: Number(line.debit) || 0,
-      cramt: Number(line.credit) || 0,
-      dt: data.date,
-    };
-    transRows.push(row);
+  // ── Voucher balance validation ────────────────────────────────────────────
+  // Previously NOTHING checked that a voucher's total debits equalled its
+  // total credits before writing it to transc1 -- the only such check
+  // (validateVoucher/validateDebitCredit) lived in src/accounting-engine/,
+  // which is never imported anywhere and was dead code. This enforces it
+  // directly, scoped to standard double-entry voucher types only.
+  //
+  // Corporate-action types (bonus/split/merger/demerger/ipo/buyback) are
+  // deliberately EXCLUDED here: split records a quantity-only line (debit=0,
+  // credit=0 by design), and demerger currently writes only ONE line (debit,
+  // no offsetting credit) in PMSCorporateActionModal.tsx -- see the comment
+  // there. That looks like it may be its own separate accounting-treatment
+  // issue, but fixing it requires understanding the intended double-entry
+  // design (does the original asset ledger get credited? does a capital
+  // account absorb the difference?), which wasn't specified anywhere I could
+  // find. Flagging it rather than guessing at a fix here.
+  const STRICT_BALANCE_TYPES = new Set(['payment', 'receipt', 'journal', 'contra', 'sale', 'opening_balance']);
+  if (STRICT_BALANCE_TYPES.has(data.type)) {
+    const totalDebit = lines.reduce((s: number, l: any) => s + (Number(l.debit) || 0), 0);
+    const totalCredit = lines.reduce((s: number, l: any) => s + (Number(l.credit) || 0), 0);
+    const diff = Math.abs(totalDebit - totalCredit);
+    if (diff >= 0.01) {
+      // Roll back the voucher header already inserted above so no orphan
+      // record is left behind.
+      await supabase.from('vouchersc1').delete().eq('vid', vid);
+      throw new Error(
+        `Voucher is not balanced: total debit ₹${totalDebit.toFixed(2)} vs total credit ₹${totalCredit.toFixed(2)} (difference ₹${diff.toFixed(2)}). Voucher was not saved.`
+      );
+    }
   }
 
-  if (transRows.length > 0) {
-    const { error: tErr } = await supabase.from('transc1').insert(transRows);
-    if (tErr) {
-      console.error('❌ Failed to save entries:', tErr.message);
+  let transRows: any[] = [];
+  {
+    const MAX_ATTEMPTS = 10;
+    let inserted = false;
+    let lastError: any = null;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS && !inserted; attempt++) {
+      let currentTransid = nextTransid() + attempt * lines.length;
+      transRows = lines.map((line: any) => ({
+        transid: currentTransid++,
+        vid,
+        acid,
+        maid: Number(line.ledgerId),
+        dramt: Number(line.debit) || 0,
+        cramt: Number(line.credit) || 0,
+        dt: data.date,
+      }));
+
+      if (transRows.length === 0) {
+        inserted = true;
+        break;
+      }
+
+      const { error: tErr } = await supabase.from('transc1').insert(transRows);
+      if (!tErr) {
+        inserted = true;
+        break;
+      }
+      lastError = tErr;
+      const isConflict = (tErr as any).code === '23505' || /duplicate key/i.test(tErr.message || '');
+      if (!isConflict || attempt === MAX_ATTEMPTS - 1) {
+        console.error('❌ Failed to save entries:', tErr.message);
+        await supabase.from('vouchersc1').delete().eq('vid', vid);
+        throw new Error(`Failed to save entries: ${tErr.message}`);
+      }
+      console.warn(`⚠️ transc1 transid batch starting at ${currentTransid - transRows.length} collided (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying with higher ids...`);
+    }
+    if (!inserted) {
       await supabase.from('vouchersc1').delete().eq('vid', vid);
-      throw new Error(`Failed to save entries: ${tErr.message}`);
+      throw new Error(`Failed to save entries: ${lastError?.message || 'unknown error'}`);
     }
   }
 
@@ -1992,8 +2579,7 @@ export async function createVoucher(data: any, reuseVid?: number) {
   // 4. Sync to bs1 (portfolio transactions) and sum_table (holdings summary)
   if (data.portfolioId) {
     const pfid = Number(data.portfolioId);
-    const assetGroupIds = [200050, 200051, 200061, 200062, 200075, 200077, 200040, 200070, 200058, 200155, 200150, 200145, 200160, 200095, 200115, 200120, 200135, 200140, 200141, 200195, 36, 75];
-    
+
     // Find all lines representing distinct asset holdings/trades
     const assetLines = (data.lines || []).filter((l: any) => {
       if (l.amid && Number(l.amid) > 0) return true;
@@ -2001,96 +2587,61 @@ export async function createVoucher(data: any, reuseVid?: number) {
       const ledgerIdNum = Number(l.ledgerId);
       if (ledgerIdNum >= 500000) return true;
       const ledger = state.acmac1.find((a: any) => a.id === ledgerIdNum);
-      if (ledger && assetGroupIds.includes(Number(ledger.parent_id))) return true;
+      if (ledger && ASSET_GROUP_IDS.includes(Number(ledger.parent_id))) return true;
       return false;
     });
 
     const linesToProcess = assetLines.length > 0 ? assetLines : [data.lines[0]];
+    const CORP_ACTION_TYPES = new Set(['split', 'bonus', 'merger', 'demerger']);
 
     for (const assetLine of linesToProcess) {
-      if (!assetLine) continue;
-      let amid = assetLine.amid ? Number(assetLine.amid) : (data.assetId ? Number(data.assetId) : undefined);
-      
-      if (!amid) {
-        const ledgerIdNum = Number(assetLine.ledgerId);
-        const ledger = state.acmac1.find((l: any) => l.id === ledgerIdNum);
-        if (ledger) {
-          if (ledger.exint1) amid = Number(ledger.exint1);
-          if (!amid) {
-            const cleanLedgerName = ledger.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const matchedAsset = state.assetMaster.find((a: any) => {
-              const cleanAssetName = a.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-              return cleanAssetName === cleanLedgerName || cleanAssetName.startsWith(cleanLedgerName) || cleanLedgerName.startsWith(cleanAssetName);
-            }) || state.sam.find((s: any) => {
-              const cleanAssetName = s.anm.toLowerCase().replace(/[^a-z0-9]/g, '');
-              return cleanAssetName === cleanLedgerName || cleanAssetName.startsWith(cleanLedgerName) || cleanLedgerName.startsWith(cleanAssetName);
-            });
-            if (matchedAsset) amid = matchedAsset.amid;
+      let bsRow: any = null;
+      let amid: number | undefined;
+      {
+        const MAX_ATTEMPTS = 10;
+        let inserted = false;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS && !inserted; attempt++) {
+          const resolved = resolveAssetLineToBsRow(data, assetLine, pfid, vid, nextTrid() + attempt, linesToProcess.length);
+          if (!resolved) break;
+          bsRow = resolved.bsRow;
+          amid = resolved.amid;
+
+          const { error: bsErr } = await supabase.from('bs1').insert(bsRow);
+          if (!bsErr) {
+            inserted = true;
+            break;
           }
+          const isConflict = (bsErr as any).code === '23505' || /duplicate key/i.test(bsErr.message || '');
+          if (!isConflict || attempt === MAX_ATTEMPTS - 1) {
+            console.error('❌ Failed to insert into bs1:', bsErr.message);
+            bsRow = null; // signal failure to the block below
+            break;
+          }
+          console.warn(`⚠️ bs1 trid ${bsRow.trid} collided (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying with a higher trid...`);
         }
-        if (!amid) amid = ledgerIdNum;
       }
+      if (!bsRow || amid === undefined) continue;
 
-      if (amid) {
-        const isAddQtyType = data.type === 'bonus' || data.type === 'split' || data.type === 'rights' || data.type === 'ipo' || data.type === 'reinvest';
-        const isBuy = isAddQtyType || (assetLine ? (assetLine.tradeType === 'BUY' || Number(assetLine.debit) > 0) : (data.type !== 'dividend' && data.type !== 'buyback' && data.type !== 'writeoff'));
-        const qty = Number(assetLine.quantity) || (linesToProcess.length === 1 ? Number(data.quantity) || 0 : 0);
-        const price = Number(assetLine.price) || (linesToProcess.length === 1 ? Number(data.price) || 0 : 0);
-        const amt = Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcess.length === 1 ? Number(data.amount) || qty * price || 0 : qty * price);
+      state.bs1.push({ ...bsRow, _src: 'c' });
+      await syncPortfolioStats(pfid, amid);
 
-        const asset = state.assetMaster.find((a: any) => a.amid === amid);
-        const atyid = asset ? asset.asset_type : 50;
-
-        let trty = isBuy ? 20 : 99;
-        let trstr = isBuy ? 'Buy' : 'Sell';
-
-        if (data.type === 'dividend') {
-          trty = 62;
-          trstr = 'Dividend Payout';
-        } else if (data.type === 'bonus') {
-          trty = 40;
-          trstr = 'Bonus';
-        } else if (data.type === 'split') {
-          trty = 45;
-          trstr = '*Split';
-        } else if (data.type === 'demerger') {
-          trty = 46;
-          trstr = '*DeMerger';
-        } else if (data.type === 'merger') {
-          trty = 45;
-          trstr = '*Merged';
-        } else if (data.type === 'writeoff') {
-          trty = 99;
-          trstr = 'Write Off';
-        }
-
-        const bsRow = {
-          trid: nextTrid(),
+      // Corrected Jcode point 3: pure event log, no trigger, no mutation
+      // of bs1/sum_table/anything else -- see the rationale in
+      // supabase_step8_precision_and_audit.sql. Purely for reporting/
+      // display convenience; bs1 remains the actual source of truth.
+      if (CORP_ACTION_TYPES.has(data.type)) {
+        supabase.from('corporate_actions').insert({
           pfid,
           amid,
-          atyid,
-          sid: -1,
-          cnid: -1,
-          trty,
-          trstr,
-          acvch: vid,
-          dt: data.date,
-          qn: qty,
-          purpr: price,
-          brkg: 0,
-          netpr: price,
-          amt,
-          chrgs: 0,
-          narr: data.narration || ''
-        };
-
-        const { error: bsErr } = await supabase.from('bs1').insert(bsRow);
-        if (bsErr) {
-          console.error('❌ Failed to insert into bs1:', bsErr.message);
-        } else {
-          state.bs1.push({ ...bsRow, _src: 'c' });
-          await syncPortfolioStats(pfid, amid);
-        }
+          action_type: data.type,
+          action_date: data.date,
+          ratio_or_pct: data.costAllocationPct ?? data.ratio ?? null,
+          related_amid: data.assetId && Number(data.assetId) !== amid ? Number(data.assetId) : null,
+          vid,
+          narration: data.narration || '',
+        }).then(({ error }) => {
+          if (error) console.error('⚠️ Failed to write corporate_actions log entry (bs1 record was NOT affected):', error.message);
+        });
       }
     }
   }
@@ -2509,6 +3060,7 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
     tax_charges_stocks: 171,
     share_txn_charges: 175,
     tds: 55,
+    capital: 1,
   };
 
   const parentId = groupMapping[groupId.toLowerCase()] || 50;
@@ -2531,36 +3083,64 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
     };
   }
 
-  const allIds = state.acmac1.map((a: any) => Number(a.id)).filter(id => id < 100000);
-  const nextId = allIds.length > 0 ? Math.max(...allIds) + 1 : 1001;
+  // Id allocation for new ledgers: `id` is a GLOBAL primary key shared across
+  // EVERY account's ledgers (not scoped per acid), computed here in JS as
+  // max(existing ids) + 1, rather than database-generated. This was found to
+  // be a real, confirmed data-loss bug when called rapidly across many
+  // accounts in one run (see the pre-2015 consolidation post-mortem): the
+  // live database had 730 ledger rows packed into an id range of only 671,
+  // essentially zero headroom, and any staleness between the in-memory
+  // state.acmac1 snapshot and the true DB state (or any other process
+  // touching this table concurrently) produces a primary-key collision,
+  // which previously surfaced as a silent, uncaught INSERT failure --
+  // dropping the entire ledger (and, upstream, the entire asset position
+  // that depended on it) with only a console.error and no retry.
+  //
+  // This retries with an incrementing id on a detected primary-key conflict,
+  // re-reading the current max from state.acmac1 each attempt (which is kept
+  // in sync via the push() below after every successful insert).
+  const MAX_ATTEMPTS = 10;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const allIds = state.acmac1.map((a: any) => Number(a.id)).filter(id => id < 100000);
+    const nextId = (allIds.length > 0 ? Math.max(...allIds) : 1000) + 1 + attempt;
 
-  const newRow = {
-    id: nextId,
-    name,
-    parent_id: parentId,
-    is_group: false,
-    acid: acidNum,
-    special_type_id: 150
-  };
+    const newRow = {
+      id: nextId,
+      name,
+      parent_id: parentId,
+      is_group: false,
+      acid: acidNum,
+      special_type_id: 150
+    };
 
-  const { error } = await supabase.from('acmac1').insert(newRow);
-  if (error) {
+    const { error } = await supabase.from('acmac1').insert(newRow);
+    if (!error) {
+      state.acmac1.push(newRow);
+      rebuildAllIndexes();
+      return {
+        id: String(newRow.id),
+        name: newRow.name,
+        groupId: String(newRow.parent_id),
+        openingBalance: 0,
+        openingType: 'DR',
+        amid: newRow.id >= 100000 ? newRow.id : undefined,
+        acid: newRow.acid
+      };
+    }
+
+    // Primary-key/unique-constraint violation: retry with a higher id.
+    // Postgres error code 23505, or a message containing "duplicate key".
+    const isConflict = (error as any).code === '23505' || /duplicate key/i.test(error.message || '');
+    if (isConflict && attempt < MAX_ATTEMPTS - 1) {
+      console.warn(`⚠️ ledger id ${nextId} collided (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying with a higher id...`);
+      continue;
+    }
+
     console.error('❌ Failed to insert ledger into acmac1:', error.message);
     throw new Error(`Failed to create ledger: ${error.message}`);
   }
 
-  state.acmac1.push(newRow);
-  rebuildAllIndexes();
-
-  return {
-    id: String(newRow.id),
-    name: newRow.name,
-    groupId: String(newRow.parent_id),
-    openingBalance: 0,
-    openingType: 'DR',
-    amid: newRow.id >= 100000 ? newRow.id : undefined,
-    acid: newRow.acid
-  };
+  return null;
 }
 
 export async function updateAssetPrice(assetId: string, price: number) {
@@ -2637,9 +3217,20 @@ export async function createVouchersBulk(dataList: any[]) {
   const { data: maxTrans } = await supabase.from('transc1').select('transid').order('transid', { ascending: false }).limit(1);
   let nextTransid = (maxTrans?.[0]?.transid || 0) + 1;
 
+  // For bs1 rows -- previously this function never queried or wrote bs1 at
+  // all, which is why bulk-imported trades were invisible to the FIFO/
+  // Capital-Gains engine (see the audit notes). Mirrors the nextVid/
+  // nextTransid pattern: query the live max once, then increment locally
+  // across the whole batch (calling nextTrid() per-row would re-scan
+  // state.bs1 on every call and wouldn't see rows from earlier in this same
+  // batch until the final insert completes).
+  const { data: maxTrid } = await supabase.from('bs1').select('trid').order('trid', { ascending: false }).limit(1);
+  let nextTridCounter = (maxTrid?.[0]?.trid || 0) + 1;
+
   const vouchers: any[] = [];
   const allTrans: any[] = [];
   const allNotes: any[] = [];
+  const allBsRows: any[] = [];
 
   for (const data of dataList) {
     const acid = data.accountId ? Number(data.accountId) : null;
@@ -2657,6 +3248,23 @@ export async function createVouchersBulk(dataList: any[]) {
 
     const lines = (data.lines || []).filter((l: any) => l.ledgerId && (Number(l.debit) > 0 || Number(l.credit) > 0 || data.type === 'bonus' || data.type === 'split' || data.type === 'merger' || data.type === 'demerger'));
 
+    // Same scoped balance check as createVoucher() -- see the comment there
+    // for why corporate-action types are excluded. This path is a fully
+    // separate line-building implementation from createVoucher's transc1
+    // handling, so it needed its own copy of the check rather than
+    // inheriting it.
+    const STRICT_BALANCE_TYPES = new Set(['payment', 'receipt', 'journal', 'contra', 'sale', 'sales']);
+    if (STRICT_BALANCE_TYPES.has(data.type)) {
+      const totalDebit = lines.reduce((s: number, l: any) => s + (Number(l.debit) || 0), 0);
+      const totalCredit = lines.reduce((s: number, l: any) => s + (Number(l.credit) || 0), 0);
+      const diff = Math.abs(totalDebit - totalCredit);
+      if (diff >= 0.01) {
+        throw new Error(
+          `Bulk voucher batch aborted: an unbalanced "${data.type}" voucher dated ${data.date} was found (total debit ₹${totalDebit.toFixed(2)} vs total credit ₹${totalCredit.toFixed(2)}, difference ₹${diff.toFixed(2)}). No vouchers in this batch were saved -- fix the source data and retry.`
+        );
+      }
+    }
+
     for (const line of lines) {
       const transid = nextTransid++;
       const amid = data.assetId ? Number(data.assetId) : null;
@@ -2666,8 +3274,15 @@ export async function createVouchersBulk(dataList: any[]) {
         acid,
         dt: data.date,
         maid: Number(line.ledgerId),
-        crdr: Number(line.credit) > 0 ? 1 : 0,
-        amount: Number(line.debit) > 0 ? Number(line.debit) : Number(line.credit),
+        // CRITICAL FIX: every reader of transc1 in this codebase (getLedgerWithBalance,
+        // trial balance, etc. -- see logic.ts lines ~552, ~1031, ~1709) reads
+        // `dramt`/`cramt` exclusively. This function was writing `crdr`/`amount`
+        // instead, a column shape nothing ever reads -- meaning every voucher
+        // created through bulk import had a debit/credit of effectively ₹0 in
+        // every ledger, balance, and report in the app, silently. Writing the
+        // same shape as createVoucher() (and every reader) fixes this.
+        dramt: Number(line.debit) || 0,
+        cramt: Number(line.credit) || 0,
         pfid: data.portfolioId ? Number(data.portfolioId) : null,
         amid,
       });
@@ -2693,6 +3308,29 @@ export async function createVouchersBulk(dataList: any[]) {
         }
       }
     }
+
+    // ── bs1 sync (the actual fix for this step) ────────────────────────────
+    // Uses the SAME line-resolution logic as createVoucher() (extracted into
+    // resolveAssetLineToBsRow), so bulk-imported trades are costed and
+    // classified identically to trades entered one at a time through the UI.
+    if (data.portfolioId) {
+      const pfid = Number(data.portfolioId);
+      const assetLines = (data.lines || []).filter((l: any) => {
+        if (l.amid && Number(l.amid) > 0) return true;
+        if (Number(l.quantity) > 0 || Number(l.price) > 0) return true;
+        const ledgerIdNum = Number(l.ledgerId);
+        if (ledgerIdNum >= 500000) return true;
+        const ledger = state.acmac1.find((a: any) => a.id === ledgerIdNum);
+        if (ledger && ASSET_GROUP_IDS.includes(Number(ledger.parent_id))) return true;
+        return false;
+      });
+      const linesToProcess = assetLines.length > 0 ? assetLines : [data.lines[0]];
+
+      for (const assetLine of linesToProcess) {
+        const resolved = resolveAssetLineToBsRow(data, assetLine, pfid, vid, nextTridCounter++, linesToProcess.length);
+        if (resolved) allBsRows.push(resolved.bsRow);
+      }
+    }
   }
 
   const { error: vErr } = await supabase.from('vouchersc1').insert(vouchers);
@@ -2713,6 +3351,28 @@ export async function createVouchersBulk(dataList: any[]) {
       const chunk = allNotes.slice(i, i + 500);
       const { error: nErr } = await supabase.from('scnote1').insert(chunk);
       if (nErr) throw new Error('Bulk insert failed for scnote1: ' + nErr.message);
+    }
+  }
+
+  if (allBsRows.length > 0) {
+    for (let i = 0; i < allBsRows.length; i += 500) {
+      const chunk = allBsRows.slice(i, i + 500);
+      const { error: bsErr } = await supabase.from('bs1').insert(chunk);
+      if (bsErr) throw new Error('Bulk insert failed for bs1: ' + bsErr.message);
+    }
+    allBsRows.forEach(row => state.bs1.push({ ...row, _src: 'c' }));
+
+    // Refresh portfolio holdings summary once per unique (pfid, amid) pair
+    // touched by this batch, rather than once per row (syncPortfolioStats
+    // re-reads the live bs1 table itself, so it's safe to call after the
+    // batch insert above has fully landed).
+    const uniquePairs = new Map<string, { pfid: number; amid: number }>();
+    allBsRows.forEach(row => {
+      const key = `${row.pfid}_${row.amid}`;
+      if (!uniquePairs.has(key)) uniquePairs.set(key, { pfid: row.pfid, amid: row.amid });
+    });
+    for (const { pfid, amid } of uniquePairs.values()) {
+      await syncPortfolioStats(pfid, amid);
     }
   }
 }

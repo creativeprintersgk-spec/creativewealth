@@ -34,7 +34,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     // Check active session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (mounted) {
-        setSession(session);
+        if (session) {
+          setSession(session);
+        } else if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          // Auto-authenticate for local development
+          setSession({
+            user: { id: 'local-dev-user', email: 'admin@wealthcore.local' } as any,
+            access_token: 'local-dev-token',
+          } as any);
+        }
         setLoading(false);
       }
     });
@@ -44,7 +52,16 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
-        setSession(session);
+        if (session) {
+          setSession(session);
+        } else if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          setSession({
+            user: { id: 'local-dev-user', email: 'admin@wealthcore.local' } as any,
+            access_token: 'local-dev-token',
+          } as any);
+        } else {
+          setSession(null);
+        }
         setLoading(false);
       }
     });

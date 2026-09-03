@@ -41,8 +41,14 @@ export default function CapitalGainsPage() {
           // 1. Transaction-level summary for Portfolio breakdown
           const txns = getCapitalGains(pfIds, customRange.start, customRange.end);
           const summary: Record<string, CGSummaryRow> = {};
-          
+
           txns.forEach(tx => {
+            // Intraday (same-day) square-offs are speculative business income
+            // under Sec 43(5), not capital gains -- they don't belong in this
+            // STCG/LTCG summary at all (its type only models those two). The
+            // detailed asset-class breakdown below (generateCapitalGainsDetailed)
+            // already tracks Intraday separately and correctly via totalIntraday.
+            if (tx.gainType === 'Intraday') return;
             const p = pfs.find(x => Number(x.id) === Number(tx.portfolioId));
             const pName = p?.name || p?.investor_name || p?.full_name || `Portfolio ${tx.portfolioId}`;
             const key = `${tx.portfolioId}_${tx.gainType}`;

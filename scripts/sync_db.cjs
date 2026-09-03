@@ -20,13 +20,11 @@ const TABLES_TO_SYNC = [
   { sqlite: 'Portfolios', pg: 'portfolios' },
   { sqlite: 'InvestorGroupMembers', pg: 'investor_group_members' },
   { sqlite: 'ACC_PFLINK', pg: 'acc_pflink' },
-  { sqlite: 'ACMAC1', pg: 'acmac1' },
+  { sqlite: 'ACMA1', pg: 'acmac1' },
   { sqlite: 'SAM', pg: 'sam' },
   { sqlite: 'BS1', pg: 'bs1' },
   { sqlite: 'SumTable', pg: 'sum_table' },
-  { sqlite: 'VouchersC1', pg: 'vouchersc1' },
   { sqlite: 'Vouchers1', pg: 'vouchers1' },
-  { sqlite: 'TransC1', pg: 'transc1' },
   { sqlite: 'Trans1', pg: 'trans1' },
   { sqlite: 'MPrices', pg: 'mprices' },
   { sqlite: 'SCNOTE1', pg: 'scnote1' }
@@ -259,6 +257,27 @@ async function run() {
              Mobile: client.Mobile
            });
          }
+      }
+
+      if (pg === 'acmac1') {
+        const fs = require('fs');
+        const snap = JSON.parse(fs.readFileSync('backups/latest_snapshot/acmac1.json', 'utf8'));
+        const groups = snap.filter(r => r.is_group);
+        for (const g of groups) {
+          rows.push({
+            ID: g.id,
+            ParentID: g.parent_id,
+            IsGroup: 1,
+            Name: g.name,
+            DispSeqno: g.disp_seqno,
+            Flags: g.flags,
+            ACID: g.acid,
+            CLID: g.clid,
+            SpecialTypeID: g.special_type_id,
+            CrBal: 0,
+            DbBal: 0
+          });
+        }
       }
 
       console.log(`Found ${rows.length} rows to insert into ${pg}.`);

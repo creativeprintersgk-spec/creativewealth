@@ -5,9 +5,11 @@ import Papa from 'papaparse';
 import { supabase } from "../supabase";
 import { useFY } from "../FYContext";
 import { useTestMode } from "../contexts/TestModeContext";
-import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers, syncLivePrices, getAssetName } from "../logic";
+import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers, syncLivePrices, getAssetName, computeLedgerOpeningBalanceGaps } from "../logic";
 import isinDictionary from "../services/isinDictionary.json";
 import { MfCasTab } from "./MfCasTab";
+
+import standardMprofitGroups from "../standard_mprofit_groups.json";
 
 const isinToAmidMap: Record<string, number> = {};
 for (const [amidStr, isinVal] of Object.entries(isinDictionary as Record<string, string>)) {
@@ -24,19 +26,19 @@ interface TableConfig {
 }
 
 const TABLE_CONFIGS: TableConfig[] = [
-  { key: 'portfolios', name: 'Portfolios', filePattern: /^portfolios\.csv$/i, required: true, deleteKey: 'id' },
-  { key: 'investor_group_members', name: 'Investor Group Members', filePattern: /^investorgroupmembers\.csv$/i, required: false, deleteKey: 'pfolio_id' },
-  { key: 'acc_pflink', name: 'Account Portfolio Links', filePattern: /^acc_pflink\.csv|acc_pflnk\.csv$/i, required: true, deleteKey: 'pfid' },
-  { key: 'acmac1', name: 'Chart of Accounts (ACMAC1)', filePattern: /^acmac1\.csv$/i, required: true, deleteKey: 'id' },
+  { key: 'portfolios', name: 'Portfolios', filePattern: /^portfolios?\.csv$/i, required: true, deleteKey: 'id' },
+  { key: 'investor_group_members', name: 'Investor Group Members', filePattern: /^(?:investor_?group_?members?|investorgroupmembers)\.csv$/i, required: false, deleteKey: 'pfolio_id' },
+  { key: 'acc_pflink', name: 'Account Portfolio Links', filePattern: /^(?:acc_?pfln?k|acc_pflink)\.csv$/i, required: true, deleteKey: 'pfid' },
+  { key: 'acmac1', name: 'Chart of Accounts (ACMAC1)', filePattern: /^(?:acmac1|acma1|acma)\.csv$/i, required: true, deleteKey: 'id' },
   { key: 'sam', name: 'Security Asset Master (SAM)', filePattern: /^sam\.csv$/i, required: true, deleteKey: 'amid' },
   { key: 'bs1', name: 'Portfolio Transactions (BS1)', filePattern: /^bs1\.csv$/i, required: true, deleteKey: 'trid' },
   { key: 'sum_table', name: 'Holdings Summary (SumTable)', filePattern: /^sum_?table\.csv$/i, required: true, deleteKey: 'sid' },
-  { key: 'vouchersc1', name: 'Capital Vouchers (VouchersC1)', filePattern: /^vouchersc1\.csv$/i, required: true, deleteKey: 'vid' },
-  { key: 'vouchers1', name: 'Trading Vouchers (Vouchers1)', filePattern: /^vouchers1\.csv$/i, required: true, deleteKey: 'vid' },
-  { key: 'transc1', name: 'Capital Transactions (TransC1)', filePattern: /^transc1\.csv$/i, required: true, deleteKey: 'transid' },
-  { key: 'trans1', name: 'Trading Transactions (Trans1)', filePattern: /^trans1\.csv$/i, required: true, deleteKey: 'transid' },
-  { key: 'mprices', name: 'Market Prices (MPrices)', filePattern: /^mprices\.csv$/i, required: true, deleteKey: 'row_id' },
-  { key: 'scnote1', name: 'Contract Notes (SCNOTE1)', filePattern: /^sc_?note1?\.csv$/i, required: false, deleteKey: 'cnid' },
+  { key: 'vouchersc1', name: 'Capital Vouchers (VouchersC1)', filePattern: /^(?:vouchers?_?c[0-9]*|vouchers?c)\.csv$/i, required: false, deleteKey: 'vid' },
+  { key: 'vouchers1', name: 'Trading Vouchers (Vouchers1)', filePattern: /^(?:vouchers?1|vouchers?_?1)\.csv$/i, required: true, deleteKey: 'vid' },
+  { key: 'transc1', name: 'Capital Transactions (TransC1)', filePattern: /^(?:trans?a?c?_?c[0-9]*|trans?c)\.csv$/i, required: false, deleteKey: 'transid' },
+  { key: 'trans1', name: 'Trading Transactions (Trans1)', filePattern: /^(?:trans?1|trans?a?c?_?1)\.csv$/i, required: true, deleteKey: 'transid' },
+  { key: 'mprices', name: 'Market Prices (MPrices)', filePattern: /^m_?prices?\.csv$/i, required: true, deleteKey: 'row_id' },
+  { key: 'scnote1', name: 'Contract Notes (SCNOTE1)', filePattern: /^sc_?notes?1?\.csv$/i, required: false, deleteKey: 'cnid' },
 ];
 
 // Helper to normalize any date format (DD-MM-YYYY, YYYY-MM-DD, DD/MM/YYYY, DD-MMM-YYYY) to YYYY-MM-DD
@@ -521,14 +523,25 @@ function ImportPageInner() {
               if (tablesResult.length > 0) {
                  const allTables = tablesResult[0].values.map((v: any) => v[0] as string);
                  
-                 const match = allTables.find((t: string) => config.filePattern.test(t + '.csv'));
+                 let match = undefined;
+                 if (config.key === 'transc1') {
+                   match = allTables.find((t: string) => /^transc1$/i.test(t)) || allTables.find((t: string) => /^trans_?c1$/i.test(t));
+                 } else if (config.key === 'vouchersc1') {
+                   match = allTables.find((t: string) => /^vouchersc1$/i.test(t)) || allTables.find((t: string) => /^vouchers?_?c1$/i.test(t));
+                 } else if (config.key === 'acmac1') {
+                   match = allTables.find((t: string) => /^acmac1$/i.test(t)) || allTables.find((t: string) => /^acma1$/i.test(t));
+                 } else {
+                   match = allTables.find((t: string) => config.filePattern.test(t + '.csv'));
+                 }
+                 
                  if (match) {
                     const dataRes = db.exec(`SELECT * FROM "${match}"`);
+                    let rows: any[] = [];
                     if (dataRes.length > 0) {
                        const columns = dataRes[0].columns;
                        const values = dataRes[0].values;
                        
-                       let rows = values.map((row: any) => {
+                       rows = values.map((row: any) => {
                           const obj: Record<string, any> = {};
                           columns.forEach((col: string, i: number) => {
                            const mappedCol = mapHeaderToColumn(col);
@@ -537,36 +550,186 @@ function ImportPageInner() {
                           return obj;
                        });
 
-                       // If parsing acmac1, also check for any missing master ledgers in ACMA1
-                       if (config.key === 'acmac1' && allTables.includes('ACMA1')) {
-                         try {
-                           const acmaRes = db.exec('SELECT * FROM "ACMA1"');
-                           if (acmaRes.length > 0) {
-                             const acmaCols = acmaRes[0].columns;
-                             const existingIds = new Set(rows.map((r: any) => r.id));
-                             acmaRes[0].values.forEach((row: any) => {
-                               const obj: Record<string, any> = {};
-                               acmaCols.forEach((col: string, i: number) => {
-                                 const mappedCol = mapHeaderToColumn(col);
-                                 obj[mappedCol] = parseValue(mappedCol, String(row[i] ?? ''));
-                               });
-                               if (!existingIds.has(obj.id)) {
-                                 rows.push(obj);
-                               }
-                             });
-                           }
-                         } catch (err) {
-                           console.warn('Could not merge ACMA1 into acmac1:', err);
-                         }
-                       }
-                       
-                       setStagedFiles(prev => ({ ...prev, [config.key]: { rows, fileName: file.name + ` (${match})` } }));
-                       setTableStatus(prev => ({
-                         ...prev,
-                         [config.key]: { status: 'parsed', rowCount: rows.length, progress: 0 }
-                       }));
-                       console.log(`Staged ${config.name} from DB: ${rows.length} rows`);
+                       // If parsing portfolios, also check for Clients table in SQLite
+                        if (config.key === 'portfolios' && allTables.includes('Clients')) {
+                          try {
+                            const clRes = db.exec('SELECT * FROM "Clients"');
+                            if (clRes.length > 0) {
+                              const clCols = clRes[0].columns;
+                              const existingIds = new Set(rows.map((r: any) => r.id));
+                              clRes[0].values.forEach((row: any) => {
+                                const obj: Record<string, any> = {};
+                                clCols.forEach((col: string, i: number) => {
+                                  const mappedCol = mapHeaderToColumn(col);
+                                  obj[mappedCol] = parseValue(mappedCol, String(row[i] ?? ''));
+                                });
+                                const clientId = obj.id || obj.client_id;
+                                const compositeId = (clientId ? Number(clientId) + 1000000 : 1000000);
+                                if (!existingIds.has(compositeId)) {
+                                  rows.push({
+                                    id: compositeId,
+                                    client_id: clientId,
+                                    investor_name: obj.name || obj.investor_name,
+                                    full_name: obj.name || obj.full_name,
+                                    is_group: 1,
+                                    city: obj.city,
+                                    pin_code: obj.pin_code,
+                                    country: obj.country,
+                                    phone: obj.phone,
+                                    mobile: obj.mobile
+                                  });
+                                }
+                              });
+                            }
+                          } catch (err) {
+                            console.warn('Could not merge Clients into portfolios:', err);
+                          }
+                        }
+
+                        // If parsing acmac1, merge all ACMA tables (ACMA1, ACMA2, ACMA3, ACMA4, ACMA5, ACMA6, ACMA7, ACMAC1, etc.)
+                        if (config.key === 'acmac1') {
+                          const acmaTables = allTables.filter((t: string) => /^ACMA[0-9C]*$/i.test(t) && t !== match);
+                          const existingKeys = new Set(rows.map((r: any) => `${r.id}_${r.acid ?? ''}_${r.is_group ?? ''}_${r.name ?? ''}`));
+                          for (const acmaTab of acmaTables) {
+                            try {
+                              const acmaRes = db.exec(`SELECT * FROM "${acmaTab}"`);
+                              if (acmaRes.length > 0) {
+                                const acmaCols = acmaRes[0].columns;
+                                acmaRes[0].values.forEach((row: any) => {
+                                  const obj: Record<string, any> = {};
+                                  acmaCols.forEach((col: string, i: number) => {
+                                    const mappedCol = mapHeaderToColumn(col);
+                                    obj[mappedCol] = parseValue(mappedCol, String(row[i] ?? ''));
+                                  });
+                                  const key = `${obj.id}_${obj.acid ?? ''}_${obj.is_group ?? ''}_${obj.name ?? ''}`;
+                                  if (!existingKeys.has(key)) {
+                                    existingKeys.add(key);
+                                    rows.push(obj);
+                                  }
+                                });
+                              }
+                            } catch (err) {
+                              console.warn(`Could not merge ${acmaTab} into acmac1:`, err);
+                            }
+                          }
+
+                          // Auto-inject 40 standard MProfit accounting groups for all accounts if missing
+                          const hasGroups = rows.some((r: any) => r.is_group === true || r.is_group === 1 || r.is_group === 'true');
+                          if (!hasGroups) {
+                            const acids = new Set<number>();
+                            rows.forEach((r: any) => { if (r.acid && Number(r.acid) > 0) acids.add(Number(r.acid)); });
+                            try {
+                              const pflnkRes = db.exec('SELECT DISTINCT ACID FROM "ACC_PFLINK"');
+                              if (pflnkRes.length > 0) {
+                                pflnkRes[0].values.forEach((v: any) => {
+                                  if (v[0] && Number(v[0]) > 0) acids.add(Number(v[0]));
+                                });
+                              }
+                            } catch (e) {}
+
+                            if (acids.size === 0) {
+                              [29, 30, 31, 32, 36, 61, 62].forEach(id => acids.add(id));
+                            }
+
+                            acids.forEach(acid => {
+                              (standardMprofitGroups as any[]).forEach(g => {
+                                rows.push({
+                                  id: g.id,
+                                  parent_id: g.parent_id,
+                                  is_group: true,
+                                  name: g.name,
+                                  special_type_id: g.special_type_id,
+                                  flags: g.flags,
+                                  disp_seqno: g.disp_seqno,
+                                  tree_node: g.tree_node,
+                                  acid: acid,
+                                  db_bal: 0,
+                                  cr_bal: 0
+                                });
+                              });
+                            });
+                          }
+                        }
+
+                        // If parsing vouchers (trading or capital), merge all matching voucher tables
+                        if (config.key === 'vouchers1' || config.key === 'vouchersc1') {
+                          const isCapital = config.key === 'vouchersc1';
+                          const vTables = allTables.filter((t: string) => {
+                            if (t === match) return false;
+                            if (isCapital) return /^VOUCHERS?_?C[0-9]*$/i.test(t) || /^VOUCHERS?C$/i.test(t);
+                            return /^VOUCHERS?[0-9]+$/i.test(t) && !/C/i.test(t);
+                          });
+                          const existingKeys = new Set(rows.map((r: any) => `${r.vid}_${r.acid ?? ''}_${r.dt ?? ''}_${r.pms_trans_id ?? ''}`));
+                          for (const vTab of vTables) {
+                            try {
+                              const vRes = db.exec(`SELECT * FROM "${vTab}"`);
+                              if (vRes.length > 0) {
+                                const vCols = vRes[0].columns;
+                                vRes[0].values.forEach((row: any) => {
+                                  const obj: Record<string, any> = {};
+                                  vCols.forEach((col: string, i: number) => {
+                                    const mappedCol = mapHeaderToColumn(col);
+                                    obj[mappedCol] = parseValue(mappedCol, String(row[i] ?? ''));
+                                  });
+                                  const key = `${obj.vid}_${obj.acid ?? ''}_${obj.dt ?? ''}_${obj.pms_trans_id ?? ''}`;
+                                  if (!existingKeys.has(key)) {
+                                    existingKeys.add(key);
+                                    rows.push(obj);
+                                  }
+                                });
+                              }
+                            } catch (err) {
+                              console.warn(`Could not merge ${vTab} into ${config.key}:`, err);
+                            }
+                          }
+                        }
+
+                        // If parsing trans (trading or capital), merge all matching trans tables
+                        if (config.key === 'trans1' || config.key === 'transc1') {
+                          const isCapital = config.key === 'transc1';
+                          const tTables = allTables.filter((t: string) => {
+                            if (t === match) return false;
+                            if (isCapital) return /^TRANS?A?C?_?C[0-9]*$/i.test(t) || /^TRANSC$/i.test(t);
+                            return /^TRANS?A?C?[0-9]+$/i.test(t) && !/C/i.test(t);
+                          });
+                          const existingKeys = new Set(rows.map((r: any) => `${r.transid}_${r.acid ?? ''}_${r.vid ?? ''}_${r.maid ?? ''}`));
+                          for (const tTab of tTables) {
+                            try {
+                              const tRes = db.exec(`SELECT * FROM "${tTab}"`);
+                              if (tRes.length > 0) {
+                                const tCols = tRes[0].columns;
+                                tRes[0].values.forEach((row: any) => {
+                                  const obj: Record<string, any> = {};
+                                  tCols.forEach((col: string, i: number) => {
+                                    const mappedCol = mapHeaderToColumn(col);
+                                    obj[mappedCol] = parseValue(mappedCol, String(row[i] ?? ''));
+                                  });
+                                  const key = `${obj.transid}_${obj.acid ?? ''}_${obj.vid ?? ''}_${obj.maid ?? ''}`;
+                                  if (!existingKeys.has(key)) {
+                                    existingKeys.add(key);
+                                    rows.push(obj);
+                                  }
+                                });
+                              }
+                            } catch (err) {
+                              console.warn(`Could not merge ${tTab} into ${config.key}:`, err);
+                            }
+                          }
+                        }
                     }
+                    
+                    setStagedFiles(prev => ({ ...prev, [config.key]: { rows, fileName: file.name + ` (${match})` } }));
+                    setTableStatus(prev => ({
+                      ...prev,
+                      [config.key]: { status: 'parsed', rowCount: rows.length, progress: 0 }
+                    }));
+                    console.log(`Staged ${config.name} from DB: ${rows.length} rows`);
+                 } else if (!config.required) {
+                    setStagedFiles(prev => ({ ...prev, [config.key]: { rows: [], fileName: file.name + ` (Not in backup)` } }));
+                    setTableStatus(prev => ({
+                      ...prev,
+                      [config.key]: { status: 'parsed', rowCount: 0, progress: 0 }
+                    }));
                  }
               }
             } catch (e) {
@@ -705,6 +868,12 @@ function ImportPageInner() {
     setOverallMessage("Preparing to import database records...");
     setOverallProgress(0);
 
+    const deleteOrder = [
+      'transc1', 'trans1', 'scnote1', 'bs1',
+      'vouchersc1', 'vouchers1', 'sum_table', 'mprices',
+      'investor_group_members', 'acc_pflink', 'acmac1', 'sam', 'portfolios'
+    ];
+
     const tablesInOrder = [
       'portfolios', 'sam', 'acmac1', 'acc_pflink', 'investor_group_members',
       'mprices', 'sum_table', 'scnote1', 'vouchers1', 'vouchersc1',
@@ -712,17 +881,30 @@ function ImportPageInner() {
     ];
 
     try {
-      // Step 1: Wipe tables in reverse order for foreign key safety
-      setOverallMessage("Wiping existing database tables...");
-      for (let i = tablesInOrder.length - 1; i >= 0; i--) {
-        const tableKey = tablesInOrder[i];
+      // Step 1: Wipe ONLY tables that are actually present in the staged files
+      // to avoid wiping cash vouchers/trans (transc1/vouchersc1) when importing SQLite files
+      setOverallMessage("Preparing database tables for import...");
+      for (const tableKey of deleteOrder) {
+        if (!stagedFiles[tableKey]) continue;
+
+        if (tableKey === 'acmac1') {
+          const hasGroups = stagedFiles['acmac1'].rows.some(r => r.is_group === true || r.is_group === 1 || r.is_group === '1');
+          if (!hasGroups) {
+            // SQLite ACMA1 only contains ledgers -- preserve master groups
+            await supabase.from('acmac1').delete().eq('is_group', false);
+            continue;
+          }
+        }
+
         const config = TABLE_CONFIGS.find(t => t.key === tableKey);
-        if (!config) continue;
-        const delKey = config.deleteKey;
-        await supabase.from(tableKey).delete().neq(delKey, -999999);
+        const delKey = config?.deleteKey || 'id';
+        const { error: delErr } = await supabase.from(tableKey).delete().neq(delKey, -99999999);
+        if (delErr) {
+          console.warn(`Warning deleting ${tableKey}:`, delErr.message);
+        }
       }
 
-      // Step 2: Upload staged records in strict dependency order
+      // Step 2: Upload staged records in strict dependency order.
       const totalTablesToUpload = tablesInOrder.filter(t => stagedFiles[t]).length;
       let completedTables = 0;
 
@@ -759,8 +941,12 @@ function ImportPageInner() {
           const batch = cleanRows.slice(i, i + batchSize);
           const { error: insertErr } = await supabase.from(tableKey).insert(batch);
           if (insertErr) {
-            console.error(`Error inserting into ${tableKey}:`, insertErr);
-            throw new Error(`Failed to upload ${config.name}: ${insertErr.message}`);
+            console.warn(`Direct insert into ${tableKey} had conflict, trying upsert:`, insertErr.message);
+            const { error: upsertErr } = await supabase.from(tableKey).upsert(batch);
+            if (upsertErr) {
+              console.error(`Error inserting into ${tableKey}:`, upsertErr);
+              throw new Error(`Failed to upload ${config.name}: ${upsertErr.message}`);
+            }
           }
           const currentProgress = Math.min(100, Math.round(((i + batch.length) / cleanRows.length) * 100));
           setTableStatus(prev => ({
@@ -778,6 +964,7 @@ function ImportPageInner() {
         setOverallProgress(Math.round((completedTables / totalTablesToUpload) * 100));
       }
 
+      // Step 3: Refresh in-memory DB so Chart of Accounts, Portfolios, and Links are fully loaded
       setOverallMessage("Refreshing application data...");
       await forceRefreshDatabase();
       triggerGlobalRefresh();
@@ -1846,9 +2033,9 @@ function ImportPageInner() {
               if (status.status === "parsed") {
                 statusBg = "#f0fdf4";
                 statusBorder = "#bbf7d0";
-                badgeText = "Staged";
-                badgeColor = "#15803d";
-                badgeBg = "#dcfce7";
+                badgeText = status.rowCount > 0 ? "Staged" : (config.required ? "Staged (0 rows)" : "Optional (0 rows)");
+                badgeColor = status.rowCount > 0 ? "#15803d" : "#0284c7";
+                badgeBg = status.rowCount > 0 ? "#dcfce7" : "#e0f2fe";
               } else if (status.status === "importing") {
                 statusBg = "#eff6ff";
                 statusBorder = "#bfdbfe";

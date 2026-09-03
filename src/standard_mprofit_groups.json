@@ -1,0 +1,402 @@
+[
+  {
+    "id": 1,
+    "parent_id": 0,
+    "is_group": true,
+    "name": "Liabilities",
+    "special_type_id": 250,
+    "flags": "65536",
+    "disp_seqno": 1,
+    "tree_node": null
+  },
+  {
+    "id": 2,
+    "parent_id": 0,
+    "is_group": true,
+    "name": "Assets",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 2,
+    "tree_node": null
+  },
+  {
+    "id": 45,
+    "parent_id": 2,
+    "is_group": true,
+    "name": "Fixed Asset",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 1,
+    "tree_node": null
+  },
+  {
+    "id": 50,
+    "parent_id": 2,
+    "is_group": true,
+    "name": "Investments",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 5,
+    "tree_node": null
+  },
+  {
+    "id": 55,
+    "parent_id": 2,
+    "is_group": true,
+    "name": "Current Assets",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 10,
+    "tree_node": null
+  },
+  {
+    "id": 60,
+    "parent_id": 55,
+    "is_group": true,
+    "name": "Banks",
+    "special_type_id": 40,
+    "flags": "65536",
+    "disp_seqno": 1,
+    "tree_node": null
+  },
+  {
+    "id": 64,
+    "parent_id": 1,
+    "is_group": true,
+    "name": "Capital Account",
+    "special_type_id": 250,
+    "flags": "65536",
+    "disp_seqno": 1,
+    "tree_node": null
+  },
+  {
+    "id": 65,
+    "parent_id": 1,
+    "is_group": true,
+    "name": "Current Liabilities",
+    "special_type_id": 250,
+    "flags": "65536",
+    "disp_seqno": 65,
+    "tree_node": null
+  },
+  {
+    "id": 70,
+    "parent_id": 55,
+    "is_group": true,
+    "name": "Loans and Advances (Asset)",
+    "special_type_id": 125,
+    "flags": "65536",
+    "disp_seqno": 7,
+    "tree_node": null
+  },
+  {
+    "id": 75,
+    "parent_id": 65,
+    "is_group": true,
+    "name": "Sundry Creditors",
+    "special_type_id": 275,
+    "flags": "65536",
+    "disp_seqno": 5,
+    "tree_node": null
+  },
+  {
+    "id": 85,
+    "parent_id": 65,
+    "is_group": true,
+    "name": "Loans (Liability)",
+    "special_type_id": 275,
+    "flags": "65536",
+    "disp_seqno": 1,
+    "tree_node": null
+  },
+  {
+    "id": 90,
+    "parent_id": 55,
+    "is_group": true,
+    "name": "Sundry Debtors",
+    "special_type_id": 125,
+    "flags": "65536",
+    "disp_seqno": 10,
+    "tree_node": null
+  },
+  {
+    "id": 150,
+    "parent_id": 1,
+    "is_group": true,
+    "name": "Profit & Loss",
+    "special_type_id": 250,
+    "flags": "65536",
+    "disp_seqno": 1000,
+    "tree_node": null
+  },
+  {
+    "id": 155,
+    "parent_id": 150,
+    "is_group": true,
+    "name": "Income",
+    "special_type_id": 280,
+    "flags": "65536",
+    "disp_seqno": 1,
+    "tree_node": null
+  },
+  {
+    "id": 160,
+    "parent_id": 150,
+    "is_group": true,
+    "name": "Expenses",
+    "special_type_id": 290,
+    "flags": "65536",
+    "disp_seqno": 5,
+    "tree_node": null
+  },
+  {
+    "id": 170,
+    "parent_id": 160,
+    "is_group": true,
+    "name": "STT",
+    "special_type_id": 290,
+    "flags": "65536",
+    "disp_seqno": 100,
+    "tree_node": "<null>"
+  },
+  {
+    "id": 171,
+    "parent_id": 160,
+    "is_group": true,
+    "name": "Tax & Charges - Stocks",
+    "special_type_id": 290,
+    "flags": "65536",
+    "disp_seqno": 100,
+    "tree_node": "<null>"
+  },
+  {
+    "id": 175,
+    "parent_id": 160,
+    "is_group": true,
+    "name": "Share Transaction Charges",
+    "special_type_id": 290,
+    "flags": "65536",
+    "disp_seqno": 100,
+    "tree_node": null
+  },
+  {
+    "id": 180,
+    "parent_id": 155,
+    "is_group": true,
+    "name": "Capital Gains",
+    "special_type_id": 290,
+    "flags": "65536",
+    "disp_seqno": 100,
+    "tree_node": "<null>"
+  },
+  {
+    "id": 200050,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Stocks",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 5,
+    "tree_node": null
+  },
+  {
+    "id": 200051,
+    "parent_id": 2,
+    "is_group": true,
+    "name": "Stock-in-Trade",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 5,
+    "tree_node": null
+  },
+  {
+    "id": 200061,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Mutual Funds(Equity)",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 10,
+    "tree_node": null
+  },
+  {
+    "id": 200062,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Mutual Funds(Debt)",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 11,
+    "tree_node": null
+  },
+  {
+    "id": 200058,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Special Inv. Funds",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 12,
+    "tree_node": null
+  },
+  {
+    "id": 200141,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "NPS/ULIP",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 20,
+    "tree_node": null
+  },
+  {
+    "id": 200140,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Insurance",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 25,
+    "tree_node": null
+  },
+  {
+    "id": 200066,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Private Equity",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 30,
+    "tree_node": null
+  },
+  {
+    "id": 200095,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "FDs",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 35,
+    "tree_node": null
+  },
+  {
+    "id": 200040,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Traded Bonds",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 38,
+    "tree_node": null
+  },
+  {
+    "id": 200070,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "NCD/Debentures",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 40,
+    "tree_node": null
+  },
+  {
+    "id": 200115,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Deposits/Loans",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 45,
+    "tree_node": null
+  },
+  {
+    "id": 200120,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "PPF/EPF",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 50,
+    "tree_node": null
+  },
+  {
+    "id": 200135,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Post Office",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 55,
+    "tree_node": null
+  },
+  {
+    "id": 200075,
+    "parent_id": 45,
+    "is_group": true,
+    "name": "Gold",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 60,
+    "tree_node": null
+  },
+  {
+    "id": 200077,
+    "parent_id": 45,
+    "is_group": true,
+    "name": "Silver",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 65,
+    "tree_node": null
+  },
+  {
+    "id": 200155,
+    "parent_id": 45,
+    "is_group": true,
+    "name": "Jewellery",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 70,
+    "tree_node": null
+  },
+  {
+    "id": 200150,
+    "parent_id": 45,
+    "is_group": true,
+    "name": "Properties",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 75,
+    "tree_node": null
+  },
+  {
+    "id": 200145,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "Art",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 80,
+    "tree_node": null
+  },
+  {
+    "id": 200160,
+    "parent_id": 50,
+    "is_group": true,
+    "name": "AIF",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 85,
+    "tree_node": null
+  },
+  {
+    "id": 200195,
+    "parent_id": 85,
+    "is_group": true,
+    "name": "Loans",
+    "special_type_id": 150,
+    "flags": "65536",
+    "disp_seqno": 95,
+    "tree_node": null
+  }
+]
