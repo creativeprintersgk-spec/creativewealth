@@ -207,7 +207,58 @@ export function rebuildAllIndexes() {
 }
 
 // ── SAFE FETCH ────────────────────────────────────────────────────────────────
+let supabaseReachability: boolean | null = null;
+let lastReachabilityCheck = 0;
+
+export async function isSupabaseReachable(): Promise<boolean> {
+  const now = Date.now();
+  if (supabaseReachability !== null && (now - lastReachabilityCheck) < 60000) {
+    return supabaseReachability;
+  }
+  try {
+    const url = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : '') || '';
+    if (!url || url.includes('placeholder')) {
+      supabaseReachability = false;
+      lastReachabilityCheck = now;
+      return false;
+    }
+
+    if (typeof window === 'undefined') {
+      try {
+        const dns = await import('dns/promises');
+        const host = new URL(url).hostname;
+        await dns.lookup(host);
+      } catch {
+        supabaseReachability = false;
+        lastReachabilityCheck = now;
+        return false;
+      }
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${url}/rest/v1/`, {
+      method: 'HEAD',
+      headers: {
+        apikey: (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : '') || ''
+      },
+      signal: controller.signal
+    }).catch(() => null);
+    clearTimeout(timeout);
+    supabaseReachability = !!(res && res.ok);
+    lastReachabilityCheck = now;
+  } catch {
+    supabaseReachability = false;
+    lastReachabilityCheck = now;
+  }
+  return supabaseReachability;
+}
+
 async function safeFetch(table: string, max = 500000): Promise<any[]> {
+  const isOnline = await isSupabaseReachable();
+  if (!isOnline) {
+    return await loadSnapshotFallback(table);
+  }
   try {
     let all: any[] = [];
     const pkMap: Record<string, string> = {
@@ -238,11 +289,37 @@ async function safeFetch(table: string, max = 500000): Promise<any[]> {
       if (data.length < size) break;
       page++;
     }
+    if (all.length === 0) {
+      all = await loadSnapshotFallback(table);
+    }
     return all;
   } catch (e) {
     console.warn(`⚠️ ${table}:`, e);
-    return [];
+    return await loadSnapshotFallback(table);
   }
+}
+
+async function loadSnapshotFallback(table: string): Promise<any[]> {
+  try {
+    if (typeof window !== 'undefined') {
+      const res = await fetch(`/snapshot/${table}.json`);
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } else {
+      const fs = await import('fs');
+      const path = await import('path');
+      const p = path.resolve(process.cwd(), 'backups', 'latest_snapshot', `${table}.json`);
+      if (fs.existsSync(p)) {
+        const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        return Array.isArray(data) ? data : [];
+      }
+    }
+  } catch (err) {
+    console.warn(`Snapshot fallback not available for ${table}:`, err);
+  }
+  return [];
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -252,41 +329,61 @@ async function performBackgroundSync() {
   if (isBackgroundSyncing) return;
   isBackgroundSyncing = true;
   try {
-    const [portfolios, igm, accPflink, acmac1,
-           bs1, sumTable, vouchersC1, vouchers1, transC1, trans1, mprices, scnote1] = await Promise.all([
-      safeFetch('portfolios'), safeFetch('investor_group_members'),
-      safeFetch('acc_pflink'), safeFetch('acmac1'),
-      safeFetch('bs1'), safeFetch('sum_table'),
-      safeFetch('vouchersc1'), safeFetch('vouchers1'),
-      safeFetch('transc1'), safeFetch('trans1'),
-      safeFetch('mprices'), safeFetch('scnote1')
-    ]);
+    const isOnline = await isSupabaseReachable();
+    let portfolios: any[], igm: any[], accPflink: any[], acmac1: any[],
+        bs1: any[], sumTable: any[], vouchersC1: any[], vouchers1: any[],
+        transC1: any[], trans1: any[], mprices: any[], scnote1: any[],
+        sam: any[] = [], assetMaster: any[] = [];
 
-    const maids = new Set<number>();
-    sumTable.forEach((s: any) => { if (s.amid) maids.add(Number(s.amid)); });
-    bs1.forEach((b: any) => { if (b.amid) maids.add(Number(b.amid)); });
-    transC1.forEach((t: any) => { if (t.maid) maids.add(Number(t.maid)); });
-    trans1.forEach((t: any) => { if (t.maid) maids.add(Number(t.maid)); });
-    const maidArr = Array.from(maids);
+    if (!isOnline) {
+      console.log('📦 Supabase is offline/unreachable. Loading from local snapshot...');
+      [portfolios, igm, accPflink, acmac1,
+       bs1, sumTable, vouchersC1, vouchers1, transC1, trans1, mprices, scnote1, sam, assetMaster] = await Promise.all([
+        loadSnapshotFallback('portfolios'), loadSnapshotFallback('investor_group_members'),
+        loadSnapshotFallback('acc_pflink'), loadSnapshotFallback('acmac1'),
+        loadSnapshotFallback('bs1'), loadSnapshotFallback('sum_table'),
+        loadSnapshotFallback('vouchersc1'), loadSnapshotFallback('vouchers1'),
+        loadSnapshotFallback('transc1'), loadSnapshotFallback('trans1'),
+        loadSnapshotFallback('mprices'), loadSnapshotFallback('scnote1'),
+        loadSnapshotFallback('sam'), loadSnapshotFallback('asset_master')
+      ]);
+    } else {
+      [portfolios, igm, accPflink, acmac1,
+       bs1, sumTable, vouchersC1, vouchers1, transC1, trans1, mprices, scnote1] = await Promise.all([
+        safeFetch('portfolios'), safeFetch('investor_group_members'),
+        safeFetch('acc_pflink'), safeFetch('acmac1'),
+        safeFetch('bs1'), safeFetch('sum_table'),
+        safeFetch('vouchersc1'), safeFetch('vouchers1'),
+        safeFetch('transc1'), safeFetch('trans1'),
+        safeFetch('mprices'), safeFetch('scnote1')
+      ]);
 
-    // Parallelize sam and asset_master chunk fetching for speed
-    const chunks: number[][] = [];
-    for (let i = 0; i < maidArr.length; i += 150) {
-      chunks.push(maidArr.slice(i, i + 150));
+      const maids = new Set<number>();
+      sumTable.forEach((s: any) => { if (s.amid) maids.add(Number(s.amid)); });
+      bs1.forEach((b: any) => { if (b.amid) maids.add(Number(b.amid)); });
+      transC1.forEach((t: any) => { if (t.maid) maids.add(Number(t.maid)); });
+      trans1.forEach((t: any) => { if (t.maid) maids.add(Number(t.maid)); });
+      const maidArr = Array.from(maids);
+
+      const chunks: number[][] = [];
+      for (let i = 0; i < maidArr.length; i += 150) {
+        chunks.push(maidArr.slice(i, i + 150));
+      }
+
+      const samPromises = chunks.map(chunk => supabase.from('sam').select('*').in('amid', chunk));
+      const amPromises = chunks.map(chunk => supabase.from('asset_master').select('*').in('amid', chunk));
+
+      const [samResults, amResults] = await Promise.all([
+        Promise.all(samPromises),
+        Promise.all(amPromises)
+      ]);
+
+      samResults.forEach(res => { if (res.data) sam = sam.concat(res.data); });
+      amResults.forEach(res => { if (res.data) assetMaster = assetMaster.concat(res.data); });
+
+      if (sam.length === 0) sam = await loadSnapshotFallback('sam');
+      if (assetMaster.length === 0) assetMaster = await loadSnapshotFallback('asset_master');
     }
-
-    const samPromises = chunks.map(chunk => supabase.from('sam').select('*').in('amid', chunk));
-    const amPromises = chunks.map(chunk => supabase.from('asset_master').select('*').in('amid', chunk));
-
-    const [samResults, amResults] = await Promise.all([
-      Promise.all(samPromises),
-      Promise.all(amPromises)
-    ]);
-
-    let sam: any[] = [];
-    let assetMaster: any[] = [];
-    samResults.forEach(res => { if (res.data) sam = sam.concat(res.data); });
-    amResults.forEach(res => { if (res.data) assetMaster = assetMaster.concat(res.data); });
 
     const uniqueAcmac1: any[] = [];
     const seenAcmac = new Set();
