@@ -5,7 +5,7 @@ import Papa from 'papaparse';
 import { supabase } from "../supabase";
 import { useFY } from "../FYContext";
 import { useTestMode } from "../contexts/TestModeContext";
-import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers, syncLivePrices, getAssetName, computeLedgerOpeningBalanceGaps } from "../logic";
+import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers, syncLivePrices, getAssetName, computeLedgerOpeningBalanceGaps, buildAssetFifoLedger, depleteFifoLots, FIFO_BUY_TRTY, FIFO_SELL_TRTY } from "../logic";
 import isinDictionary from "../services/isinDictionary.json";
 import { MfCasTab } from "./MfCasTab";
 
@@ -1297,41 +1297,19 @@ function ImportPageInner() {
             // This matches MProfit double-entry: Cr Stock@Cost + Cr LTCG/STCG@Gain = Dr Broker@Proceeds
             const saleProceeds = gross;
 
-            // FIFO cost from bs1 for this asset in this portfolio
-            const buyRows = state.bs1
-              .filter((r: any) => Number(r.pfid) === Number(pId) && r.amid === t.amid && isBuyTrty(r.trty))
-              .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
+            // Task 1.2: Centralized FIFO cost engine from logic.ts (buildAssetFifoLedger + depleteFifoLots)
+            // Properly accounts for prior sells, splits, and lot adjustments rather than raw buyRows.
+            const priorTxForAsset = (state.bs1 || [])
+              .filter((r: any) => Number(r.pfid) === Number(pId) && r.amid === t.amid && (r.dt || '') <= (t.date || '') && (FIFO_BUY_TRTY.has(Number(r.trty)) || FIFO_SELL_TRTY.has(Number(r.trty)) || [85, 45].includes(Number(r.trty))))
+              .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trty) - Number(b.trty)));
 
-            let remainingQty = t.quantity;
-            let fifoTotalCost = 0;
-            let earliestBuyDate: string | null = null;
-
-            for (const buy of buyRows) {
-              if (remainingQty <= 0) break;
-              const buyQty = Number(buy.qn) || 0;
-              const buyAmt = Number(buy.amt) || 0;
-              if (buyQty <= 0) continue;
-              const useQty = Math.min(buyQty, remainingQty);
-              const unitCost = buyAmt / buyQty;
-              fifoTotalCost += useQty * unitCost;
-              if (!earliestBuyDate) earliestBuyDate = buy.dt;
-              remainingQty -= useQty;
-            }
+            const { openLots } = buildAssetFifoLedger(priorTxForAsset, '0001-01-01', t.date, new Map(), {});
+            const { totalCost: fifoTotalCost, matchedLots } = depleteFifoLots(openLots, t.quantity);
 
             // Fallback: no buy history → zero gain (cost = proceeds)
-            if (fifoTotalCost === 0) fifoTotalCost = saleProceeds;
-
-            const costBasis = Number(fifoTotalCost.toFixed(2));
+            const finalCost = fifoTotalCost > 0 ? fifoTotalCost : saleProceeds;
+            const costBasis = Number(finalCost.toFixed(2));
             const capitalGain = Number((saleProceeds - costBasis).toFixed(2));
-
-            // Determine STCG (id=460) vs LTCG (id=465) by holding period
-            const holdingDays = earliestBuyDate
-              ? Math.floor((new Date(t.date).getTime() - new Date(earliestBuyDate).getTime()) / 86400000)
-              : 0;
-            const gainLedgerId = holdingDays >= 365 ? 465 : 460;
-            const gainType = holdingDays >= 365 ? 'LTCG' : 'STCG';
-
-            console.log(`[SELL ${t.assetName}] qty=${t.quantity} price=${t.price} proceeds=${saleProceeds} cost=${costBasis} ${gainType}=${capitalGain} held=${holdingDays}d`);
 
             // Line 1: Cr Stock ledger at COST (removes investment from balance sheet)
             mappedLines.push({
@@ -1341,17 +1319,85 @@ function ImportPageInner() {
               debit: 0,
               credit: costBasis,
               quantity: t.quantity,
-              price: costBasis / t.quantity
+              price: t.quantity > 0 ? costBasis / t.quantity : 0
             });
 
-            // Line 2: Capital gain/loss line
-            if (Math.abs(capitalGain) > 0.01) {
-              if (capitalGain > 0) {
-                // Profit: Cr STCG/LTCG ledger
-                mappedLines.push({ ledgerId: gainLedgerId, debit: 0, credit: capitalGain });
-              } else {
-                // Loss: Dr STCG/LTCG ledger
-                mappedLines.push({ ledgerId: gainLedgerId, debit: Math.abs(capitalGain), credit: 0 });
+            // Exact ledger IDs from Chart of Accounts (Capital Gains group id=180)
+            const GAIN_LEDGERS = {
+              STCG_EQUITY: 460,
+              LTCG_EQUITY: 465,
+              STCG_DEBT:   470,
+              LTCG_DEBT:   475,
+              STCG_BONDS:  490,
+              LTCG_BONDS:  485,
+            };
+
+            const bs1Asset = state.bs1.find((r: any) => Number(r.pfid) === Number(pId) && r.amid === t.amid);
+            const atyid = bs1Asset?.atyid || 50;
+            const EQUITY_GROUPS = new Set([200050, 200051, 200061, 50]);
+            const DEBT_GROUPS   = new Set([200062, 200058]);
+            const BOND_GROUPS   = new Set([200040, 200070]);
+
+            const getLotGainLedgerId = (lotDate: string): number => {
+              const holdingDays = Math.abs((new Date(t.date).getTime() - new Date(lotDate).getTime()) / 86400000);
+              if (EQUITY_GROUPS.has(atyid)) {
+                return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
+              } else if (DEBT_GROUPS.has(atyid)) {
+                // Section 50AA: post-01-Apr-2023 debt mutual funds are strictly STCG
+                if ((lotDate || '').slice(0, 10) >= '2023-04-01') {
+                  return GAIN_LEDGERS.STCG_DEBT;
+                }
+                return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_DEBT : GAIN_LEDGERS.STCG_DEBT;
+              } else if (BOND_GROUPS.has(atyid)) {
+                return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_BONDS : GAIN_LEDGERS.STCG_BONDS;
+              }
+              return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
+            };
+
+            // Multi-lot gain split: allocate per matched lot to exact STCG / LTCG ledger
+            const gainsByLedger: Record<number, number> = {};
+            const salePricePerUnit = t.quantity > 0 ? (saleProceeds / t.quantity) : 0;
+            let matchedQtySum = 0;
+
+            if (matchedLots.length > 0) {
+              matchedLots.forEach(m => {
+                const lotLedgerId = getLotGainLedgerId(m.date);
+                const lotProceeds = m.qty * salePricePerUnit;
+                const lotCost = m.qty * m.costPerUnit;
+                const lotGain = lotProceeds - lotCost;
+                gainsByLedger[lotLedgerId] = (gainsByLedger[lotLedgerId] || 0) + lotGain;
+                matchedQtySum += m.qty;
+              });
+            }
+
+            if (t.quantity > matchedQtySum) {
+              const unmatchedQty = t.quantity - matchedQtySum;
+              const defaultLedgerId = getLotGainLedgerId(t.date);
+              const unmatchedProceeds = unmatchedQty * salePricePerUnit;
+              const unmatchedCost = Math.max(0, costBasis - matchedLots.reduce((s, m) => s + (m.qty * m.costPerUnit), 0));
+              const unmatchedGain = unmatchedProceeds - unmatchedCost;
+              gainsByLedger[defaultLedgerId] = (gainsByLedger[defaultLedgerId] || 0) + unmatchedGain;
+            }
+
+            // Penny rounding reconciliation to ensure double-entry strict balance
+            const ledgerEntries = Object.entries(gainsByLedger).map(([idStr, amt]) => ({
+              ledgerId: Number(idStr),
+              netGain: Number(amt.toFixed(2))
+            }));
+            const totalGainsRounded = ledgerEntries.reduce((s, e) => s + e.netGain, 0);
+            const expectedTotalGain = Number((saleProceeds - costBasis).toFixed(2));
+            const roundingDiff = Number((expectedTotalGain - totalGainsRounded).toFixed(2));
+            if (Math.abs(roundingDiff) > 0 && ledgerEntries.length > 0) {
+              ledgerEntries.sort((a, b) => Math.abs(b.netGain) - Math.abs(a.netGain));
+              ledgerEntries[0].netGain = Number((ledgerEntries[0].netGain + roundingDiff).toFixed(2));
+            }
+
+            // Line 2+: Capital gain/loss lines
+            for (const entry of ledgerEntries) {
+              if (entry.netGain > 0.01) {
+                mappedLines.push({ ledgerId: entry.ledgerId, debit: 0, credit: entry.netGain });
+              } else if (entry.netGain < -0.01) {
+                mappedLines.push({ ledgerId: entry.ledgerId, debit: Math.abs(entry.netGain), credit: 0 });
               }
             }
 

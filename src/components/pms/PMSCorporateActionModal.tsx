@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Share2, Info, Trash2 } from 'lucide-react';
-import { getStoredPortfolios, getStoredLedgers, createVoucher, ensureLedgerExists, getVoucherById, updateVoucher, deleteVoucher } from '../../logic';
+import { state, buildAssetFifoLedger, depleteFifoLots, FIFO_BUY_TRTY, FIFO_SELL_TRTY, getStoredPortfolios, getStoredLedgers, createVoucher, ensureLedgerExists, getVoucherById, updateVoucher, deleteVoucher } from '../../logic';
 import { searchAssets, type AssetMaster } from '../../services/assetMasterService';
 
 interface Props {
@@ -234,13 +234,23 @@ export default function PMSCorporateActionModal({
           return;
         }
         const demergedLedger = await ensureLedgerExists(selectedAsset.name, 'stocks', acidNum);
+        const demergedCost = Number(((amount * costAllocationPct) / 100).toFixed(2));
 
-        // DeMerger (New company)
+        // DeMerger (New company - Debit)
         lines.push({
           ledgerId: demergedLedger?.id ?? "",
-          debit: (amount * costAllocationPct) / 100,
+          debit: demergedCost,
           credit: 0,
           quantity: qtyAfter,
+          price: 0
+        });
+
+        // Parent Company (Offsetting Credit - transfers cost basis, keeping voucher strictly balanced)
+        lines.push({
+          ledgerId: assetLedger.id,
+          debit: 0,
+          credit: demergedCost,
+          quantity: 0,
           price: 0
         });
         break;
@@ -270,18 +280,60 @@ export default function PMSCorporateActionModal({
         const bankLedger = ledgers.find(l => l.name.toLowerCase().includes('bank')) || await ensureLedgerExists('Bank', 'bank', acidNum);
         const tdsLedger = ledgers.find(l => l.name.toLowerCase() === 'tds') || await ensureLedgerExists('TDS', 'tds', acidNum);
 
+        const grossAmount = amount || quantity * price;
+
+        // FIFO cost lookup from bs1 for this asset in this portfolio
+        const priorTxForAsset = (state.bs1 || [])
+          .filter((t: any) => Number(t.pfid) === Number(pId) && t.amid === amid && (t.dt || '') <= (date || '') && (FIFO_BUY_TRTY.has(Number(t.trty)) || FIFO_SELL_TRTY.has(Number(t.trty)) || [85, 45].includes(Number(t.trty))))
+          .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trty) - Number(b.trty)));
+
+        const { openLots } = buildAssetFifoLedger(priorTxForAsset, '0001-01-01', date, new Map(), {});
+        const { totalCost: fifoCost, matchedLots } = depleteFifoLots(openLots, quantity);
+
+        // Fallback: if no prior buy lot found, cost basis = grossAmount (zero gain)
+        const costBasis = fifoCost > 0 ? Number(fifoCost.toFixed(2)) : grossAmount;
+        const capitalGain = Number((grossAmount - costBasis).toFixed(2));
+
+        // 1. Credit Stock ledger at cost basis (removes holding at cost, avoiding negative asset ledger balance)
         lines.push({
           ledgerId: assetLedger.id,
           debit: 0,
-          credit: amount || quantity * price,
+          credit: costBasis,
           quantity,
-          price
+          price: quantity > 0 ? costBasis / quantity : 0
         });
+
+        // 2. Determine STCG (460) vs LTCG (465) by holding period of matched lots
+        const earliestBuyDate = matchedLots.length > 0 ? matchedLots[0].date : null;
+        const holdingDays = earliestBuyDate
+          ? Math.floor((new Date(date).getTime() - new Date(earliestBuyDate).getTime()) / 86400000)
+          : 0;
+        const gainLedgerId = holdingDays >= 365 ? 465 : 460;
+
+        if (Math.abs(capitalGain) > 0.01) {
+          if (capitalGain > 0) {
+            lines.push({
+              ledgerId: gainLedgerId,
+              debit: 0,
+              credit: capitalGain
+            });
+          } else {
+            lines.push({
+              ledgerId: gainLedgerId,
+              debit: Math.abs(capitalGain),
+              credit: 0
+            });
+          }
+        }
+
+        // 3. Debit Bank for net proceeds received
         lines.push({
           ledgerId: bankLedger?.id ?? "",
-          debit: (amount || quantity * price) - tds,
+          debit: grossAmount - tds,
           credit: 0
         });
+
+        // 4. Debit TDS if applicable
         if (tds > 0) {
           lines.push({
             ledgerId: tdsLedger?.id ?? "",

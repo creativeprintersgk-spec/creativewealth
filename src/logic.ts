@@ -2098,6 +2098,9 @@ export function resolveAssetLineToBsRow(
   linesToProcessCount: number
 ): { bsRow: any; amid: number } | null {
   if (!assetLine) return null;
+  // In a demerger, the parent asset's credit line transfers cost basis in the accounting ledger (transc1)
+  // without altering parent share quantity. Do not write a 0-quantity trade row to bs1 for this leg.
+  if (data.type === 'demerger' && Number(assetLine.credit) > 0) return null;
   let amid = assetLine.amid ? Number(assetLine.amid) : (data.assetId ? Number(data.assetId) : undefined);
 
   if (!amid) {
@@ -2442,22 +2445,15 @@ export async function createVoucher(data: any, reuseVid?: number) {
         const proceeds = Number(l.credit);
         const gain = proceeds - totalCost;
 
-        // Determine asset type for correct STCG/LTCG ledger
         // Exact ledger IDs from Chart of Accounts (Capital Gains group id=180)
         const GAIN_LEDGERS = {
-          STCG_EQUITY: 460,  // Short Term Gain (Equity)  — >12 months
-          LTCG_EQUITY: 465,  // Long Term Gain (Equity)
-          STCG_DEBT:   470,  // Short Term Gain (Debt)    — >36 months
-          LTCG_DEBT:   475,  // Long Term Gain (Debt)
-          STCG_BONDS:  490,  // Short Term Gain (Bonds)   — >36 months
-          LTCG_BONDS:  485,  // Long Term Gain (Bonds)
+          STCG_EQUITY: 460,  // Short Term Gain (Equity)  — <=12 months
+          LTCG_EQUITY: 465,  // Long Term Gain (Equity)   — >12 months
+          STCG_DEBT:   470,  // Short Term Gain (Debt)    — <=36 months (or post-Apr-2023 under Sec 50AA)
+          LTCG_DEBT:   475,  // Long Term Gain (Debt)     — >36 months (pre-Apr-2023 only)
+          STCG_BONDS:  490,  // Short Term Gain (Bonds)   — <=36 months
+          LTCG_BONDS:  485,  // Long Term Gain (Bonds)    — >36 months
         };
-
-        // Earliest matched lot date, for holding-period calculation — same
-        // definition the Capital Gains report uses per matched lot, simplified
-        // here to the earliest lot consumed by this sale.
-        const firstBuyDate = matchedLots.length > 0 ? matchedLots[0].date : data.date;
-        const holdingDays = Math.abs((new Date(data.date).getTime() - new Date(firstBuyDate).getTime()) / 86400000);
 
         // Find asset type (atyid) from bs1
         const bs1Asset = state.bs1.find((t: any) => t.pfid === pfid && t.amid === amid);
@@ -2467,26 +2463,76 @@ export async function createVoucher(data: any, reuseVid?: number) {
         const DEBT_GROUPS   = new Set([200062, 200058]);
         const BOND_GROUPS   = new Set([200040, 200070]);
 
-        let gainLedgerId: number;
-        if (EQUITY_GROUPS.has(atyid)) {
-          gainLedgerId = holdingDays > 365  ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
-        } else if (DEBT_GROUPS.has(atyid)) {
-          gainLedgerId = holdingDays > 1095 ? GAIN_LEDGERS.LTCG_DEBT   : GAIN_LEDGERS.STCG_DEBT;
-        } else if (BOND_GROUPS.has(atyid)) {
-          gainLedgerId = holdingDays > 1095 ? GAIN_LEDGERS.LTCG_BONDS  : GAIN_LEDGERS.STCG_BONDS;
-        } else {
-          // Default: treat as equity
-          gainLedgerId = holdingDays > 365  ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
-        }
+        // Helper to determine the gain ledger for a specific lot based on asset type,
+        // holding period, and Section 50AA (post-01-Apr-2023 debt funds are strictly STCG).
+        const getLotGainLedgerId = (lotDate: string): number => {
+          const holdingDays = Math.abs((new Date(data.date).getTime() - new Date(lotDate).getTime()) / 86400000);
+          if (EQUITY_GROUPS.has(atyid)) {
+            return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
+          } else if (DEBT_GROUPS.has(atyid)) {
+            // Task 1.3: Section 50AA enforcement: specified debt funds acquired on/after 01-April-2023
+            // are deemed short-term capital gains at slab rate, irrespective of holding days.
+            if ((lotDate || '').slice(0, 10) >= '2023-04-01') {
+              return GAIN_LEDGERS.STCG_DEBT;
+            }
+            return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_DEBT : GAIN_LEDGERS.STCG_DEBT;
+          } else if (BOND_GROUPS.has(atyid)) {
+            return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_BONDS : GAIN_LEDGERS.STCG_BONDS;
+          }
+          return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
+        };
 
         // Push Asset Line (Cost Basis only)
-        processedLines.push({ ...l, credit: totalCost });
+        processedLines.push({ ...l, credit: Number(totalCost.toFixed(2)) });
 
-        // Push Gain/Loss Line to correct STCG/LTCG ledger
-        if (gain > 0) {
-          processedLines.push({ ledgerId: gainLedgerId, debit: 0, credit: gain });
-        } else if (gain < 0) {
-          processedLines.push({ ledgerId: gainLedgerId, debit: Math.abs(gain), credit: 0 });
+        // Task 1.4: Multi-Lot Split: allocate gains/losses per consumed lot to the exact STCG / LTCG ledgers
+        const gainsByLedger: Record<number, number> = {};
+        const salePricePerUnit = qtySold > 0 ? (proceeds / qtySold) : 0;
+        let matchedQtySum = 0;
+
+        if (matchedLots.length > 0) {
+          matchedLots.forEach(m => {
+            const lotLedgerId = getLotGainLedgerId(m.date);
+            const lotProceeds = m.qty * salePricePerUnit;
+            const lotCost = m.qty * m.costPerUnit;
+            const lotGain = lotProceeds - lotCost;
+            gainsByLedger[lotLedgerId] = (gainsByLedger[lotLedgerId] || 0) + lotGain;
+            matchedQtySum += m.qty;
+          });
+        }
+
+        // If there is an unmatched quantity portion (e.g. sale without recorded buy lot history)
+        if (qtySold > matchedQtySum) {
+          const unmatchedQty = qtySold - matchedQtySum;
+          const defaultLedgerId = getLotGainLedgerId(data.date);
+          const unmatchedProceeds = unmatchedQty * salePricePerUnit;
+          const unmatchedCost = Math.max(0, totalCost - matchedLots.reduce((s, m) => s + (m.qty * m.costPerUnit), 0));
+          const unmatchedGain = unmatchedProceeds - unmatchedCost;
+          gainsByLedger[defaultLedgerId] = (gainsByLedger[defaultLedgerId] || 0) + unmatchedGain;
+        }
+
+        // Exact penny balance adjustment: ensure sum(gain lines) + totalCost strictly equals proceeds
+        const ledgerEntries = Object.entries(gainsByLedger).map(([idStr, amt]) => ({
+          ledgerId: Number(idStr),
+          netGain: Number(amt.toFixed(2))
+        }));
+
+        const totalGainsRounded = ledgerEntries.reduce((s, e) => s + e.netGain, 0);
+        const expectedTotalGain = Number((proceeds - Number(totalCost.toFixed(2))).toFixed(2));
+        const roundingDiff = Number((expectedTotalGain - totalGainsRounded).toFixed(2));
+
+        if (Math.abs(roundingDiff) > 0 && ledgerEntries.length > 0) {
+          ledgerEntries.sort((a, b) => Math.abs(b.netGain) - Math.abs(a.netGain));
+          ledgerEntries[0].netGain = Number((ledgerEntries[0].netGain + roundingDiff).toFixed(2));
+        }
+
+        // Push Gain/Loss lines to the respective STCG / LTCG ledgers
+        for (const entry of ledgerEntries) {
+          if (entry.netGain > 0) {
+            processedLines.push({ ledgerId: entry.ledgerId, debit: 0, credit: entry.netGain });
+          } else if (entry.netGain < 0) {
+            processedLines.push({ ledgerId: entry.ledgerId, debit: Math.abs(entry.netGain), credit: 0 });
+          }
         }
         continue; // Skip pushing the original line
       }
@@ -2497,22 +2543,8 @@ export async function createVoucher(data: any, reuseVid?: number) {
   const lines = processedLines;
 
   // ── Voucher balance validation ────────────────────────────────────────────
-  // Previously NOTHING checked that a voucher's total debits equalled its
-  // total credits before writing it to transc1 -- the only such check
-  // (validateVoucher/validateDebitCredit) lived in src/accounting-engine/,
-  // which is never imported anywhere and was dead code. This enforces it
-  // directly, scoped to standard double-entry voucher types only.
-  //
-  // Corporate-action types (bonus/split/merger/demerger/ipo/buyback) are
-  // deliberately EXCLUDED here: split records a quantity-only line (debit=0,
-  // credit=0 by design), and demerger currently writes only ONE line (debit,
-  // no offsetting credit) in PMSCorporateActionModal.tsx -- see the comment
-  // there. That looks like it may be its own separate accounting-treatment
-  // issue, but fixing it requires understanding the intended double-entry
-  // design (does the original asset ledger get credited? does a capital
-  // account absorb the difference?), which wasn't specified anywhere I could
-  // find. Flagging it rather than guessing at a fix here.
-  const STRICT_BALANCE_TYPES = new Set(['payment', 'receipt', 'journal', 'contra', 'sale', 'opening_balance']);
+  // Strict double-entry balance check: total debits strictly equal total credits.
+  const STRICT_BALANCE_TYPES = new Set(['payment', 'receipt', 'journal', 'contra', 'sale', 'opening_balance', 'demerger']);
   if (STRICT_BALANCE_TYPES.has(data.type)) {
     const totalDebit = lines.reduce((s: number, l: any) => s + (Number(l.debit) || 0), 0);
     const totalCredit = lines.reduce((s: number, l: any) => s + (Number(l.credit) || 0), 0);
@@ -3253,7 +3285,7 @@ export async function createVouchersBulk(dataList: any[]) {
     // separate line-building implementation from createVoucher's transc1
     // handling, so it needed its own copy of the check rather than
     // inheriting it.
-    const STRICT_BALANCE_TYPES = new Set(['payment', 'receipt', 'journal', 'contra', 'sale', 'sales']);
+    const STRICT_BALANCE_TYPES = new Set(['payment', 'receipt', 'journal', 'contra', 'sale', 'sales', 'demerger']);
     if (STRICT_BALANCE_TYPES.has(data.type)) {
       const totalDebit = lines.reduce((s: number, l: any) => s + (Number(l.debit) || 0), 0);
       const totalCredit = lines.reduce((s: number, l: any) => s + (Number(l.credit) || 0), 0);
