@@ -335,3 +335,129 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
     totalLiabilities,
   };
 }
+
+/**
+ * Merge two period Balance Sheet trees into a single multi-year comparative tree
+ */
+export function mergeComparativeTrees(currGroups: any[], prevGroups: any[]): any[] {
+  const allTopIds = Array.from(new Set([...currGroups.map(g => String(g.id)), ...prevGroups.map(g => String(g.id))]));
+
+  function mergeGroup(currG?: any, prevG?: any): any {
+    const id = currG?.id || prevG?.id;
+    const name = currG?.name || prevG?.name;
+    const balance = Number(currG?.balance || 0);
+    const prevBalance = Number(prevG?.balance || 0);
+    const variance = Number((balance - prevBalance).toFixed(2));
+    const pctChange = prevBalance !== 0 
+      ? Number((((balance - prevBalance) / Math.abs(prevBalance)) * 100).toFixed(1))
+      : (balance !== 0 ? 100 : 0);
+
+    // Merge ledgers
+    const currLedgers: any[] = currG?.ledgers || [];
+    const prevLedgers: any[] = prevG?.ledgers || [];
+    const prevLedgerMap = new Map<string, any>(prevLedgers.map(l => [String(l.id), l]));
+    const allLedgerIds = Array.from(new Set([...currLedgers.map(l => String(l.id)), ...prevLedgers.map(l => String(l.id))]));
+
+    const mergedLedgers = allLedgerIds.map(lid => {
+      const cL = currLedgers.find(l => String(l.id) === lid);
+      const pL = prevLedgerMap.get(lid);
+      const lBal = Number(cL?.balance || 0);
+      const lpBal = Number(pL?.balance || 0);
+      const lDisp = Number(cL?.displayBalance ?? lBal);
+      const lpDisp = Number(pL?.displayBalance ?? lpBal);
+      const lVar = Number((lDisp - lpDisp).toFixed(2));
+      const lPct = lpDisp !== 0
+        ? Number((((lDisp - lpDisp) / Math.abs(lpDisp)) * 100).toFixed(1))
+        : (lDisp !== 0 ? 100 : 0);
+
+      return {
+        id: lid,
+        name: cL?.name || pL?.name || `Ledger ${lid}`,
+        groupType: cL?.groupType || pL?.groupType,
+        readOnly: cL?.readOnly || pL?.readOnly,
+        balance: lBal,
+        prevBalance: lpBal,
+        displayBalance: lDisp,
+        prevDisplayBalance: lpDisp,
+        variance: lVar,
+        pctChange: lPct
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+
+    // Merge children
+    const currChildren: any[] = currG?.children || [];
+    const prevChildren: any[] = prevG?.children || [];
+    const prevChildMap = new Map<string, any>(prevChildren.map(c => [String(c.id), c]));
+    const allChildIds = Array.from(new Set([...currChildren.map(c => String(c.id)), ...prevChildren.map(c => String(c.id))]));
+
+    const mergedChildren = allChildIds.map(cid => {
+      const cC = currChildren.find(c => String(c.id) === cid);
+      const pC = prevChildMap.get(cid);
+      return mergeGroup(cC, pC);
+    }).sort((a, b) => a.name.localeCompare(b.name));
+
+    return {
+      id,
+      name,
+      balance,
+      prevBalance,
+      variance,
+      pctChange,
+      ledgers: mergedLedgers,
+      children: mergedChildren
+    };
+  }
+
+  return allTopIds.map(topId => {
+    const cG = currGroups.find(g => String(g.id) === topId);
+    const pG = prevGroups.find(g => String(g.id) === topId);
+    return mergeGroup(cG, pG);
+  });
+}
+
+/**
+ * Multi-Year Comparative Balance Sheet engine
+ * Compares primary FY with previous FY or historical comparative dates
+ */
+export async function getComparativeBalanceSheet(
+  primaryEndDate: string,
+  comparativeEndDate: string,
+  accountId?: string
+) {
+  const current = await getBalanceSheet('', primaryEndDate, accountId);
+  const previous = await getBalanceSheet('', comparativeEndDate, accountId);
+
+  const assets = mergeComparativeTrees(current.assets, previous.assets);
+  const liabilities = mergeComparativeTrees(current.liabilities, previous.liabilities);
+
+  const totalAssets = current.totalAssets;
+  const prevTotalAssets = previous.totalAssets;
+  const assetsVariance = Number((totalAssets - prevTotalAssets).toFixed(2));
+  const assetsPctChange = prevTotalAssets !== 0
+    ? Number((((totalAssets - prevTotalAssets) / Math.abs(prevTotalAssets)) * 100).toFixed(1))
+    : (totalAssets !== 0 ? 100 : 0);
+
+  const totalLiabilities = current.totalLiabilities;
+  const prevTotalLiabilities = previous.totalLiabilities;
+  const liabilitiesVariance = Number((totalLiabilities - prevTotalLiabilities).toFixed(2));
+  const liabilitiesPctChange = prevTotalLiabilities !== 0
+    ? Number((((totalLiabilities - prevTotalLiabilities) / Math.abs(prevTotalLiabilities)) * 100).toFixed(1))
+    : (totalLiabilities !== 0 ? 100 : 0);
+
+  return {
+    primaryEndDate,
+    comparativeEndDate,
+    assets,
+    liabilities,
+    totalAssets,
+    prevTotalAssets,
+    assetsVariance,
+    assetsPctChange,
+    totalLiabilities,
+    prevTotalLiabilities,
+    liabilitiesVariance,
+    liabilitiesPctChange,
+    isBalanced: Math.abs(totalAssets - totalLiabilities) < 0.01,
+    isPrevBalanced: Math.abs(prevTotalAssets - prevTotalLiabilities) < 0.01
+  };
+}

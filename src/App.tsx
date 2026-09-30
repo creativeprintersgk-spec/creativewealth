@@ -15,6 +15,7 @@ import ImportPage from "./pages/ImportPage"
 import TrialBalance from "./pages/TrialBalance"
 import BackupRestorePage from "./pages/BackupRestorePage"
 import DividendReconciliation from "./pages/DividendReconciliation"
+import TaxLossHarvesting from "./pages/TaxLossHarvesting"
 import { initDatabase, getStoredGroups, getStoredLedgers, getStoredVouchers } from "./logic"
 import { FYProvider, useFY } from "./FYContext"
 import { FamilyProvider, useFamily } from "./contexts/FamilyContext"
@@ -75,6 +76,7 @@ function AppContent() {
                 <Route path="/master-entry" element={<MasterEntry />} />
                 <Route path="/import" element={<><TopNavbar /><ImportPage /></>} />
                 <Route path="/dividend-reconciliation" element={<><TopNavbar /><DividendReconciliation /></>} />
+                <Route path="/tax-loss-harvesting" element={<><TopNavbar /><TaxLossHarvesting /></>} />
                 <Route path="/backup" element={<><TopNavbar /><BackupRestorePage /></>} />
               </Routes>
             </main>

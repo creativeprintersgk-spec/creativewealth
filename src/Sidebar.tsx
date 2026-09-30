@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign, TrendingDown } from 'lucide-react';
 import { getIndices } from './services/priceService';
 import { getStoredFamilies } from './logic';
 import { useTestMode } from './contexts/TestModeContext';
@@ -119,6 +119,12 @@ export default function Sidebar() {
               onClick={() => navigate('/capital-gains')}
             >
               <FileText /> Capital Gains
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/tax-loss-harvesting') ? 'active' : ''}`}
+              onClick={() => navigate('/tax-loss-harvesting')}
+            >
+              <TrendingDown /> Tax Loss Harvesting
             </button>
             <button 
               className={`sidebar-nav-item ${isActive('/profit-loss') ? 'active' : ''}`}

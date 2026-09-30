@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useFY } from '../FYContext';
-import { Calculator, TrendingUp, AlertCircle, FileText, Download, PieChart, ExternalLink, FileDown, Printer } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, AlertCircle, FileText, Download, PieChart, ExternalLink, FileDown, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getStoredPortfolios, getCapitalGains } from '../logic';
@@ -18,6 +19,7 @@ type CGSummaryRow = {
 };
 
 export default function CapitalGainsPage() {
+  const navigate = useNavigate();
   const { customRange, selectedFY, setReportFilter, setCustomRange, setSelectedFY, availableFYs, selectedMember } = useFY();
   const [data, setData] = useState<CGSummaryRow[]>([]);
   const [assetClassData, setAssetClassData] = useState<any[]>([]);
@@ -119,7 +121,26 @@ export default function CapitalGainsPage() {
           </p>
         </div>
         
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button
+            onClick={() => navigate('/tax-loss-harvesting')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: '1px solid #fecaca',
+              background: '#fef2f2',
+              color: '#dc2626',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            <TrendingDown size={15} />
+            Tax-Loss Harvesting
+          </button>
           <select 
             value={selectedFY}
             onChange={(e) => {

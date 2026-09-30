@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Plus, RefreshCw, FileDown, FileUp, Calendar, FileText, ShieldCheck } from 'lucide-react';
 import { useFY } from './FYContext';
-import { handleYearClose, getStoredVouchers, getStoredEntries, getStoredLedgers, getStoredAccounts } from './logic';
+import { handleYearClose, getStoredVouchers, getStoredEntries, getStoredLedgers, getStoredAccounts, getStoredPortfolios } from './logic';
 // import { save as dbSave } from './db/helpers';
 import VoucherModal from './VoucherModal';
 import PriceAuditModal from './components/pms/PriceAuditModal';
@@ -33,14 +33,33 @@ export default function TopNavbar() {
     return `${parseInt(start) - 2}-${parseInt(end) - 2}`
   }
 
-  const handleExport = async () => {
-    const data = { v: getStoredVouchers(), e: getStoredEntries(), l: getStoredLedgers() };
-    const json = JSON.stringify(data);
+  const handleExport = () => {
     try {
-      await navigator.clipboard.writeText(json);
-      alert('✅ Backup copied to clipboard! Paste it somewhere safe.');
-    } catch {
-      prompt('BACKUP DATA (copy this):', json);
+      const data = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        vouchers: getStoredVouchers(),
+        entries: getStoredEntries(),
+        ledgers: getStoredLedgers(),
+        portfolios: getStoredPortfolios(),
+        accounts: getStoredAccounts()
+      };
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `wealthcore_backup_${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 150);
+    } catch (err: any) {
+      console.error('Export failed:', err);
+      alert('Failed to generate export file: ' + (err.message || String(err)));
     }
   };
 
