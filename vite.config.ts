@@ -111,7 +111,9 @@ const cnParserPlugin = () => ({
           fs.writeFileSync(filePath, buffer);
           
           // Use python to run our parse_cn.py script
-          const scriptPath = path.resolve(scratchDir, 'parse_cn.py');
+          const scriptPath = fs.existsSync(path.resolve(__dirname, 'scripts', 'parse_cn.py'))
+            ? path.resolve(__dirname, 'scripts', 'parse_cn.py')
+            : path.resolve(scratchDir, 'parse_cn.py');
           const command = `python "${scriptPath}" "${filePath}" "${password}" "${brokerHint}"`;
           
           exec(command, (error, stdout, stderr) => {

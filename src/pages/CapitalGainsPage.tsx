@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { getStoredPortfolios, getCapitalGains } from '../logic';
 import { generateCapitalGainsDetailed } from '../services/capitalGainsEngine';
 import CapitalGainsRenderer from '../components/reports/CapitalGainsRenderer';
+import { downloadItrScheduleCg } from '../services/itrExportService';
 
 type CGSummaryRow = {
   portfolio_id: string;
@@ -559,6 +560,19 @@ function PortfolioTaxModal({
               }}
             >
               <Printer size={14} color="#2563eb" /> Print
+            </button>
+
+            <button
+              onClick={() => downloadItrScheduleCg(selectedFY, portfolio?.id ? Number(portfolio.id) : undefined)}
+              title="Download ITR Schedule CG for Chartered Accountant (Excel)"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                padding: '6px 12px', background: '#16a34a', border: 'none',
+                borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: '#fff', cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(22, 163, 74, 0.3)'
+              }}
+            >
+              <Download size={14} /> ITR Schedule CG (.xlsx)
             </button>
 
             <div style={{ display: 'flex', background: '#e2e8f0', padding: '3px', borderRadius: '8px', marginLeft: '4px' }}>

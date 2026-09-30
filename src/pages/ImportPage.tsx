@@ -1039,13 +1039,19 @@ function ImportPageInner() {
       const brokers = ledgers.filter(l => l.groupId === '75' || l.groupId === '90');
       setBrokerLedgers(brokers);
       if (brokers.length > 0) {
-        // Try to match the selected broker parser to the ledger name (e.g. Zerodha, RK Global, Mirae)
+        // Try to match the selected broker parser to the ledger name (e.g. Zerodha, Groww, ICICI, Kotak, HDFC, Motilal, Dhan, Mirae, RK Global)
         const activeParser = selectedBroker.toLowerCase().replace(/[^a-z0-9]/g, "");
         const matchedLedger = brokers.find(b => {
           const nameLower = b.name.toLowerCase().replace(/[^a-z0-9]/g, "");
           if (activeParser === 'zerodha') return nameLower.includes('zerodha');
-          if (activeParser === 'rkglobal') return nameLower.includes('global') || nameLower.includes('rk');
+          if (activeParser === 'groww') return nameLower.includes('groww') || nameLower.includes('nextbillion');
+          if (activeParser === 'icici') return nameLower.includes('icici') || nameLower.includes('direct');
+          if (activeParser === 'kotak') return nameLower.includes('kotak');
+          if (activeParser === 'hdfc') return nameLower.includes('hdfc');
+          if (activeParser === 'motilal') return nameLower.includes('motilal') || nameLower.includes('mosl');
+          if (activeParser === 'dhan') return nameLower.includes('dhan');
           if (activeParser === 'mirae') return nameLower.includes('mirae') || nameLower.includes('mstock');
+          if (activeParser === 'rkglobal') return nameLower.includes('global') || nameLower.includes('rk');
           return nameLower.includes(activeParser);
         });
 
@@ -1574,18 +1580,284 @@ function ImportPageInner() {
     setCnDate(date);
   };
 
+  // ── Unified Contract Note ingestion pipeline ───────────────────────────
+  const ingestParsedCnResult = async (result: any) => {
+    let nextId = Date.now();
+    const newTrades: any[] = [];
+
+    // Auto-detect portfolio from PAN
+    let autoSelectedPortfolio = selectedPortfolio;
+    if (result.pan) {
+      const pan = result.pan.toUpperCase();
+      const matchedPf = state.portfolios.find((p: any) => p.pan && p.pan.toUpperCase() === pan);
+      if (matchedPf) {
+        autoSelectedPortfolio = String(matchedPf.id);
+        setSelectedPortfolio(autoSelectedPortfolio);
+      }
+    }
+
+    // Set CN date from parsed file (fallback to today)
+    const parsedDate = result.cnDate || cnDate;
+    if (result.cnDate) setCnDate(result.cnDate);
+
+    // Set CN number from parsed file
+    if (result.cnNo) setCnNo(result.cnNo);
+
+    // Auto-detect broker
+    if (result.broker && result.broker !== selectedBroker) {
+      setSelectedBroker(result.broker);
+    }
+
+    for (const t of (result.trades || [])) {
+       const isin = (t.isin || '').toUpperCase().trim();
+       const symbol = (t.assetName || '').toUpperCase().trim();
+       
+       let finalAmid = -1;
+       let finalAssetName = symbol;
+
+       // ── ISIN-FIRST MATCHING PIPELINE ─────────────────────────────────────────
+       // Step 1: DB lookup by ISIN (highest authority)
+       if (isin) {
+         const inMemory = state.assetMaster.find((a: any) => a.isin && a.isin.toUpperCase() === isin)
+           || state.sam.find((s: any) => s.isin && s.isin.toUpperCase() === isin);
+         if (inMemory) {
+           finalAmid = Number(inMemory.amid);
+           finalAssetName = inMemory.name || inMemory.anm || finalAssetName;
+         } else {
+           const { data: byIsin } = await supabase
+             .from('asset_master')
+             .select('amid, name, nse_symbol, isin, asset_type')
+             .eq('isin', isin)
+             .limit(1);
+           if (byIsin && byIsin.length > 0) {
+             finalAmid = byIsin[0].amid;
+             finalAssetName = byIsin[0].name;
+             if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) {
+               state.assetMaster.push(byIsin[0]);
+             }
+           }
+         }
+       }
+
+       // Step 2: isinDictionary lookup
+       if (finalAmid === -1 && isin && isinToAmidMap[isin]) {
+         const dictAmid = isinToAmidMap[isin];
+         const { data: dictCheck } = await supabase
+           .from('asset_master')
+           .select('amid, name, nse_symbol, isin')
+           .eq('amid', dictAmid)
+           .limit(1);
+         if (dictCheck && dictCheck.length > 0) {
+           finalAmid = dictAmid;
+           finalAssetName = dictCheck[0].name || finalAssetName;
+           if (!dictCheck[0].isin && isin) {
+             await supabase.from('asset_master').update({ isin, nse_symbol: symbol || dictCheck[0].nse_symbol }).eq('amid', dictAmid);
+             state.assetMaster.forEach((a: any) => { if (a.amid === dictAmid) { a.isin = isin; } });
+           }
+           if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) state.assetMaster.push(dictCheck[0]);
+         } else {
+           finalAmid = dictAmid;
+           const foundName = getAssetName(finalAmid);
+           if (foundName && !foundName.startsWith('Asset ')) finalAssetName = foundName;
+         }
+       }
+
+       // Step 3: NSE symbol lookup in DB
+       if (symbol) {
+         const { data: byNse } = await supabase
+           .from('asset_master')
+           .select('amid, name, nse_symbol, isin')
+           .eq('nse_symbol', symbol)
+           .limit(2);
+         
+         if (byNse && byNse.length > 0) {
+           const isinMatch = byNse.find((r: any) => r.isin && r.isin.toUpperCase() === isin);
+           const best = isinMatch || byNse[0];
+
+           if (finalAmid === -1) {
+             finalAmid = best.amid;
+             finalAssetName = best.name;
+             if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) state.assetMaster.push(best);
+           } else if (best.amid !== finalAmid) {
+             console.log(`[CN Import] ISIN-DB conflict for ${symbol}: dict/ISIN-said amid=${finalAmid}, NSE-symbol-in-DB says amid=${best.amid}. Using DB record.`);
+             finalAmid = best.amid;
+             finalAssetName = best.name;
+             if (!best.isin && isin) {
+               await supabase.from('asset_master').update({ isin }).eq('amid', best.amid);
+               if (!state.assetMaster.find((a: any) => a.amid === best.amid)) state.assetMaster.push({ ...best, isin });
+               else state.assetMaster.forEach((a: any) => { if (a.amid === best.amid) a.isin = isin; });
+             }
+           }
+         }
+       }
+
+       // Step 4: Name fallback
+       if (finalAmid === -1 && symbol) {
+         const byName = state.assetMaster.find((a: any) => 
+           a.name && a.name.toUpperCase().trim() === symbol
+         ) || state.sam.find((s: any) => 
+           s.anm && s.anm.toUpperCase().trim() === symbol
+         );
+         if (byName) {
+           finalAmid = Number(byName.amid);
+           finalAssetName = byName.name || byName.anm || finalAssetName;
+           if (!byName.isin && isin) {
+             await supabase.from('asset_master').update({ isin, nse_symbol: symbol }).eq('amid', finalAmid);
+             state.assetMaster.forEach((a: any) => { if (a.amid === finalAmid) { a.isin = isin; if (!a.nse_symbol) a.nse_symbol = symbol; } });
+           }
+         }
+       }
+
+       // Step 5: Auto-create in asset_master
+       if (finalAmid === -1) {
+         const { data: maxRow } = await supabase.from('asset_master').select('amid').order('amid', { ascending: false }).limit(1);
+         const nextAmid = ((maxRow?.[0]?.amid || 500000) < 500000 ? 500000 : (maxRow?.[0]?.amid || 500000)) + 1;
+         const newAssetRow = {
+           amid: nextAmid,
+           name: symbol,
+           nse_symbol: symbol,
+           isin: isin || null,
+           asset_type: 50,
+           asset_type_name: 'Stocks'
+         };
+         const { error: insertErr } = await supabase.from('asset_master').insert(newAssetRow);
+         if (!insertErr) {
+           state.assetMaster.push(newAssetRow);
+           finalAmid = nextAmid;
+           finalAssetName = symbol;
+           console.log(`[CN Import] Auto-created asset_master amid=${nextAmid} for ${symbol} ISIN=${isin}`);
+         }
+       }
+
+       if (t.buyQty > 0) {
+         newTrades.push({
+           id: nextId++,
+           assetName: finalAssetName,
+           isin,
+           amid: finalAmid,
+           type: 'Buy',
+           quantity: t.buyQty,
+           price: t.buyWap,
+           gross: t.buyVal,
+           brokerage: 0,
+           date: parsedDate,
+           portfolioId: autoSelectedPortfolio,
+           selected: true,
+         });
+       }
+
+       if (t.sellQty > 0) {
+         newTrades.push({
+           id: nextId++,
+           assetName: finalAssetName,
+           isin,
+           amid: finalAmid,
+           type: 'Sell',
+           quantity: t.sellQty,
+           price: t.sellWap,
+           gross: t.sellVal,
+           brokerage: 0,
+           date: parsedDate,
+           portfolioId: autoSelectedPortfolio,
+           selected: true,
+         });
+       }
+    }
+
+    if (newTrades.length > 0) {
+      setCnTrades(newTrades);
+    } else {
+      throw new Error("No trades were found in this file. Please verify it is a valid broker contract note or tradebook.");
+    }
+
+    if (result.charges) {
+      setCnCharges({
+        stt: Number(result.charges.stt) || 0,
+        brokerage: Number(result.charges.brokerage) || 0,
+        gst: Number(result.charges.gst) || 0,
+        stamp: Number(result.charges.stamp) || 0,
+        transCharges: Number(result.charges.transCharges) || 0,
+        other: Number(result.charges.other) || 0,
+      });
+    }
+    
+    if (result.finalNet !== undefined) {
+      setPdfFinalNet(result.finalNet);
+    } else {
+      setPdfFinalNet(null);
+    }
+  };
+
   // ── Broker contract note PDF/CSV file select ──────────────────────────────
   const handleBrokerCnFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // If PDF, prompt for password
+
     if (file.name.toLowerCase().endsWith('.pdf')) {
+      // First attempt to parse directly with empty password in case PDF is not password protected
+      try {
+        const buffer = await file.arrayBuffer();
+        const response = await fetch('/api/parse-cn', {
+          method: 'POST',
+          headers: {
+            'x-cn-password': '',
+            'x-cn-broker': selectedBroker,
+            'Content-Type': 'application/pdf'
+          },
+          body: buffer
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.status === 'ok' && result.trades && result.trades.length > 0) {
+            await ingestParsedCnResult(result);
+            e.target.value = '';
+            return;
+          }
+        }
+      } catch (directErr) {
+        // Direct parse failed (e.g. password required), fallback to modal
+      }
+
       setPendingFile(file);
       setPasswordPromptOpen(true);
     } else {
-      // Parse as CSV
-      const text = await file.text();
-      console.log('Broker CN file selected:', file.name, 'size:', text.length);
+      // CSV / HTML / TXT file
+      try {
+        const buffer = await file.arrayBuffer();
+        const contentType = file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm')
+          ? 'text/html'
+          : 'text/csv';
+
+        const response = await fetch('/api/parse-cn', {
+          method: 'POST',
+          headers: {
+            'x-cn-broker': selectedBroker,
+            'Content-Type': contentType
+          },
+          body: buffer
+        });
+
+        if (!response.ok) {
+          let errMsg = "Failed to parse trade file";
+          try {
+            const errData = await response.json();
+            if (errData.error) errMsg = errData.error;
+            if (errData.message) errMsg = errData.message;
+          } catch(e){}
+          throw new Error(errMsg);
+        }
+
+        const result = await response.json();
+        if (result.status === 'error') {
+          throw new Error(result.message || "Failed to parse trade file");
+        }
+
+        await ingestParsedCnResult(result);
+      } catch (err: any) {
+        alert("Error parsing file: " + (err.message || String(err)));
+        console.error(err);
+      }
     }
     e.target.value = '';
   };
@@ -1655,234 +1927,7 @@ function ImportPageInner() {
         throw new Error(result.message || "Invalid password or parsing error");
       }
 
-      let nextId = Date.now();
-      const newTrades: any[] = [];
-
-      // Auto-detect portfolio from PAN
-      let autoSelectedPortfolio = selectedPortfolio;
-      if (result.pan) {
-        const pan = result.pan.toUpperCase();
-        const matchedPf = state.portfolios.find((p: any) => p.pan && p.pan.toUpperCase() === pan);
-        if (matchedPf) {
-          autoSelectedPortfolio = String(matchedPf.id);
-          setSelectedPortfolio(autoSelectedPortfolio);
-        }
-      }
-
-      // Set CN date from parsed PDF (fallback to today)
-      const parsedDate = result.cnDate || cnDate;
-      if (result.cnDate) setCnDate(result.cnDate);
-
-      // Set CN number from parsed PDF
-      if (result.cnNo) setCnNo(result.cnNo);
-
-      // Auto-detect broker
-      if (result.broker && result.broker !== selectedBroker) {
-        setSelectedBroker(result.broker);
-      }
-
-      for (const t of result.trades) {
-         const isin = (t.isin || '').toUpperCase().trim();
-         const symbol = (t.assetName || '').toUpperCase().trim();
-         
-         let finalAmid = -1;
-         let finalAssetName = symbol;
-
-         // ── ISIN-FIRST MATCHING PIPELINE ─────────────────────────────────────────
-         // ISIN is the authoritative global identifier for any listed security.
-         // Name can vary ("Aurobindo Pharma" vs "Aurobindo Pharma Limited", renames, etc.)
-         // Order of priority: ISIN DB lookup → isinDictionary → NSE symbol DB → name fallback → auto-create
-         // ─────────────────────────────────────────────────────────────────────────
-
-         // Step 1: DB lookup by ISIN (highest authority — catches any existing record regardless of name)
-         if (isin) {
-           // Check in-memory first (faster)
-           const inMemory = state.assetMaster.find((a: any) => a.isin && a.isin.toUpperCase() === isin)
-             || state.sam.find((s: any) => s.isin && s.isin.toUpperCase() === isin);
-           if (inMemory) {
-             finalAmid = Number(inMemory.amid);
-             finalAssetName = inMemory.name || inMemory.anm || finalAssetName;
-           } else {
-             // Live DB lookup by ISIN
-             const { data: byIsin } = await supabase
-               .from('asset_master')
-               .select('amid, name, nse_symbol, isin, asset_type')
-               .eq('isin', isin)
-               .limit(1);
-             if (byIsin && byIsin.length > 0) {
-               finalAmid = byIsin[0].amid;
-               finalAssetName = byIsin[0].name;
-               // Cache in memory
-               if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) {
-                 state.assetMaster.push(byIsin[0]);
-               }
-             }
-           }
-         }
-
-         // Step 2: isinDictionary lookup (covers pre-loaded canonical amids for 20,000+ NSE stocks)
-         // Only used if ISIN DB lookup failed — means no existing record in asset_master by ISIN yet
-         if (finalAmid === -1 && isin && isinToAmidMap[isin]) {
-           const dictAmid = isinToAmidMap[isin];
-           // Before committing to the dictionary amid, do a live DB verification
-           // to check if that amid actually exists (dictionary can be stale)
-           const { data: dictCheck } = await supabase
-             .from('asset_master')
-             .select('amid, name, nse_symbol, isin')
-             .eq('amid', dictAmid)
-             .limit(1);
-           if (dictCheck && dictCheck.length > 0) {
-             finalAmid = dictAmid;
-             finalAssetName = dictCheck[0].name || finalAssetName;
-             // Also write the ISIN back to asset_master if it was missing (key anti-duplicate measure)
-             if (!dictCheck[0].isin && isin) {
-               await supabase.from('asset_master').update({ isin, nse_symbol: symbol || dictCheck[0].nse_symbol }).eq('amid', dictAmid);
-               state.assetMaster.forEach((a: any) => { if (a.amid === dictAmid) { a.isin = isin; } });
-             }
-             if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) state.assetMaster.push(dictCheck[0]);
-           } else {
-             // Dictionary amid not in DB — use it as a provisional value
-             finalAmid = dictAmid;
-             const foundName = getAssetName(finalAmid);
-             if (foundName && !foundName.startsWith('Asset ')) finalAssetName = foundName;
-           }
-         }
-
-         // Step 3: NSE symbol lookup in DB — catch records where ISIN was null in asset_master
-         // (old imported records often have ISIN missing — this prevents Aurobindo-style duplicates)
-         if (symbol) {
-           const { data: byNse } = await supabase
-             .from('asset_master')
-             .select('amid, name, nse_symbol, isin')
-             .eq('nse_symbol', symbol)
-             .limit(2); // get 2 to detect conflicts
-           
-           if (byNse && byNse.length > 0) {
-             // Prefer ISIN-matching record if there are multiple
-             const isinMatch = byNse.find((r: any) => r.isin && r.isin.toUpperCase() === isin);
-             const best = isinMatch || byNse[0];
-
-             if (finalAmid === -1) {
-               // No match yet — use this NSE symbol match
-               finalAmid = best.amid;
-               finalAssetName = best.name;
-               if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) state.assetMaster.push(best);
-             } else if (best.amid !== finalAmid) {
-               // We have a conflict: isinDictionary gave one amid, but DB has a different amid for this NSE symbol
-               // The DB record with this NSE symbol is the canonical one (it's already in use in the portfolio)
-               // Prefer the existing DB record to prevent creating duplicate holdings
-               console.log(`[CN Import] ISIN-DB conflict for ${symbol}: dict/ISIN-said amid=${finalAmid}, NSE-symbol-in-DB says amid=${best.amid}. Using DB record.`);
-               finalAmid = best.amid;
-               finalAssetName = best.name;
-               // Patch the missing ISIN into the existing DB record
-               if (!best.isin && isin) {
-                 await supabase.from('asset_master').update({ isin }).eq('amid', best.amid);
-                 if (!state.assetMaster.find((a: any) => a.amid === best.amid)) state.assetMaster.push({ ...best, isin });
-                 else state.assetMaster.forEach((a: any) => { if (a.amid === best.amid) a.isin = isin; });
-               }
-             }
-             // If finalAmid === best.amid, already correct — no conflict
-           }
-         }
-
-         // Step 4: Name fallback — try matching by full name in state.assetMaster 
-         if (finalAmid === -1 && symbol) {
-           const byName = state.assetMaster.find((a: any) => 
-             a.name && a.name.toUpperCase().trim() === symbol
-           ) || state.sam.find((s: any) => 
-             s.anm && s.anm.toUpperCase().trim() === symbol
-           );
-           if (byName) {
-             finalAmid = Number(byName.amid);
-             finalAssetName = byName.name || byName.anm || finalAssetName;
-             // Patch the ISIN into this record too
-             if (!byName.isin && isin) {
-               await supabase.from('asset_master').update({ isin, nse_symbol: symbol }).eq('amid', finalAmid);
-               state.assetMaster.forEach((a: any) => { if (a.amid === finalAmid) { a.isin = isin; if (!a.nse_symbol) a.nse_symbol = symbol; } });
-             }
-           }
-         }
-
-         // Step 5: Auto-create in asset_master with full ISIN + NSE symbol — last resort
-         if (finalAmid === -1) {
-           const { data: maxRow } = await supabase.from('asset_master').select('amid').order('amid', { ascending: false }).limit(1);
-           const nextAmid = ((maxRow?.[0]?.amid || 500000) < 500000 ? 500000 : (maxRow?.[0]?.amid || 500000)) + 1;
-           const newAssetRow = {
-             amid: nextAmid,
-             name: symbol,
-             nse_symbol: symbol,
-             isin: isin || null,
-             asset_type: 50,
-             asset_type_name: 'Stocks'
-           };
-           const { error: insertErr } = await supabase.from('asset_master').insert(newAssetRow);
-           if (!insertErr) {
-             state.assetMaster.push(newAssetRow);
-             finalAmid = nextAmid;
-             finalAssetName = symbol;
-             console.log(`[CN Import] Auto-created asset_master amid=${nextAmid} for ${symbol} ISIN=${isin}`);
-           }
-         }
-         // ─────────────────────────────────────────────────────────────────────────
-
-
-         if (t.buyQty > 0) {
-           newTrades.push({
-             id: nextId++,
-             assetName: finalAssetName,
-             isin,
-             amid: finalAmid,
-             type: 'Buy',
-             quantity: t.buyQty,
-             price: t.buyWap,
-             gross: t.buyVal,
-             brokerage: 0,
-             date: parsedDate,
-             portfolioId: autoSelectedPortfolio,
-             selected: true,
-           });
-         }
-
-         if (t.sellQty > 0) {
-           newTrades.push({
-             id: nextId++,
-             assetName: finalAssetName,
-             isin,
-             amid: finalAmid,
-             type: 'Sell',
-             quantity: t.sellQty,
-             price: t.sellWap,
-             gross: t.sellVal,
-             brokerage: 0,
-             date: parsedDate,
-             portfolioId: autoSelectedPortfolio,
-             selected: true,
-           });
-         }
-      }
-
-      if (newTrades.length > 0) {
-        setCnTrades(newTrades);
-      } else {
-        throw new Error("No trades were found in this PDF. Please verify it is a valid broker contract note.");
-      }
-
-      if (result.charges) {
-        setCnCharges({
-          stt: Number(result.charges.stt) || 0,
-          brokerage: Number(result.charges.brokerage) || 0,
-          gst: Number(result.charges.gst) || 0,
-          stamp: Number(result.charges.stamp) || 0,
-          transCharges: Number(result.charges.transCharges) || 0,
-          other: Number(result.charges.other) || 0,
-        });
-      }
-      
-      if (result.finalNet !== undefined) {
-        setPdfFinalNet(result.finalNet);
-      } else {
-        setPdfFinalNet(null);
-      }
+      await ingestParsedCnResult(result);
 
       setPasswordPromptOpen(false);
       setTempPassword('');
@@ -2187,9 +2232,14 @@ function ImportPageInner() {
               <label style={labelStyle}>Broker Format</label>
               <select value={selectedBroker} onChange={e => setSelectedBroker(e.target.value)} style={selectStyle}>
                 <option value="zerodha">Zerodha (PDF)</option>
-                <option value="rk_global">R K Global (HTML / CSV)</option>
+                <option value="groww">Groww (PDF / CSV)</option>
+                <option value="icici">ICICI Direct (PDF / CSV)</option>
+                <option value="kotak">Kotak Securities (PDF / CSV)</option>
+                <option value="hdfc">HDFC Securities (PDF / CSV)</option>
+                <option value="motilal">Motilal Oswal (PDF)</option>
                 <option value="dhan">Dhan (PDF)</option>
                 <option value="mirae">MStock / Mirae Asset (PDF)</option>
+                <option value="rk_global">R K Global (HTML / CSV)</option>
               </select>
             </div>
             <div>
@@ -2222,7 +2272,7 @@ function ImportPageInner() {
               />
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
               <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>Click to select Contract Note file</div>
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>PDF (Zerodha / Dhan / MStock) · HTML / CSV (RK Global)</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>PDF / CSV: Zerodha · Groww · ICICI Direct · Kotak · HDFC Sec · Motilal Oswal · Dhan · MStock · RK Global</div>
             </div>
 
             {/* Password prompt — shown inline when PDF is pending */}
@@ -2231,7 +2281,7 @@ function ImportPageInner() {
                 <div style={{ fontWeight: 700, color: '#1e40af', fontSize: '15px', marginBottom: '6px' }}>🔒 Password Protected PDF</div>
                 <div style={{ color: '#475569', fontSize: '13px', marginBottom: '14px' }}>
                   This PDF is password-protected. Enter the password to decrypt and parse it.<br/>
-                  <span style={{ color: '#2563eb', fontWeight: 600 }}>For Zerodha / Dhan: enter your PAN in UPPERCASE (e.g. ABCDE1234F)</span>
+                  <span style={{ color: '#2563eb', fontWeight: 600 }}>For Zerodha / Groww / Dhan / Motilal / Kotak: enter PAN in UPPERCASE. For ICICI Direct: enter DOB (DDMMYYYY).</span>
                 </div>
                 {passwordError && (
                   <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', color: '#dc2626', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>

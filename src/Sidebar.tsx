@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign } from 'lucide-react';
 import { getIndices } from './services/priceService';
 import { getStoredFamilies } from './logic';
 import { useTestMode } from './contexts/TestModeContext';
@@ -156,6 +156,12 @@ export default function Sidebar() {
               onClick={() => navigate('/import')}
             >
               <FileUp /> Import Data
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/dividend-reconciliation') ? 'active' : ''}`}
+              onClick={() => navigate('/dividend-reconciliation')}
+            >
+              <DollarSign /> Dividend Recon
             </button>
             <button 
               className={`sidebar-nav-item ${isActive('/backup') ? 'active' : ''}`}

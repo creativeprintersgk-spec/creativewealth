@@ -40,6 +40,7 @@ import PortfolioActivityModal from '../components/pms/PortfolioActivityModal';
 import PMSTransactionModal from '../components/pms/PMSTransactionModal';
 import PMSIncomeModal from '../components/pms/PMSIncomeModal';
 import PMSPriceModal from '../components/pms/PMSPriceModal';
+import CorporateActionNotificationBanner from '../components/pms/CorporateActionNotificationBanner';
 
 // Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
 const ASSET_TYPE_TABS = [
@@ -454,6 +455,12 @@ export default function PMSWorkspace() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 40px' }}>
         
+        {/* AUTOMATED CORPORATE ACTIONS NOTIFICATION BANNER */}
+        <CorporateActionNotificationBanner 
+          portfolioIds={currentTab ? currentTab.portfolioIds.map(String) : []} 
+          onActionApplied={() => setTick(t => t + 1)}
+        />
+
         {/* ── PORTFOLIO TABS (MODERN FOLDER / CARD TAB BAR) ── */}
         <div style={{
           display: 'flex',

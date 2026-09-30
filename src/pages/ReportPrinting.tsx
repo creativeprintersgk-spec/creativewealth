@@ -5,7 +5,9 @@ import { getBalanceSheet } from "../services/balanceSheet";
 import { getProfitLoss } from "../services/profitLoss";
 import { useFY } from "../FYContext";
 import { useFamily } from "../contexts/FamilyContext";
-import { Printer, FileText, ChevronDown, Check, Users } from "lucide-react";
+import { Printer, FileText, ChevronDown, Check, Users, Download } from "lucide-react";
+import { downloadTallyXml } from "../services/tallyExportService";
+import { downloadItrScheduleCg } from "../services/itrExportService";
 
 type ReportType = "balance_sheet" | "profit_loss" | "trial_balance" | "ledger_statement" | "voucher_book";
 
@@ -461,13 +463,28 @@ export default function ReportPrinting() {
         </div>
 
         {/* Print Trigger */}
-        <div style={{ padding: "20px", borderTop: "1px solid #f1f5f9", flexShrink: 0 }}>
+        {/* Print & CA Export Suite Buttons (Sticky Bottom) */}
+        <div style={{ padding: "20px", borderTop: "1px solid #f1f5f9", flexShrink: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
           <button
             onClick={handlePrint}
             className="btn-primary"
-            style={{ width: "100%", padding: "10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontSize: "13px" }}
+            style={{ width: "100%", padding: "10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontSize: "13px", fontWeight: 700 }}
           >
             <Printer size={16} /> Print Report
+          </button>
+
+          <button
+            onClick={() => downloadTallyXml(selectedFY, selectedAccountId ? Number(selectedAccountId) : undefined)}
+            style={{ width: "100%", height: "38px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontSize: "12px", fontWeight: 700, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", color: "#334155", cursor: "pointer" }}
+          >
+            📥 Export to Tally XML
+          </button>
+
+          <button
+            onClick={() => downloadItrScheduleCg(selectedFY)}
+            style={{ width: "100%", height: "38px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontSize: "12px", fontWeight: 700, background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "8px", color: "#166534", cursor: "pointer" }}
+          >
+            📊 Export ITR Schedule CG (.xlsx)
           </button>
         </div>
       </div>
