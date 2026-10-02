@@ -322,12 +322,12 @@ def parse_pdf(file_path, password="", broker_hint="auto"):
         has_isin = any('isin' in h for h in header)
         has_qty = any('qty' in h or 'quantity' in h for h in header)
         has_rate = any('rate' in h or 'price' in h for h in header)
-        has_trade = any('security' in h or 'symbol' in h or 'order' in h or 'trade' in h for h in header)
+        has_trade = any('security' in h or 'symbol' in h or 'order' in h or 'trade' in h or 'contract' in h or 'instrument' in h or 'description' in h for h in header)
 
         if (has_isin or has_trade) and (has_qty or has_rate):
             # Locate column indices with priority matching
             isin_col = next((i for i, h in enumerate(header) if 'isin' in h), -1)
-            name_col = next((i for i, h in enumerate(header) if any(k in h for k in ['security', 'symbol', 'description', 'scrip', 'company']) and 'isin' not in h), -1)
+            name_col = next((i for i, h in enumerate(header) if any(k in h for k in ['security', 'symbol', 'description', 'scrip', 'company', 'instrument', 'contract']) and 'isin' not in h), -1)
             type_col = next((i for i, h in enumerate(header) if h in ['b/s', 'buy/sell', 'type', 'action', 'trans type'] or ((any(k in h for k in ['buy', 'sell', 'b/s', 'type', 'action'])) and not any(k in h for k in ['no', 'time', 'date', 'price', 'rate', 'value', 'total', 'order', 'trade no', 'trade time']))), -1)
             qty_col = next((i for i, h in enumerate(header) if ('qty' in h or 'quantity' in h) and 'closing' not in h), -1)
             rate_col = next((i for i, h in enumerate(header) if any(k in h for k in ['gross rate', 'trade price', 'market rate', 'gross']) and not any(k in h for k in ['closing', 'net total', 'net rate', 'total', 'value'])), -1)

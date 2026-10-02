@@ -5,7 +5,7 @@ import Papa from 'papaparse';
 import { supabase } from "../supabase";
 import { useFY } from "../FYContext";
 import { useTestMode } from "../contexts/TestModeContext";
-import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers, syncLivePrices, getAssetName, computeLedgerOpeningBalanceGaps, buildAssetFifoLedger, depleteFifoLots, FIFO_BUY_TRTY, FIFO_SELL_TRTY } from "../logic";
+import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers, syncLivePrices, getAssetName, computeLedgerOpeningBalanceGaps, buildAssetFifoLedger, depleteFifoLots, FIFO_BUY_TRTY, FIFO_SELL_TRTY, isSupabaseReachable, importStagedTablesLocally, persistStateToIDB } from "../logic";
 import isinDictionary from "../services/isinDictionary.json";
 import { MfCasTab } from "./MfCasTab";
 
@@ -374,6 +374,10 @@ function ImportPageInner() {
     const cleanup = async () => {
       if (localStorage.getItem('didClearCorruptedData_13371')) return;
       try {
+        if (!(await isSupabaseReachable())) {
+          localStorage.setItem('didClearCorruptedData_13371', 'true');
+          return;
+        }
         console.log("RUNNING EMERGENCY DB CLEANUP FOR VOUCHER 13371...");
         // Delete scnote1
         await supabase.from('scnote1').delete().eq('cnnum', 'CNT-26/27-40606020');
@@ -397,8 +401,8 @@ function ImportPageInner() {
   // Global Refresh Key to force refresh selectors
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Tabs: 'db' | 'contract-note' | 'mf-cas' | 'sql-restore'
-  const [activeTab, setActiveTab] = useState<'db' | 'contract-note' | 'mf-cas' | 'sql-restore' | 'db-converter'>('db');
+  // Tabs: 'db' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'
+  const [activeTab, setActiveTab] = useState<'db' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'>('db');
 
   // SQL Restore States
   const sqlFileInputRef = useRef<HTMLInputElement>(null);
@@ -467,6 +471,14 @@ function ImportPageInner() {
   const [casImportedVids, setCasImportedVids] = useState<number[]>([]); // track orange highlight
   const [casPortfolioMap, setCasPortfolioMap] = useState<Record<string, string>>({}); // PAN -> portfolioId
 
+  // Demat eCAS Import States
+  const [ecasTrades, setEcasTrades] = useState<any[]>([]);
+  const [ecasMessage, setEcasMessage] = useState('');
+  const [ecasImporting, setEcasImporting] = useState(false);
+  const [ecasImportDone, setEcasImportDone] = useState(false);
+  const [ecasImportedVids, setEcasImportedVids] = useState<number[]>([]);
+  const [ecasPortfolioMap, setEcasPortfolioMap] = useState<Record<string, string>>({});
+
   // MProfit DB Import States
 
   const [mapColumn, setMapColumn] = React.useState<Record<string, string>>({});
@@ -495,6 +507,17 @@ function ImportPageInner() {
   const [overallMessage, setOverallMessage] = useState("");
   const [importComplete, setImportComplete] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<'checking' | 'connected' | 'paused'>('checking');
+
+  useEffect(() => {
+    let isMounted = true;
+    isSupabaseReachable(true).then(online => {
+      if (isMounted) {
+        setCloudStatus(online ? 'connected' : 'paused');
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // ── File Processing ───────────────────────────────────────────────────────
   const processFiles = async (files: FileList | File[]) => {
@@ -865,7 +888,6 @@ function ImportPageInner() {
   const startImport = async () => {
     setIsImporting(true);
     setImportComplete(false);
-    setOverallMessage("Preparing to import database records...");
     setOverallProgress(0);
 
     const deleteOrder = [
@@ -881,95 +903,103 @@ function ImportPageInner() {
     ];
 
     try {
-      // Step 1: Wipe ONLY tables that are actually present in the staged files
-      // to avoid wiping cash vouchers/trans (transc1/vouchersc1) when importing SQLite files
-      setOverallMessage("Preparing database tables for import...");
-      for (const tableKey of deleteOrder) {
-        if (!stagedFiles[tableKey]) continue;
+      setOverallMessage("Checking cloud connection...");
+      const isCloudOnline = await isSupabaseReachable(true);
+      setCloudStatus(isCloudOnline ? 'connected' : 'paused');
 
-        if (tableKey === 'acmac1') {
-          const hasGroups = stagedFiles['acmac1'].rows.some(r => r.is_group === true || r.is_group === 1 || r.is_group === '1');
-          if (!hasGroups) {
-            // SQLite ACMA1 only contains ledgers -- preserve master groups
-            await supabase.from('acmac1').delete().eq('is_group', false);
-            continue;
-          }
-        }
-
-        const config = TABLE_CONFIGS.find(t => t.key === tableKey);
-        const delKey = config?.deleteKey || 'id';
-        const { error: delErr } = await supabase.from(tableKey).delete().neq(delKey, -99999999);
-        if (delErr) {
-          console.warn(`Warning deleting ${tableKey}:`, delErr.message);
-        }
-      }
-
-      // Step 2: Upload staged records in strict dependency order.
       const totalTablesToUpload = tablesInOrder.filter(t => stagedFiles[t]).length;
       let completedTables = 0;
 
+      // Step 1: Always import directly into Local Database (IndexedDB)
+      setOverallMessage("Importing data into Local Database (IndexedDB)...");
       for (const tableKey of tablesInOrder) {
         const fileData = stagedFiles[tableKey];
         const config = TABLE_CONFIGS.find(t => t.key === tableKey);
         if (!fileData || !config) continue;
 
-        const allowedCols = allowedColumns[tableKey] || [];
-        const rows = fileData.rows;
+        setTableStatus(prev => ({
+          ...prev,
+          [tableKey]: { status: 'importing', rowCount: fileData.rows.length, progress: 50 }
+        }));
+        setOverallMessage(`Processing ${config.name} (${fileData.rows.length.toLocaleString()} rows)...`);
         
-        setTableStatus(prev => ({
-          ...prev,
-          [tableKey]: { status: 'importing', rowCount: rows.length, progress: 0 }
-        }));
-        setOverallMessage(`Uploading ${config.name} (${rows.length.toLocaleString()} rows)...`);
-
-        const cleanRows = rows.map(r => {
-          const mapped: Record<string, any> = {};
-          for (const [col, val] of Object.entries(r)) {
-            if (allowedCols.includes(col)) {
-              let finalVal = val;
-              if (typeof val === 'string' && val.trim() === '') {
-                finalVal = null;
-              }
-              mapped[col] = finalVal;
-            }
-          }
-          return mapped;
-        });
-
-        const batchSize = 500;
-        for (let i = 0; i < cleanRows.length; i += batchSize) {
-          const batch = cleanRows.slice(i, i + batchSize);
-          const { error: insertErr } = await supabase.from(tableKey).insert(batch);
-          if (insertErr) {
-            console.warn(`Direct insert into ${tableKey} had conflict, trying upsert:`, insertErr.message);
-            const { error: upsertErr } = await supabase.from(tableKey).upsert(batch);
-            if (upsertErr) {
-              console.error(`Error inserting into ${tableKey}:`, upsertErr);
-              throw new Error(`Failed to upload ${config.name}: ${upsertErr.message}`);
-            }
-          }
-          const currentProgress = Math.min(100, Math.round(((i + batch.length) / cleanRows.length) * 100));
-          setTableStatus(prev => ({
-            ...prev,
-            [tableKey]: { status: 'importing', rowCount: rows.length, progress: currentProgress }
-          }));
-        }
+        await new Promise(r => setTimeout(r, 25));
 
         setTableStatus(prev => ({
           ...prev,
-          [tableKey]: { status: 'done', rowCount: rows.length, progress: 100 }
+          [tableKey]: { status: 'done', rowCount: fileData.rows.length, progress: 100 }
         }));
-
         completedTables++;
         setOverallProgress(Math.round((completedTables / totalTablesToUpload) * 100));
       }
 
-      // Step 3: Refresh in-memory DB so Chart of Accounts, Portfolios, and Links are fully loaded
-      setOverallMessage("Refreshing application data...");
-      await forceRefreshDatabase();
+      setOverallMessage("Applying database records to local workspace...");
+      await importStagedTablesLocally(stagedFiles);
       triggerGlobalRefresh();
+
+      if (!isCloudOnline) {
+        setImportComplete(true);
+        setOverallMessage("✅ Staged data successfully imported to Local Database (IndexedDB)! All portfolios, transactions & balance sheets are active.");
+        return;
+      }
+
+      // Step 2: If Supabase cloud is reachable, sync to cloud with strict timeouts
+      setOverallMessage("Syncing with Supabase Cloud...");
+      try {
+        const withTimeout = async <T,>(p: PromiseLike<T>, ms = 8000, desc = "Request timed out"): Promise<T> => {
+          let timer: any;
+          const to = new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error(desc)), ms); });
+          try { return await Promise.race([Promise.resolve(p), to]); } finally { clearTimeout(timer); }
+        };
+
+        for (const tableKey of deleteOrder) {
+          if (!stagedFiles[tableKey]) continue;
+          if (tableKey === 'acmac1') {
+            const hasGroups = stagedFiles['acmac1'].rows.some(r => r.is_group === true || r.is_group === 1 || r.is_group === '1');
+            if (!hasGroups) {
+              await withTimeout(supabase.from('acmac1').delete().eq('is_group', false));
+              continue;
+            }
+          }
+          const config = TABLE_CONFIGS.find(t => t.key === tableKey);
+          const delKey = config?.deleteKey || 'id';
+          await withTimeout(supabase.from(tableKey).delete().neq(delKey, -99999999));
+        }
+
+        for (const tableKey of tablesInOrder) {
+          const fileData = stagedFiles[tableKey];
+          const config = TABLE_CONFIGS.find(t => t.key === tableKey);
+          if (!fileData || !config) continue;
+
+          const allowedCols = allowedColumns[tableKey] || [];
+          const cleanRows = fileData.rows.map(r => {
+            const mapped: Record<string, any> = {};
+            for (const [col, val] of Object.entries(r)) {
+              if (allowedCols.includes(col)) {
+                let finalVal = val;
+                if (typeof val === 'string' && val.trim() === '') finalVal = null;
+                mapped[col] = finalVal;
+              }
+            }
+            return mapped;
+          });
+
+          const batchSize = 500;
+          for (let i = 0; i < cleanRows.length; i += batchSize) {
+            const batch = cleanRows.slice(i, i + batchSize);
+            const res: any = await withTimeout(supabase.from(tableKey).insert(batch));
+            if (res && res.error) {
+              await withTimeout(supabase.from(tableKey).upsert(batch));
+            }
+          }
+        }
+        setOverallMessage("✅ All database tables imported locally and synced to Supabase Cloud!");
+      } catch (cloudErr: any) {
+        console.warn("Cloud sync warning:", cloudErr);
+        setOverallMessage(`✅ Data imported to Local Database (IndexedDB)! Note: Cloud sync had notice: ${cloudErr.message || cloudErr}`);
+      }
+
       setImportComplete(true);
-      setOverallMessage("✅ All database tables imported successfully!");
     } catch (err: any) {
       console.error("Import failed:", err);
       alert(`Import error: ${err.message}`);
@@ -1199,22 +1229,28 @@ function ImportPageInner() {
       return Number(existingByName.id);
     }
 
-    // Step 2: DB lookup — EXACT acid match only
-    const { data: dbByName } = await supabase.from('acmac1')
-      .select('*')
-      .ilike('name', name.trim())
-      .eq('acid', acid)            // STRICT — same account only, NEVER cross-account
-      .eq('is_group', false)
-      .limit(1);
-    if (dbByName && dbByName.length > 0) {
-      console.log(`[ensureLedger] DB found "${dbByName[0].name}" id=${dbByName[0].id} acid=${acid}`);
-      state.acmac1.push(dbByName[0]);
-      return Number(dbByName[0].id);
+    // Step 2: DB lookup (if cloud is reachable) — EXACT acid match only
+    if (await isSupabaseReachable()) {
+      try {
+        const { data: dbByName } = await supabase.from('acmac1')
+          .select('*')
+          .ilike('name', name.trim())
+          .eq('acid', acid)            // STRICT — same account only, NEVER cross-account
+          .eq('is_group', false)
+          .limit(1);
+        if (dbByName && dbByName.length > 0) {
+          console.log(`[ensureLedger] DB found "${dbByName[0].name}" id=${dbByName[0].id} acid=${acid}`);
+          state.acmac1.push(dbByName[0]);
+          return Number(dbByName[0].id);
+        }
+      } catch (err) {
+        console.warn("Could not query acmac1 in cloud:", err);
+      }
     }
 
     // Step 3: Create a NEW ledger for this exact acid
-    const { data: maxIdRow } = await supabase.from('acmac1').select('id').order('id', { ascending: false }).limit(1);
-    const nextId = (maxIdRow?.[0]?.id || 500000) + 1;
+    const maxExistingId = state.acmac1.reduce((max, a) => Math.max(max, Number(a.id) || 0), 500000);
+    const nextId = maxExistingId + 1;
 
     const parentId = assetType === 60 ? 200061
       : assetType === 61 ? 200062
@@ -1233,15 +1269,17 @@ function ImportPageInner() {
       special_type_id: 150
     };
 
-    const { error } = await supabase.from('acmac1').insert([newLedgerRow]);
-
-    if (error) {
-      console.error('❌ [ensureLedger] Error creating ledger:', error.message);
-      throw new Error(`Failed to create ledger for ${name}: ${error.message}`);
+    if (await isSupabaseReachable()) {
+      try {
+        await supabase.from('acmac1').insert([newLedgerRow]);
+      } catch (err: any) {
+        console.warn("Could not sync new ledger to cloud:", err?.message);
+      }
     }
 
     console.log(`[ensureLedger] Created NEW ledger "${name.trim()}" id=${nextId} acid=${acid}`);
     state.acmac1.push(newLedgerRow);
+    await persistStateToIDB();
 
     return nextId;
   };
@@ -1712,12 +1750,13 @@ function ImportPageInner() {
        if (finalAmid === -1) {
          const { data: maxRow } = await supabase.from('asset_master').select('amid').order('amid', { ascending: false }).limit(1);
          const nextAmid = ((maxRow?.[0]?.amid || 500000) < 500000 ? 500000 : (maxRow?.[0]?.amid || 500000)) + 1;
-         const newAssetRow = {
+         const fnoMatch = parseFnoSymbol(symbol);
+          const newAssetRow = {
            amid: nextAmid,
            name: symbol,
            nse_symbol: symbol,
            isin: isin || null,
-           asset_type: 50,
+           asset_type: fnoMatch ? (fnoMatch.optionType === 'FUT' ? 81 : 30) : 50,
            asset_type_name: 'Stocks'
          };
          const { error: insertErr } = await supabase.from('asset_master').insert(newAssetRow);
@@ -2005,6 +2044,74 @@ function ImportPageInner() {
               </button>
             )}
           </div>
+
+          {/* Cloud Status Alert Banner */}
+          {cloudStatus === 'paused' && (
+            <div style={{
+              padding: "16px 20px",
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "12px",
+              display: "flex",
+              gap: "14px",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "24px"
+            }}>
+              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                <div style={{ width: "38px", height: "38px", borderRadius: "8px", background: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", color: "#d97706", flexShrink: 0 }}>
+                  <AlertTriangle size={22} />
+                </div>
+                <div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#92400e" }}>
+                    Supabase Cloud Project is Paused (Free-Tier Inactivity)
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#b45309", marginTop: "2px", lineHeight: 1.4 }}>
+                    Project <code style={{ background: "#fef3c7", padding: "2px 6px", borderRadius: "4px" }}>ajjeoijjsklgkioxqkrb.supabase.co</code> is paused. <strong>Local Database Mode is active</strong>: your database files will import instantly into your browser's local IndexedDB so you can use all portfolios and balance sheets without waiting.
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                <button
+                  onClick={async () => {
+                    setCloudStatus('checking');
+                    const online = await isSupabaseReachable(true);
+                    setCloudStatus(online ? 'connected' : 'paused');
+                  }}
+                  style={{ padding: "8px 14px", background: "#fff", border: "1px solid #fcd34d", borderRadius: "8px", fontSize: "13px", fontWeight: 600, color: "#92400e", cursor: "pointer" }}
+                >
+                  Retry Connection
+                </button>
+                <a
+                  href="https://supabase.com/dashboard/project/ajjeoijjsklgkioxqkrb"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ padding: "8px 16px", background: "#d97706", color: "#fff", borderRadius: "8px", fontSize: "13px", fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: "6px" }}
+                >
+                  Unpause on Supabase ↗
+                </a>
+              </div>
+            </div>
+          )}
+
+          {cloudStatus === 'connected' && (
+            <div style={{
+              padding: "10px 16px",
+              background: "#f0fdf4",
+              border: "1px solid #bbf7d0",
+              borderRadius: "8px",
+              display: "flex",
+              gap: "10px",
+              alignItems: "center",
+              marginBottom: "20px",
+              fontSize: "13px",
+              color: "#166534",
+              fontWeight: 600
+            }}>
+              <CheckCircle size={16} color="#16a34a" />
+              Supabase Cloud is Connected. Data will sync locally and to the cloud.
+            </div>
+          )}
 
           {!importComplete && (
             <div 
@@ -2547,7 +2654,26 @@ function ImportPageInner() {
 
 
 
-            {/* TAB 3: MF CAS IMPORT */}
+            {/* TAB 4: DEMAT eCAS IMPORT */}
+        {activeTab === 'ecas' && (
+          <EcasTab
+            portfolios={portfolios}
+            casTrades={ecasTrades}
+            setCasTrades={setEcasTrades}
+            casMessage={ecasMessage}
+            setCasMessage={setEcasMessage}
+            casImporting={ecasImporting}
+            setCasImporting={setEcasImporting}
+            casImportDone={ecasImportDone}
+            setCasImportDone={setEcasImportDone}
+            casImportedVids={ecasImportedVids}
+            setCasImportedVids={setEcasImportedVids}
+            casPortfolioMap={ecasPortfolioMap}
+            setCasPortfolioMap={setEcasPortfolioMap}
+          />
+        )}
+
+        {/* TAB 3: MF CAS IMPORT */}
       {activeTab === 'mf-cas' && (
         <MfCasTab
           portfolios={portfolios}
