@@ -24,12 +24,13 @@ export interface ReportConfig {
   };
 }
 
-const CATEGORIES = ['Capital Gains', 'Performance', 'Transactions', 'Tax Software Formats'];
+const CATEGORIES = ['Capital Gains', 'Performance', 'Transactions', 'F&O (Derivatives)', 'Tax Software Formats'];
 
 const REPORTS_BY_CATEGORY: Record<string, string[]> = {
   'Capital Gains':        ['Realised Capital Gains', 'Capital Gains - Income Tax Return Format', 'Unrealised Capital Gains'],
   'Performance':          ['Portfolio Summary', 'P&L Detailed', 'P&L Summary', 'Annualised Return (XIRR)'],
   'Transactions':         ['All Transactions', 'Dividends Received'],
+  'F&O (Derivatives)':    ['F&O Trade Book', 'F&O Mark-to-Market (MTM)', 'F&O Open Positions'],
   'Tax Software Formats': ['ClearTax Format', 'Winman Format']
 };
 
@@ -40,6 +41,8 @@ const ASSET_TYPES = [
   'Mutual Funds (Equity)',
   'Mutual Funds (Debt)',
   'Mutual Funds (Other)',
+  'F&O - Futures',
+  'F&O - Options',
   'Gold / Commodities',
   'Traded Bonds',
   'NCDs'
