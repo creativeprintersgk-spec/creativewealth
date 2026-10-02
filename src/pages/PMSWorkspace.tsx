@@ -4,6 +4,7 @@ import { useFamily } from '../contexts/FamilyContext';
 import { useFY } from '../FYContext';
 import ReportsModal, { type ReportConfig } from "../components/ReportsModal";
 import ReportViewerModal from "../components/ReportViewerModal";
+import PMSDashboard from "../components/PMSDashboard";
 import { generatePortfolioSummary, generatePnLDetailed, generateTransactionReport, generateAssetAllocationReport, generateIncomeReport, generate80CReport } from "../services/reportsEngine";
 import { generateCapitalGainsDetailed, generateTaxPlanningReport } from "../services/capitalGainsEngine";
 import {
@@ -49,12 +50,13 @@ import CorporateActionNotificationBanner from '../components/pms/CorporateAction
 
 // Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
 const ASSET_TYPE_TABS = [
-  'all', 'stocks', 'mf_eq', 'mf_debt', 'nps', 'insurance', 'private_equity',
+  'dashboard', 'all', 'stocks', 'mf_eq', 'mf_debt', 'nps', 'insurance', 'private_equity',
   'fds', 'bonds', 'ncd', 'deposits_loans', 'ppf',
   'gold', 'silver', 'jewellery', 'properties', 'aif', 'loans'
 ] as const;
 
 const ASSET_TAB_LABELS: Record<string, string> = {
+  dashboard:      'Analytics',
   all:              'All Assets',
   stocks:           'Stocks',
   mf_eq:            'MF Eq',
@@ -167,7 +169,7 @@ export default function PMSWorkspace() {
   const { activeFamily } = useFamily();
   const { customRange, triggerGlobalRefresh, globalRefreshTrigger } = useFY();
   const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('pms_activeTab') || 'all');
-  const [activeAssetType, setActiveAssetType] = useState<string>('all');
+  const [activeAssetType, setActiveAssetType] = useState<string>('dashboard');
   const [openTabIds, setOpenTabIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('pms_openTabs');
     return saved ? JSON.parse(saved) : ['all'];
@@ -679,7 +681,7 @@ export default function PMSWorkspace() {
 
           {/* ── GRID ── */}
           <div style={{ minHeight: '500px', overflow: 'hidden' }}>
-            <HoldingsGrid 
+            {activeAssetType === 'dashboard' && currentTab ? <PMSDashboard portfolioIds={currentTab.portfolioIds.map(Number)} /> : <HoldingsGrid 
               data={holdings} 
               onHoldingClick={setSelectedHolding} 
               onSetPriceClick={(h) => setPriceAsset({ id: String(h.assetId), name: h.assetName, currentPrice: h.currentPrice })}
