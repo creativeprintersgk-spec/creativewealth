@@ -4,8 +4,8 @@ import { useFamily } from '../contexts/FamilyContext';
 import { useFY } from '../FYContext';
 import ReportsModal, { type ReportConfig } from "../components/ReportsModal";
 import ReportViewerModal from "../components/ReportViewerModal";
-import { generatePortfolioSummary, generatePnLDetailed, generateTransactionReport } from "../services/reportsEngine";
-import { generateCapitalGainsDetailed } from "../services/capitalGainsEngine";
+import { generatePortfolioSummary, generatePnLDetailed, generateTransactionReport, generateAssetAllocationReport, generateIncomeReport, generate80CReport } from "../services/reportsEngine";
+import { generateCapitalGainsDetailed, generateTaxPlanningReport } from "../services/capitalGainsEngine";
 import {
   getStoredAccounts,
   getStoredPortfolios,

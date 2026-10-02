@@ -1,4 +1,4 @@
-import { getCapitalGains, getAssetISIN, resolveAssetType } from '../logic.ts';
+import { getCapitalGains, getAssetISIN, resolveAssetType, getHoldings, state, buildAssetFifoLedger } from '../logic.ts';
 
 export interface CapGainMatch {
   buyDate: string;
@@ -90,25 +90,33 @@ const filterByAssetTypeString = (atyid: number, allowedTypes: string[], assetNam
   return allowed.includes(cls);
 };
 
-export const generateCapitalGainsDetailed = (portfolioIds: string[], assetTypes: string[], startDate?: string, endDate?: string) => {
+export const generateCapitalGainsDetailed = (
+  portfolioIds: string[],
+  assetTypes: string[],
+  startDate?: string,
+  endDate?: string,
+  precomputedGains?: any[]
+) => {
   const numericPortIds = portfolioIds.map(Number);
 
   const sDate = (startDate && startDate.length >= 8 && startDate !== 'undefined') ? startDate : '1970-01-01';
   const eDate = (endDate && endDate.length >= 8 && endDate !== 'undefined') ? endDate : '2099-12-31';
 
-  const rawGains = getCapitalGains(
+  const rawGains = precomputedGains || getCapitalGains(
     numericPortIds,
     sDate,
     eDate
   );
 
   const groupedData: Record<string, CapGainReportData> = {};
+  const scripMaps: Record<string, Map<string, CapGainScripSummary>> = {};
 
-  rawGains.forEach((m: any) => {
-    const atyid = resolveAssetType(Number(m.portfolioId), Number(m.amid), Number(m.assetType));
-    if (!filterByAssetTypeString(atyid, assetTypes, m.assetName)) return;
+  for (let mi = 0; mi < rawGains.length; mi++) {
+    const m = rawGains[mi];
+    const atyid = Number(m.assetType) || resolveAssetType(Number(m.portfolioId), Number(m.amid), Number(m.assetType));
+    if (!filterByAssetTypeString(atyid, assetTypes, m.assetName)) continue;
 
-    let typeName = getAssetCGClass(atyid, m.assetName);
+    const typeName = getAssetCGClass(atyid, m.assetName);
 
     if (!groupedData[typeName]) {
       groupedData[typeName] = {
@@ -120,6 +128,7 @@ export const generateCapitalGainsDetailed = (portfolioIds: string[], assetTypes:
         totalLTCG: 0,
         assets: []
       };
+      scripMaps[typeName] = new Map<string, CapGainScripSummary>();
     }
 
     const buyVal  = m.costBasis    || 0;
@@ -135,8 +144,9 @@ export const generateCapitalGainsDetailed = (portfolioIds: string[], assetTypes:
     else if (gainType === 'LTCG') group.totalLTCG += gain;
     else group.totalSTCG += gain;
 
-    // Find or create scrip summary
-    let scrip = group.assets.find(a => a.assetId === String(m.amid) && (!m.folio || a.folio === m.folio));
+    // Fast O(1) scrip lookup
+    const scripKey = `${m.amid}_${m.folio || ''}`;
+    let scrip = scripMaps[typeName].get(scripKey);
     if (!scrip) {
       scrip = {
         assetId: String(m.amid),
@@ -150,6 +160,7 @@ export const generateCapitalGainsDetailed = (portfolioIds: string[], assetTypes:
         ltcg: 0,
         matches: []
       };
+      scripMaps[typeName].set(scripKey, scrip);
       group.assets.push(scrip);
     }
 
@@ -180,13 +191,75 @@ export const generateCapitalGainsDetailed = (portfolioIds: string[], assetTypes:
       fmvValue:    m.fmvValue || 0,
       caPrice:     m.caPrice || m.buyPrice
     });
-  });
+  }
 
   // Sort groups and assets alphabetically
   const result = Object.values(groupedData).sort((a, b) => a.assetClass.localeCompare(b.assetClass));
-  result.forEach(g => {
-    g.assets.sort((a, b) => a.assetName.localeCompare(b.assetName));
-  });
+  for (let gi = 0; gi < result.length; gi++) {
+    result[gi].assets.sort((a, b) => a.assetName.localeCompare(b.assetName));
+  }
 
   return result;
+};
+
+export const generateTaxPlanningReport = (portfolioIds: string[], assetTypes: string[]) => {
+  const numericPortIds = portfolioIds.map(Number);
+  const holdings = getHoldings(numericPortIds, undefined, false);
+  
+  const rows: any[] = [];
+  
+  for (const h of holdings) {
+    const cls = getAssetCGClass(h.asset_type, h.name);
+    const isAllowed = assetTypes.includes('All Assets') || assetTypes.includes(cls) || assetTypes.includes('All');
+    if (!isAllowed) continue;
+
+    const txList = state.bs1.filter((t: any) => 
+      t.pfid && numericPortIds.includes(Number(t.pfid)) && 
+      Number(t.atyid) === h.asset_type && 
+      Number(t.amid) === h.amid
+    ).sort((a: any, b: any) => new Date(a.dt).getTime() - new Date(b.dt).getTime());
+
+    if (txList.length === 0) continue;
+
+    const { openLots } = buildAssetFifoLedger(txList, '1970-01-01', '2099-12-31', new Map(), {});
+    
+    for (const lot of openLots) {
+      if (lot.remaining <= 0.000001) continue;
+      
+      const buyDate = new Date(lot.date);
+      const today = new Date();
+      const diffTime = Math.abs(today.getTime() - buyDate.getTime());
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      let threshold = 365;
+      if (cls === 'Gold / Commodities' || cls === 'Mutual Funds (Debt)' || cls === 'Mutual Funds (Other)' || cls === 'Real Estate') {
+        threshold = 1095;
+      } else if (cls === 'Mutual Funds (Other)') {
+        threshold = 730;
+      }
+      
+      const isLT = diffDays > threshold;
+      const daysToLT = isLT ? 0 : threshold - diffDays;
+      
+      const currentPrice = h.livePrice || lot.costPerUnit;
+      const unrealisedGain = (currentPrice - lot.costPerUnit) * lot.remaining;
+      const gainPercent = ((currentPrice - lot.costPerUnit) / lot.costPerUnit) * 100;
+      
+      rows.push({
+        'Asset Class': cls,
+        'Asset Name': h.name,
+        'Buy Date': lot.date.substring(0, 10),
+        'Qty Remaining': lot.remaining,
+        'Buy Price': lot.costPerUnit,
+        'Current Price': currentPrice,
+        'Unrealised Gain': unrealisedGain,
+        'Gain %': gainPercent,
+        'Days Held': diffDays,
+        'Tax Status': isLT ? 'Long Term' : 'Short Term',
+        'Days To LTCG': daysToLT
+      });
+    }
+  }
+  
+  return rows.sort((a, b) => a['Days To LTCG'] - b['Days To LTCG']);
 };

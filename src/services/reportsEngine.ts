@@ -204,3 +204,68 @@ export const generateTransactionReport = (portfolioIds: string[], assetTypes: st
   // Sort reverse-chronologically for reporting (latest first)
   return filtered.sort((a, b) => b.date.localeCompare(a.date));
 };
+
+export const generateAssetAllocationReport = (portfolioIds: string[], assetTypes: string[]) => {
+  const numericPortIds = portfolioIds.map(Number);
+  const holdings = getHoldings(numericPortIds, undefined, false);
+  
+  let totalValuation = 0;
+  const allocations: Record<string, number> = {};
+  
+  for (const h of holdings) {
+    const cls = ATTY_CLASS_MAP[h.asset_type] || 'Other Assets';
+    const isAllowed = assetTypes.includes('All Assets') || assetTypes.includes(cls);
+    if (!isAllowed) continue;
+    
+    const val = (h.livePrice || h.avgCost) * h.qty;
+    if (val > 0) {
+      allocations[cls] = (allocations[cls] || 0) + val;
+      totalValuation += val;
+    }
+  }
+  
+  const rows = Object.entries(allocations).map(([cls, val]) => ({
+    'Asset Class': cls,
+    'Valuation': val,
+    'Allocation %': ((val / totalValuation) * 100).toFixed(2) + '%'
+  })).sort((a, b) => b.Valuation - a.Valuation);
+  
+  return rows;
+};
+
+export const generateIncomeReport = (portfolioIds: string[], startDate?: string, endDate?: string) => {
+  const numericPortIds = portfolioIds.map(Number);
+  const pSet = new Set(numericPortIds);
+  const txs = state.bs1.filter((t: any) => pSet.has(t.pfid) && [25, 26, 45, 46].includes(Number(t.trty))); // Dividend and Interest TRTYs
+  
+  return txs.map((t: any) => ({
+    'Date': t.dt?.substring(0, 10),
+    'Asset': getAssetName(t.amid) || 'Unknown',
+    'Type': [25, 45].includes(Number(t.trty)) ? 'Dividend' : 'Interest',
+    'Amount': Number(t.amt) || 0
+  })).filter(t => {
+    if (startDate && t.Date < startDate) return false;
+    if (endDate && t.Date > endDate) return false;
+    return true;
+  });
+};
+
+export const generate80CReport = (portfolioIds: string[], startDate?: string, endDate?: string) => {
+  const numericPortIds = portfolioIds.map(Number);
+  const pSet = new Set(numericPortIds);
+  const txs = state.bs1.filter((t: any) => pSet.has(t.pfid) && [19, 20].includes(Number(t.trty))); // Buy transactions
+  
+  return txs.filter((t: any) => {
+    const name = (getAssetName(t.amid) || '').toLowerCase();
+    const is80C = name.includes('elss') || name.includes('tax saver') || name.includes('ppf') || name.includes('epf') || name.includes('nps');
+    if (!is80C) return false;
+    if (startDate && t.dt < startDate) return false;
+    if (endDate && t.dt > endDate) return false;
+    return true;
+  }).map((t: any) => ({
+    'Date': t.dt?.substring(0, 10),
+    'Asset': getAssetName(t.amid) || 'Unknown',
+    'Type': '80C Investment',
+    'Amount Invested': Number(t.amt) || 0
+  }));
+};
