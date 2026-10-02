@@ -207,14 +207,22 @@ export async function fetchStockPrice(symbol: string): Promise<{ price: number; 
   }
 }
 
+export const DELISTED_OR_FIXED_PRICES: Record<number, { price: number; prevPrice: number; name?: string }> = {
+  // Uttam Value Steels Ltd (now Evonith Value Steels Ltd, BSE: 500254) suspended/delisted around Nov 2020 at ₹0.20
+  100183: { price: 0.20, prevPrice: 0.20, name: 'Uttam Value Steels Ltd (Evonith Value Steels)' },
+};
+
 const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
-  100063: 'CGPOWER.NS',       // CG Power and Industrial Solutions (old name was "CROMPTON GREAVES LTD." in DB)
-  102365: 'GVT&D.NS',         // GE Vernova T&D India (old name was "AREVA" in DB)
-  103321: 'SHILPAMED.NS',     // Shilpa Medicare (old name was "SHILPA MEDIC" in DB)
-  103391: 'ACSTECH.BO',        // ACS Technologies
+  100063: 'CGPOWER.NS',       // CG Power and Industrial Solutions
+  102365: 'GVT&D.NS',         // GE Vernova T&D India
+  103321: 'SHILPAMED.NS',     // Shilpa Medicare
+  103391: 'ACSTECH.BO',       // ACS Technologies
   104519: 'NTPC.NS',          // NTPC Limited
   100038: 'BEL.NS',           // Bharat Electronics
-  100132: 'HCC.NS',           // Hindustan Construction Company (approx 22)
+  100132: 'HCC.NS',           // Hindustan Construction Company
+  100071: 'BHEL.NS',          // Bharat Heavy Electricals
+  100349: 'BPCL.NS',          // Bharat Petroleum Corporation
+  105312: 'LTF.NS',           // L&T Finance
   100135: 'HINDZINC.NS',      // Hindustan Zinc
   100167: 'KSL.NS',           // Kalyani Steels
   100231: 'OILCOUNTUB.NS',    // Oil Country Tubular
@@ -225,20 +233,98 @@ const STOCK_SYMBOL_OVERRIDES: Record<number, string> = {
   101856: 'ANANTRAJ.NS',      // Anant Raj
   102647: 'SEYAIND.NS',       // Seya Industries
   102791: 'AUROPHARMA.NS',    // Aurobindo Pharma
-  104467: 'ISMTLTD.NS',       // ISMT Limited
+  104467: 'KIRLFER.NS',       // ISMT Limited (merged into Kirloskar Ferrous Industries)
+  100263: 'RAMAPETRO.BO',     // Rama Petrochemicals
+  105055: 'PREMIER.BO',       // Premier Energy and Infrastructure
   105468: 'ESSENTIA.NS',      // Integra Essentia
   106093: 'LLOYDSENGG.NS',    // Lloyds Engineering Works
   121746: 'RVNL.NS',          // Rail Vikas Nigam
-  121749: 'POLYCAB.NS',       // Polycab India (nse_symbol is empty in DB)
-  121904: 'MAZDOCK.NS',       // Mazagon Dock Shipbuilders (nse_symbol is empty in DB)
+  121749: 'POLYCAB.NS',       // Polycab India
+  121904: 'MAZDOCK.NS',       // Mazagon Dock Shipbuilders
   121933: 'TARC.NS',          // Tarc
+  122019: 'ETERNAL.NS',       // Eternal Ltd (formerly Zomato)
   122169: 'SILVERBEES.NS',    // Nippon India Silver ETF
   122630: 'JIOFIN.NS',        // Jio Financial Services
+  122983: 'LIQUIDADD.NS',     // DSP BSE Liquid Rate ETF
   123306: 'METAL.NS',         // Mirae Asset Nifty Metal ETF
   122103: 'LATENTVIEW.NS',    // Latent View Analytics
   105051: 'ADANIPOWER.NS',    // Adani Power
   104499: 'BIOCON.NS',        // Biocon Limited
   100345: 'LT.NS',            // Larsen & Toubro
+  100130: 'HFCL.NS',          // HFCL Ltd
+  100180: 'TRENT.NS',         // Trent Limited
+  100346: 'M&M.NS',           // Mahindra & Mahindra
+  100357: 'GRWRHITECH.NS',    // Garware Hi-Tech Films
+  101053: 'APOLLOHOSP.NS',    // Apollo Hospitals
+  101434: '512215.BO',        // Stephanotis Finance
+  101515: 'LLOYDSME.NS',      // Lloyds Metals and Energy
+  101699: 'NLCINDIA.NS',      // NLC India
+  102024: 'NHCFOODS.BO',      // NHC Foods
+  103475: 'IOC.NS',           // Indian Oil Corporation
+  103605: 'MAYURFL.BO',       // Mayur Floorings
+  103561: 'ORGCOAT.BO',       // Organic Coatings
+  104251: 'BANKINDIA.NS',     // Bank of India
+  104471: 'CANBK.NS',         // Canara Bank
+  104501: 'MAHABANK.NS',      // Bank of Maharashtra
+  104512: 'COFORGE.NS',       // Coforge
+  104628: 'SOLARINDS.NS',     // Solar Industries India
+  104767: 'V2RETAIL.NS',      // V2 Retail
+  104853: 'RECLTD.NS',        // REC Ltd
+  105072: 'GODREJPROP.NS',    // Godrej Properties
+  105124: 'GOLDBEES.NS',      // Nippon India ETF Gold BeES
+  105174: 'COALINDIA.NS',     // Coal India
+  105420: 'INDUSTOWER.NS',    // Indus Towers
+  105838: 'ADANIENSOL.NS',    // Adani Energy Solutions
+  100975: 'WIPRO.NS',         // Wipro Limited
+  100072: 'HINDPETRO.NS',     // Hindustan Petroleum Corporation
+  100230: 'ONGC.NS',          // ONGC Limited
+  100240: 'RELIANCE.NS',      // Reliance Industries
+  100040: 'BEPL.NS',          // Bhansali Engineering Polymers
+  102180: 'JAMNAAUTO.NS',     // Jamna Auto
+  102649: 'BCLIND.NS',        // BCL Industries
+  103048: 'CONFIPET.NS',      // Confidence Petroleum
+  103109: 'GUJALKALI.NS',     // Gujarat Alkalies & Chemicals
+  104560: 'MSPL.NS',          // MSP Steel & Power
+  104908: 'ANDHRSUGAR.NS',    // Andhra Sugars
+  105408: 'ZUARI.NS',         // Zuari Agro Chemicals
+  105640: 'PDSL.NS',          // PDS Ltd
+  105831: 'SPORTKING.NS',     // Sportking India
+  121247: 'VBL.NS',           // Varun Beverages
+  121280: 'BSE.NS',           // BSE Ltd
+  121445: 'GICRE.NS',         // General Insurance Corporation of India
+  121449: 'NAM-INDIA.NS',     // Nippon Life India Asset Management
+  121451: 'NIACL.NS',         // New India Assurance Company
+  121663: 'SKYGOLD.NS',       // Sky Gold
+  121945: 'STOVEKRAFT.NS',    // Stove Kraft
+  121959: 'MTARTECH.NS',      // MTAR Technologies
+  121971: 'KALYANKJIL.NS',    // Kalyan Jewellers India
+  122010: 'PHARMABEES.NS',    // Nippon India NIFTY Pharma ETF
+  122026: 'ROLEXRINGS.NS',    // Rolex Rings
+  122069: 'ABSLAMC.NS',       // Aditya Birla Sun Life AMC
+  122089: 'NYKAA.NS',         // FSN E-Commerce Ventures
+  122121: 'ANANDRATHI.NS',    // Anand Rathi Wealth
+  122123: 'RATEGAIN.NS',      // Rategain Travel Technologies
+  122197: 'MSUMI.NS',         // Motherson Sumi Wiring India
+  122222: 'JSLL.NS',          // Jeena Sikho Lifecare
+  122245: 'DELHIVERY.NS',     // Delhivery
+  122250: 'ETHOSLTD.NS',      // Ethos
+  122271: 'MWL.NS',           // Mangalam Worldwide
+  122363: 'EMIL.NS',          // Electronics Mart India
+  122405: 'UNIPARTS.NS',      // Uniparts India
+  122479: 'HDFCSML250.NS',    // HDFC Nifty Small Cap 250 ETF
+  122563: 'NXST.NS',          // Nexus Select Trust
+  122696: 'RISHABH.NS',       // Rishabh Instruments
+  122707: 'RRKABEL.NS',       // R R Kabel
+  122736: 'UDS.NS',           // Updater Services
+  122768: 'IRMENERGY.NS',     // IRM Energy
+  122906: 'RPTECH.NS',        // Rashi Peripherals
+  100294: 'SPLPETRO.NS',      // Supreme Petrochem
+  124010: 'MEESHO.NS',        // Meesho
+  123949: 'LENSKART.NS',      // Lenskart Solutions
+  123389: 'VISHAL.NS',        // Vishal Mega Mart
+  124044: 'ICICIAMC.NS',      // ICICI Prudential Asset Management Company
+  105191: 'BFINVEST.NS',      // BF Investment
+  100402: 'LORDSMARK.BO',     // Lords Mark Industries
   500246: 'LTF.NS',           // L&T Finance
   500030: 'LTF.NS',           // L&T Finance
   503185: 'LTF.NS',           // L&T Finance
@@ -257,6 +343,9 @@ const AMFI_OVERRIDES: Record<number, number> = {
   503041: 148457, // Nippon India Multi Asset Fund - Direct Plan - Growth Option
   245412: 148459, // Nippon India Multi Asset Allocation Fund - Regular Plan - Growth Option
   234448: 152645, // Mirae Asset Nifty MidSmallcap400 Momentum Quality 100 ETF Fund of Fund - Direct Plan - Growth
+  215306: 120313, // ICICI Prudential Income plus Arbitrage Omni FOF - Direct Plan - Growth
+  220288: 120314, // ICICI Prudential Income plus Arbitrage Omni FOF - Direct Plan - IDCW
+  213312: 120197, // ICICI Prudential Liquid Fund - Direct Plan - Growth
 };
 
 const BOND_ISIN_TO_NSE_SYMBOL: Record<string, string> = {
@@ -448,12 +537,179 @@ export function fuzzyMatchGSecSymbol(name: string, csvSymbols: string[]): string
   return null;
 }
 
+export interface AmfiSchemeInfo {
+  name: string;
+  amfi_code: string;
+  category?: string;
+  taxCategory?: 'EQUITY' | 'DEBT_SEC50AA' | 'HYBRID_OTHER';
+}
+
+let cachedAmfiIsinMap: Record<string, AmfiSchemeInfo> | null = null;
+let cachedNseIsinMap: Record<string, { symbol: string; name: string; series: string }> | null = null;
+
+export async function lookupAmfiByIsin(isin: string): Promise<AmfiSchemeInfo | null> {
+  if (!isin || !isin.startsWith('INF')) return null;
+  try {
+    if (!cachedAmfiIsinMap) {
+      const res = await fetch(typeof window !== 'undefined' ? '/api/amfi-isin' : 'https://www.amfiindia.com/spages/NAVAll.txt');
+      if (typeof window !== 'undefined') {
+        cachedAmfiIsinMap = await res.json();
+      } else {
+        const text = await res.text();
+        const map: Record<string, AmfiSchemeInfo> = {};
+        let currentCategory = '';
+        text.split('\n').forEach(line => {
+          const trimmed = line.trim();
+          if (trimmed.includes('Schemes(') || trimmed.startsWith('Open Ended') || trimmed.startsWith('Close Ended')) {
+            currentCategory = trimmed;
+            return;
+          }
+          const parts = trimmed.split(';');
+          if (parts.length >= 6) {
+            const code = parts[0].trim();
+            const i1 = parts[1].trim();
+            const i2 = parts[2].trim();
+            const name = parts[3].trim();
+            const catLower = currentCategory.toLowerCase();
+            let taxCategory: 'EQUITY' | 'DEBT_SEC50AA' | 'HYBRID_OTHER' = 'EQUITY';
+            if (catLower.includes('debt') || catLower.includes('liquid') || catLower.includes('money market') || catLower.includes('income')) {
+              taxCategory = 'DEBT_SEC50AA';
+            } else if (catLower.includes('hybrid') || catLower.includes('multi asset') || catLower.includes('fund of fund') || catLower.includes('fof')) {
+              taxCategory = 'HYBRID_OTHER';
+            }
+            const info: AmfiSchemeInfo = { name, amfi_code: code, category: currentCategory, taxCategory };
+            if (i1 && i1.length >= 10 && i1 !== '-') map[i1] = info;
+            if (i2 && i2.length >= 10 && i2 !== '-') map[i2] = info;
+          }
+        });
+        cachedAmfiIsinMap = map;
+      }
+    }
+    return cachedAmfiIsinMap?.[isin] || null;
+  } catch (e) {
+    console.warn('lookupAmfiByIsin error:', e);
+    return null;
+  }
+}
+
+export async function lookupNseByIsin(isin: string): Promise<{ symbol: string; name: string; series: string } | null> {
+  if (!isin || !isin.startsWith('IN')) return null;
+  try {
+    if (!cachedNseIsinMap) {
+      const res = await fetch(typeof window !== 'undefined' ? '/api/nse-isin' : 'https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv', {
+        headers: typeof window === 'undefined' ? { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } : undefined
+      });
+      if (typeof window !== 'undefined') {
+        cachedNseIsinMap = await res.json();
+      } else {
+        const text = await res.text();
+        const map: Record<string, { symbol: string; name: string; series: string }> = {};
+        const lines = text.split('\n');
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(',');
+          if (parts.length >= 7) {
+            const isinCode = parts[6].trim();
+            if (isinCode.startsWith('IN')) {
+              map[isinCode] = { symbol: parts[0].trim(), name: parts[1].trim(), series: parts[2].trim() };
+            }
+          }
+        }
+        cachedNseIsinMap = map;
+      }
+    }
+    return cachedNseIsinMap?.[isin] || null;
+  } catch (e) {
+    console.warn('lookupNseByIsin error:', e);
+    return null;
+  }
+}
+
 /**
- * Get live price for any asset (stocks + MF)
- * Automatically routes to the right API based on asset_type.
+ * Automatically resolves any newly added script (Stock, Mutual Fund, SGB, Bond)
+ * by ISIN, ticker symbol, or scheme name, and fetches its live price.
+ */
+export async function resolveAndSyncNewScript(identifier: string): Promise<{
+  name: string;
+  isin: string | null;
+  symbol: string | null;
+  price: number;
+  assetType: number;
+} | null> {
+  const clean = identifier.trim();
+  if (!clean) return null;
+
+  let isin: string | null = null;
+  let symbol: string | null = null;
+  let amfiCode: number | null = null;
+  let name = clean;
+  let assetType = 50;
+
+  if (clean.length === 12 && clean.startsWith('INF')) {
+    isin = clean;
+    assetType = 60;
+    const mfInfo = await lookupAmfiByIsin(clean);
+    if (mfInfo) {
+      name = mfInfo.name;
+      amfiCode = Number(mfInfo.amfi_code) || null;
+    }
+  } else if (clean.length === 12 && clean.startsWith('INE')) {
+    isin = clean;
+    assetType = 50;
+    const nseInfo = await lookupNseByIsin(clean);
+    if (nseInfo) {
+      name = nseInfo.name;
+      symbol = `${nseInfo.symbol}.NS`;
+    }
+  } else if (clean.length === 12 && clean.startsWith('IN00')) {
+    isin = clean;
+    assetType = 70;
+  }
+
+  const tempAsset: AssetMaster = {
+    amid: 0,
+    name,
+    asset_type: assetType,
+    asset_type_name: assetType === 60 ? 'Mutual Funds' : (assetType === 70 ? 'Bonds' : 'Stocks'),
+    exchange_group: null,
+    bse_code: null,
+    amfi_code: amfiCode,
+    nse_symbol: symbol ? symbol.replace('.NS', '') : null,
+    ticker: symbol,
+    isin
+  };
+
+  const live = await getLivePrice(tempAsset);
+  return {
+    name,
+    isin,
+    symbol,
+    price: live?.price || 0,
+    assetType
+  };
+}
+
+/**
+ * Get live price for any asset (stocks + MF + bonds)
+ * Automatically routes to the right API based on ISIN, ticker, or asset_type.
  * Uses in-memory cache — refreshes every 5 minutes.
  */
 export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null> {
+  // Check delisted / fixed-price assets first
+  if (DELISTED_OR_FIXED_PRICES[asset.amid]) {
+    const fixed = DELISTED_OR_FIXED_PRICES[asset.amid];
+    const fixedResult: LivePrice = {
+      amid: asset.amid,
+      name: asset.name,
+      price: fixed.price,
+      change: 0,
+      change_pct: 0,
+      as_of: new Date().toISOString().slice(0, 10),
+      source: 'cached'
+    };
+    priceCache.set(asset.amid, { price: fixedResult, fetchedAt: Date.now() });
+    return fixedResult;
+  }
+
   // Check cache first
   const cached = priceCache.get(asset.amid);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
@@ -461,9 +717,10 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   }
 
   let result: LivePrice | null = null;
+  const rawIsin = asset.isin || extractIsin(asset);
   
   // 1. Check if it's a G-Sec or SGB and fetch from automated NSE Bhavcopy
-  const isin = extractIsin(asset);
+  const isin = rawIsin;
   let nseSymbol = isin ? BOND_ISIN_TO_NSE_SYMBOL[isin] : null;
   
   const cleanName = asset.name?.toUpperCase() || '';
@@ -500,12 +757,22 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
     }
   }
 
-  // Mutual Fund — use mfapi.in
-  let amfiCode = asset.amfi_code || AMFI_OVERRIDES[asset.amid];
+  // 2. Mutual Fund — ISIN-First, then mfapi.in
+  let amfiCode: number | null = asset.amfi_code || AMFI_OVERRIDES[asset.amid] || null;
+  if (!amfiCode && rawIsin && rawIsin.startsWith('INF')) {
+    const lookup = await lookupAmfiByIsin(rawIsin);
+    if (lookup && lookup.amfi_code) amfiCode = Number(lookup.amfi_code);
+  }
   if (!amfiCode && cleanName.includes('NIPPON') && cleanName.includes('MULTI ASSET') && cleanName.includes('DIRECT') && cleanName.includes('GROWTH')) {
     amfiCode = 148457;
   }
-  if ((asset.asset_type === 60 || asset.asset_type === 61 || asset.asset_type === 62 || amfiCode) && amfiCode) {
+  if (!amfiCode && cleanName.includes('INCOME PLUS') && cleanName.includes('ARBITRAGE')) {
+    amfiCode = 120313;
+  }
+  if (!amfiCode && cleanName.includes('ICICI') && cleanName.includes('LIQUID') && cleanName.includes('DIRECT') && cleanName.includes('GROWTH')) {
+    amfiCode = 120197;
+  }
+  if (amfiCode) {
     const nav = await fetchMFNav(amfiCode);
     if (nav) {
       result = {
@@ -533,7 +800,19 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
       overrideSymbol = 'MAYURFL.BO';
     }
     if (!overrideSymbol && cleanName.includes('ORGANIC') && cleanName.includes('COAT')) {
-      overrideSymbol = '531157.BO';
+      overrideSymbol = 'ORGCOAT.BO';
+    }
+    if (!overrideSymbol && cleanName.includes('LORDS') && cleanName.includes('MARK')) {
+      overrideSymbol = 'LORDSMARK.BO';
+    }
+    if (!overrideSymbol && cleanName.includes('MEESHO')) {
+      overrideSymbol = 'MEESHO.NS';
+    }
+    if (!overrideSymbol && cleanName.includes('LENSKART')) {
+      overrideSymbol = 'LENSKART.NS';
+    }
+    if (!overrideSymbol && cleanName.includes('VISHAL') && cleanName.includes('MEGA')) {
+      overrideSymbol = 'VISHAL.NS';
     }
     if (overrideSymbol) {
       quote = await fetchStockPrice(overrideSymbol);
@@ -544,10 +823,17 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
     }
 
     if (!quote && asset.nse_symbol) {
-      quote = await fetchStockPrice(`${asset.nse_symbol}.NS`);
+      const cleanNse = asset.nse_symbol.trim().replace(/\s+/g, '').replace(/\(.*?\)/g, '');
+      if (cleanNse) quote = await fetchStockPrice(`${cleanNse}.NS`);
     }
     if (!quote && asset.bse_code) {
       quote = await fetchStockPrice(`${asset.bse_code}.BO`);
+    }
+    if (!quote && rawIsin && rawIsin.startsWith('INE')) {
+      const nseMatch = await lookupNseByIsin(rawIsin);
+      if (nseMatch?.symbol) {
+        quote = await fetchStockPrice(`${nseMatch.symbol}.NS`);
+      }
     }
     if (!quote && asset.isin) {
       // Sometimes Yahoo Finance can resolve ISIN directly for Mutual funds (e.g. 0P0000XW8F.BO)

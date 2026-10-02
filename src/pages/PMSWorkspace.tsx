@@ -12,7 +12,8 @@ import {
   getStoredInvestorGroups,
   getHoldings,
   syncLivePrices,
-  state
+  state,
+  formatDateDDMMMYYYY
 } from '../logic';
 import type { AssetHolding } from '../logic';
 
@@ -40,6 +41,10 @@ import PortfolioActivityModal from '../components/pms/PortfolioActivityModal';
 import PMSTransactionModal from '../components/pms/PMSTransactionModal';
 import PMSIncomeModal from '../components/pms/PMSIncomeModal';
 import PMSPriceModal from '../components/pms/PMSPriceModal';
+import PMSFDInvestmentModal from '../components/pms/PMSFDInvestmentModal';
+import PMSPPFModal from '../components/pms/PMSPPFModal';
+import PMSNCDBondModal from '../components/pms/PMSNCDBondModal';
+import PMSGoldSilverModal from '../components/pms/PMSGoldSilverModal';
 import CorporateActionNotificationBanner from '../components/pms/CorporateActionNotificationBanner';
 
 // Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
@@ -73,11 +78,12 @@ const ASSET_TAB_LABELS: Record<string, string> = {
 // Category labels for HoldingsGrid grouping (based on atty numbers)
 const CATEGORY_LABELS: Record<number, string> = {
   50:  'Stocks',
+  51:  'Stocks',
   60:  'Mutual Funds (Equity)',
   61:  'Mutual Funds (Debt)',
   62:  'Mutual Funds (Other)',
   70:  'NPS / ULiP',
-  75:  'Gold',
+  75:  'Mutual Funds (Other)',
   77:  'Silver',
   80:  'Insurance',
   90:  'Fixed Deposits',
@@ -98,9 +104,9 @@ const CATEGORY_LABELS: Record<number, string> = {
 };
 
 const ATTY_MAP: Record<string, number[] | undefined> = {
-  stocks:             [50],
-  mf_eq:              [60, 66, 81],
-  mf_debt:            [61, 62],
+  stocks:             [50, 51],
+  mf_eq:              [60, 62, 66, 75],
+  mf_debt:            [61],
   nps:                [70, 95],
   insurance:          [80],
   fds:                [90, 30],
@@ -109,7 +115,7 @@ const ATTY_MAP: Record<string, number[] | undefined> = {
   deposits_loans:     [120],
   ppf:                [130],
   post:               [140],
-  gold:               [150, 75],
+  gold:               [150],
   silver:             [151, 77],
   properties:         [160],
   jewellery:          [170],
@@ -120,10 +126,46 @@ const ATTY_MAP: Record<string, number[] | undefined> = {
   loans:              [220],
 };
 
+class ModalErrorBoundary extends React.Component<{ onClose: () => void; children: React.ReactNode }, { hasError: boolean; error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, info: any) {
+    console.error("ModalErrorBoundary caught error:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '500px', width: '90%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+            <h3 style={{ color: '#ef4444', margin: '0 0 12px', fontSize: '18px', fontWeight: 800 }}>Unable to Open Transaction</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', lineHeight: 1.5 }}>
+              {this.state.error?.message || 'An error occurred while loading this transaction.'}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button 
+                onClick={this.props.onClose}
+                style={{ padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function PMSWorkspace() {
   const navigate = useNavigate();
   const { activeFamily } = useFamily();
-  const { customRange } = useFY();
+  const { customRange, triggerGlobalRefresh, globalRefreshTrigger } = useFY();
   const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('pms_activeTab') || 'all');
   const [activeAssetType, setActiveAssetType] = useState<string>('all');
   const [openTabIds, setOpenTabIds] = useState<string[]>(() => {
@@ -150,7 +192,7 @@ export default function PMSWorkspace() {
   }, [activeFamily?.id]);
 
   const [selectedHolding, setSelectedHolding] = useState<AssetHolding | null>(null);
-  const [selectedAssetForLedger, setSelectedAssetForLedger] = useState<{ id: string; name: string; portIds: string[]; } | null>(null);
+  const [selectedAssetForLedger, setSelectedAssetForLedger] = useState<{ id: string; name: string; portIds: string[]; atty?: number; } | null>(null);
   const [isFamilySelectorOpen, setIsFamilySelectorOpen] = useState(false);
   const [isSelectorOpen, setIsSelectorOpen] = useState<'port' | 'group' | null>(null);
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
@@ -158,6 +200,12 @@ export default function PMSWorkspace() {
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
   const [incomeAsset, setIncomeAsset] = useState<{ id: string; name: string; portIds: string[] } | null>(null);
   const [priceAsset, setPriceAsset] = useState<{ id: string; name: string; currentPrice: number } | null>(null);
+  const [specialModal, setSpecialModal] = useState<{
+    type: 'fd' | 'ppf' | 'bond' | 'ncd' | 'gold_buy' | 'gold_sell' | 'silver_buy' | 'silver_sell';
+    voucherId?: string;
+    assetId?: string;
+    assetName?: string;
+  } | null>(null);
   
   // Reports State
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
@@ -246,9 +294,9 @@ export default function PMSWorkspace() {
       });
   };
 
-  // Sync immediately on mount if market is open
+  // Sync immediately on mount
   useEffect(() => {
-    if (isMarketOpen()) runSync('Syncing prices...');
+    runSync('Syncing prices...');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -270,9 +318,20 @@ export default function PMSWorkspace() {
     return () => window.removeEventListener('click', handleClick);
   }, []);
 
-  const accounts = useMemo(() => getStoredAccounts().filter(a => a.familyId === activeFamily?.id), [activeFamily?.id]);
-  const portfolios = useMemo(() => getStoredPortfolios().filter(p => String(p.client_id) === activeFamily?.id), [activeFamily?.id]);
-  const groups = useMemo(() => getStoredInvestorGroups(), []);
+  // Listen for database sync completion (e.g. initial snapshot load) to trigger price sync and refresh UI
+  useEffect(() => {
+    const handleSyncComplete = () => {
+      setTick(t => t + 1);
+      if (isMarketOpen()) runSync('Syncing prices...');
+    };
+    window.addEventListener('wealthcore-sync-complete', handleSyncComplete);
+    return () => window.removeEventListener('wealthcore-sync-complete', handleSyncComplete);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const accounts = useMemo(() => getStoredAccounts().filter(a => a.familyId === activeFamily?.id), [activeFamily?.id, tick, globalRefreshTrigger]);
+  const portfolios = useMemo(() => getStoredPortfolios().filter(p => String(p.client_id) === activeFamily?.id), [activeFamily?.id, tick, globalRefreshTrigger]);
+  const groups = useMemo(() => getStoredInvestorGroups(), [tick, globalRefreshTrigger]);
 
   const allPossibleTabs = useMemo(() => {
     const res: any[] = [{ id: 'all', label: 'All Gadgets', portfolioIds: portfolios.map(p => p.id) }];
@@ -302,7 +361,7 @@ export default function PMSWorkspace() {
     if (!currentTab) return [];
     const filterIds = activeAssetType === 'all' ? undefined : (ATTY_MAP[activeAssetType] || []);
     return getHoldings(currentTab.portfolioIds.map(Number), filterIds, showZeroQty);
-  }, [currentTab, activeAssetType, customRange.end, tick, showZeroQty]); // Re-compute when tick changes (after sync)
+  }, [currentTab, activeAssetType, customRange.end, tick, globalRefreshTrigger, showZeroQty]); // Re-compute when tick or globalRefreshTrigger changes
 
   const [enrichedHoldings, setEnrichedHoldings] = useState<any[]>([]);
 
@@ -321,7 +380,7 @@ export default function PMSWorkspace() {
     }), { invested: 0, today: 0, overall: 0, value: 0 });
   }, [enrichedHoldings]);
 
-  const handleDrilldown = (assetId: string, assetName: string, portIds: string[]) => setSelectedAssetForLedger({ id: assetId, name: assetName, portIds });
+  const handleDrilldown = (assetId: string, assetName: string, portIds: string[], atty?: number) => setSelectedAssetForLedger({ id: assetId, name: assetName, portIds, atty });
   const fmt = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
 
@@ -384,8 +443,15 @@ export default function PMSWorkspace() {
               </button>
               {isActivityMenuOpen && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10000, padding: '4px' }}>
-                  <button className="dropdown-item" onClick={() => setIsActivityOpen(true)}>View Transactions</button>
-                  <button className="dropdown-item" onClick={() => setEditingVoucherId('new')}>Add Transaction</button>
+                  <button className="dropdown-item" onClick={() => { setIsActivityOpen(true); setIsActivityMenuOpen(false); }}>View Transactions</button>
+                  <button className="dropdown-item" onClick={() => { setEditingVoucherId('new'); setIsActivityMenuOpen(false); }}>Add Transaction (Stocks / MF)</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd' }); setIsActivityMenuOpen(false); }}>+ Add Fixed Deposit (FD)</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ppf' }); setIsActivityMenuOpen(false); }}>+ Add PPF / EPF Contribution</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ncd' }); setIsActivityMenuOpen(false); }}>+ Add NCD / Debenture Buy</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'bond' }); setIsActivityMenuOpen(false); }}>+ Add Traded Bond Buy</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_buy' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Purchase</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_sell' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Sale</button>
+                  <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
                   <div 
                     style={{ position: 'relative' }}
                     onMouseEnter={() => setIsOtherTxMenuOpen(true)}
@@ -448,7 +514,7 @@ export default function PMSWorkspace() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#475569', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Activity size={14} color="#64748b" />
-            As of: {new Date(customRange.end).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            As of: {formatDateDDMMMYYYY(customRange.end)}
           </div>
         </div>
       </div>
@@ -541,6 +607,74 @@ export default function PMSWorkspace() {
                 </button>
               ))}
             </div>
+
+            {/* Quick Action Button for the active asset type */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, paddingLeft: '12px' }}>
+              {activeAssetType === 'fds' && (
+                <button
+                  onClick={() => setSpecialModal({ type: 'fd' })}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Plus size={13} /> Add FD
+                </button>
+              )}
+              {activeAssetType === 'ppf' && (
+                <button
+                  onClick={() => setSpecialModal({ type: 'ppf' })}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Plus size={13} /> Add PPF / EPF
+                </button>
+              )}
+              {activeAssetType === 'ncd' && (
+                <button
+                  onClick={() => setSpecialModal({ type: 'ncd' })}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Plus size={13} /> Add NCD
+                </button>
+              )}
+              {activeAssetType === 'bonds' && (
+                <button
+                  onClick={() => setSpecialModal({ type: 'bond' })}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1e40af', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Plus size={13} /> Add Bond
+                </button>
+              )}
+              {activeAssetType === 'gold' && (
+                <>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'gold_buy' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Gold Purchase
+                  </button>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'gold_sell' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Gold Sale
+                  </button>
+                </>
+              )}
+              {activeAssetType === 'silver' && (
+                <>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'silver_buy' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#475569', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Silver Purchase
+                  </button>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'silver_sell' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Silver Sale
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* ── GRID ── */}
@@ -591,18 +725,83 @@ export default function PMSWorkspace() {
           open={!!selectedAssetForLedger} 
           assetId={selectedAssetForLedger.id} 
           assetName={selectedAssetForLedger.name} 
-          portfolioIds={selectedAssetForLedger.portIds} 
+          portfolioIds={selectedAssetForLedger.portIds}
+          atty={selectedAssetForLedger.atty}
           onClose={() => setSelectedAssetForLedger(null)} 
           onEditTransaction={setEditingVoucherId}
         />
       )}
       {editingVoucherId && (
-        <PMSTransactionModal 
-          voucherId={editingVoucherId}
-          onClose={() => setEditingVoucherId(null)}
+        <ModalErrorBoundary onClose={() => setEditingVoucherId(null)}>
+          <PMSTransactionModal 
+            voucherId={editingVoucherId}
+            onClose={() => setEditingVoucherId(null)}
+            onSaved={() => {
+              setEditingVoucherId(null);
+              setTick(t => t + 1);
+              triggerGlobalRefresh();
+            }}
+          />
+        </ModalErrorBoundary>
+      )}
+
+      {/* ── SPECIAL ASSET MODALS (DIRECT ACCESS) ── */}
+      {specialModal?.type === 'fd' && (
+        <PMSFDInvestmentModal
+          assetId={specialModal.assetId || '0'}
+          assetName={specialModal.assetName || ''}
+          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          voucherId={specialModal.voucherId}
+          onClose={() => setSpecialModal(null)}
           onSaved={() => {
-            setEditingVoucherId(null);
-            window.location.reload(); // Quick refresh for now
+            setSpecialModal(null);
+            setTick(t => t + 1);
+            triggerGlobalRefresh();
+          }}
+        />
+      )}
+      {specialModal?.type === 'ppf' && (
+        <PMSPPFModal
+          assetId={specialModal.assetId || '0'}
+          assetName={specialModal.assetName || ''}
+          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          voucherId={specialModal.voucherId}
+          onClose={() => setSpecialModal(null)}
+          onSaved={() => {
+            setSpecialModal(null);
+            setTick(t => t + 1);
+            triggerGlobalRefresh();
+          }}
+        />
+      )}
+      {(specialModal?.type === 'ncd' || specialModal?.type === 'bond') && (
+        <PMSNCDBondModal
+          assetId={specialModal.assetId || '0'}
+          assetName={specialModal.assetName || ''}
+          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          voucherId={specialModal.voucherId}
+          assetCategory={specialModal.type === 'ncd' ? 'ncd' : 'bonds'}
+          onClose={() => setSpecialModal(null)}
+          onSaved={() => {
+            setSpecialModal(null);
+            setTick(t => t + 1);
+            triggerGlobalRefresh();
+          }}
+        />
+      )}
+      {(specialModal?.type === 'gold_buy' || specialModal?.type === 'gold_sell' || specialModal?.type === 'silver_buy' || specialModal?.type === 'silver_sell') && (
+        <PMSGoldSilverModal
+          assetId={specialModal.assetId || '0'}
+          assetName={specialModal.assetName || (specialModal.type.startsWith('gold') ? 'Gold' : 'Silver')}
+          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          voucherId={specialModal.voucherId}
+          metal={specialModal.type.startsWith('gold') ? 'gold' : 'silver'}
+          initialMode={specialModal.type.endsWith('sell') ? 'sale' : 'addition'}
+          onClose={() => setSpecialModal(null)}
+          onSaved={() => {
+            setSpecialModal(null);
+            setTick(t => t + 1);
+            triggerGlobalRefresh();
           }}
         />
       )}
@@ -704,7 +903,8 @@ export default function PMSWorkspace() {
           onClose={() => setPriceAsset(null)}
           onSaved={() => {
             setPriceAsset(null);
-            window.location.reload();
+            setTick(t => t + 1);
+            triggerGlobalRefresh();
           }}
         />
       )}
