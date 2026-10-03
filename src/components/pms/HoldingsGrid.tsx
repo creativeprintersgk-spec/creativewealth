@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { supabase } from '../../supabase';
+import { state, isSupabaseReachable } from '../../logic';
 import type { AssetHolding } from '../../logic';
  
 interface Props {
@@ -28,7 +29,7 @@ const COLS = [
 const fmt = (n: number, decimals = 2) =>
   (n || 0).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const fmtQty = (n: number) => (n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 });
-const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
+const gainColor = (n: number) => n >= 0 ? 'var(--bbg-green)' : 'var(--bbg-red)';
  
 function getRefreshInterval(): number {
   const now = new Date();
@@ -45,6 +46,7 @@ const ASSET_TYPE_ORDER = [
   60,  // Mutual Funds (Equity)
   61,  // Mutual Funds (Debt)
   62,  // Mutual Funds (Other)
+  75,  // Mutual Funds (Other / FoF)
   200, // Special Inv. Funds
   70,  // NPS / ULiP
   80,  // Insurance
@@ -85,38 +87,79 @@ export default function HoldingsGrid({
         const amids = Array.from(new Set(data.map(row => row.amid).filter(id => !isNaN(id))));
         if (!amids.length) return;
 
-        // Read live prices from mprices table
-        // Order DESC by date and then row_id so the LATEST synced price row wins
-        const { data: priceRows, error } = await supabase
-          .from('mprices')
-          .select('amid, currp, prevp, date, row_id')
-          .in('amid', amids)
-          .order('date', { ascending: false })
-          .order('row_id', { ascending: false });
- 
-        if (error) {
-          console.warn('Price fetch error:', error.message);
-          return;
-        }
-        if (!priceRows?.length) return;
- 
-        // Build lookup map by amid — first hit per amid wins (DESC order = newest first)
+        // Build lookup map by amid
         const priceByAmid = new Map<number, { curr: number; prev: number }>();
-        priceRows.forEach((p: any) => {
-          if (!priceByAmid.has(Number(p.amid)) && p.currp && p.currp > 0) {
-            priceByAmid.set(Number(p.amid), { curr: Number(p.currp), prev: Number(p.prevp) || 0 });
+
+        // 1. Fetch latest authoritative prices directly from Supabase if online
+        if (await isSupabaseReachable()) {
+          try {
+            const { data: priceRows, error } = await supabase
+              .from('mprices')
+              .select('amid, currp, prevp, date, row_id')
+              .in('amid', amids)
+              .order('date', { ascending: false })
+              .order('row_id', { ascending: false });
+
+            if (!error && priceRows?.length) {
+              priceRows.forEach((p: any) => {
+                const amid = Number(p.amid);
+                const curr = Number(p.currp) || 0;
+                // Because rows are ordered date DESC, row_id DESC:
+                // The FIRST time we see an amid is the latest price. Older historical rows must NEVER overwrite it!
+                if (!priceByAmid.has(amid) && curr > 0) {
+                  const prev = Number(p.prevp) > 0 ? Number(p.prevp) : curr;
+                  const priceObj = { curr, prev };
+                  priceByAmid.set(amid, priceObj);
+                  if (!state.priceMap) state.priceMap = {};
+                  state.priceMap[amid] = priceObj;
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('Supabase mprices fetch skipped (offline):', e);
+          }
+        }
+
+        // 2. Fallback to in-memory state.mprices (newest date first) for any amids not returned by Supabase
+        const sortedMemPrices = [...(state.mprices || [])].sort((a, b) => 
+          (b.date || '').localeCompare(a.date || '') || (Number(b.row_id) || 0) - (Number(a.row_id) || 0)
+        );
+        sortedMemPrices.forEach((p: any) => {
+          const amid = Number(p.amid);
+          const curr = Number(p.currp) || 0;
+          if (!priceByAmid.has(amid) && curr > 0) {
+            const prev = Number(p.prevp) > 0 ? Number(p.prevp) : curr;
+            priceByAmid.set(amid, { curr, prev });
+            if (!state.priceMap) state.priceMap = {};
+            state.priceMap[amid] = { curr, prev };
           }
         });
- 
+
+        // 3. Fallback to in-memory state.priceMap
+        Object.entries(state.priceMap || {}).forEach(([idStr, p]: [string, any]) => {
+          const id = Number(idStr);
+          if (!priceByAmid.has(id) && p && p.curr > 0) {
+            priceByAmid.set(id, { curr: Number(p.curr), prev: Number(p.prev) || 0 });
+          }
+        });
+
+        if (priceByAmid.size === 0) return;
+
         const updated = data.map(row => {
           const priceRow = priceByAmid.get(row.amid);
-          if (!priceRow || priceRow.curr <= 0) return row;
+          const fallbackPrice = row.quantity > 0 && row.amtInvested > 0 ? (row.amtInvested / row.quantity) : 0;
+          let currPrice = (priceRow && priceRow.curr > 0) ? priceRow.curr : (row.currentPrice > 0 ? row.currentPrice : fallbackPrice);
+          let prevPrice = (priceRow && priceRow.prev > 0) ? priceRow.prev : (row.prevPrice > 0 ? row.prevPrice : currPrice);
 
-          const currPrice = priceRow.curr;
-          const prevPrice = priceRow.prev;
-          const currentValue = row.quantity * currPrice;
+          if (currPrice <= 0 && state.priceMap?.[row.amid]?.curr > 0) {
+            currPrice = state.priceMap[row.amid].curr;
+            prevPrice = state.priceMap[row.amid].prev || currPrice;
+          }
+
+          const currentValue = currPrice > 0 ? (row.quantity * currPrice) : (row.currentValue > 0 ? row.currentValue : row.amtInvested);
           const overallGain = currentValue - row.amtInvested;
-          const todaysGain = prevPrice > 0 ? row.quantity * (currPrice - prevPrice) : 0;
+          const todaysGain = prevPrice > 0 && currPrice > 0 ? row.quantity * (currPrice - prevPrice) : 0;
+          const todaysGainPct = prevPrice > 0 && currPrice > 0 ? ((currPrice - prevPrice) / prevPrice) * 100 : 0;
 
           return {
             ...row,
@@ -126,7 +169,7 @@ export default function HoldingsGrid({
             overallGain,
             overallGainPct: row.amtInvested > 0 ? (overallGain / row.amtInvested) * 100 : 0,
             todaysGain,
-            todaysGainPct: prevPrice > 0 ? ((currPrice - prevPrice) / prevPrice) * 100 : 0,
+            todaysGainPct,
           };
         });
         setEnrichedData(updated);
@@ -247,20 +290,27 @@ export default function HoldingsGrid({
     todaysGain: enrichedData.reduce((s, h) => s + h.todaysGain, 0),
   }), [enrichedData]);
  
-  const renderRow = (h: AssetHolding) => (
+  const renderRow = (h: AssetHolding) => {
+    const isNonUnitized = [130, 90, 110, 120, 140, 160, 170, 180, 210, 220].includes(h.assetType) ||
+      (h.assetTypeName || '').toLowerCase().includes('ppf') ||
+      (h.assetTypeName || '').toLowerCase().includes('epf') ||
+      h.assetName.toLowerCase().startsWith('ppf') ||
+      h.assetName.toLowerCase().startsWith('epf');
+
+    return (
     <tr
       key={`${h.amid}-${h.assetId}`}
       onClick={() => onHoldingClick(h)}
-      style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.1s' }}
-      onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+      style={{ borderBottom: '1px solid var(--bbg-hover-bg)', cursor: 'pointer', transition: 'background 0.1s' }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bbg-surface)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       {/* Asset Name */}
       <td style={{ padding: '3px 16px', maxWidth: '300px' }} title={h.assetName}>
         <div style={{
           fontWeight: 600,
-          fontSize: '13px',
-          color: '#1e293b',
+          fontFamily: var(--bbg-mono), fontSize: 12px,
+          color: 'var(--bbg-text-main)',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis'
@@ -269,84 +319,102 @@ export default function HoldingsGrid({
         </div>
       </td>
       {/* Quantity */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '90px', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>
-        {fmtQty(h.quantity)}
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '90px', fontWeight: 700, fontFamily: var(--bbg-mono), fontSize: 12px, color: 'var(--bbg-text-main)' }}>
+        {isNonUnitized ? '—' : fmtQty(h.quantity)}
       </td>
       {/* Avg Price */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontSize: '13px', color: '#64748b' }}>
-        {fmt(h.avgPrice)}
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontFamily: var(--bbg-mono), fontSize: 12px, color: 'var(--bbg-text-muted)' }}>
+        {isNonUnitized ? '—' : (h.avgPrice > 0 ? fmt(h.avgPrice) : '—')}
       </td>
       {/* Amt Invested */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontWeight: 600, fontSize: '13px', color: '#334155' }}>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontWeight: 600, fontFamily: var(--bbg-mono), fontSize: 12px, color: 'var(--bbg-text-main)' }}>
         {fmt(h.amtInvested, 0)}
       </td>
       {/* Current Price */}
       <td 
-        style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontSize: '13px', color: h.currentPrice > 0 ? '#1e293b' : '#94a3b8', position: 'relative' }}
+        style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontFamily: var(--bbg-mono), fontSize: 12px, color: (!isNonUnitized && h.currentPrice > 0) ? 'var(--bbg-text-main)' : 'var(--bbg-text-muted)', position: 'relative' }}
         onMouseEnter={e => {
+          if (isNonUnitized) return;
           const btn = e.currentTarget.querySelector('.edit-price-btn') as HTMLElement;
           if (btn) btn.style.opacity = '1';
         }}
         onMouseLeave={e => {
+          if (isNonUnitized) return;
           const btn = e.currentTarget.querySelector('.edit-price-btn') as HTMLElement;
           if (btn) btn.style.opacity = '0';
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-          <span>{h.currentPrice > 0 ? fmt(h.currentPrice) : '—'}</span>
-          {onSetPriceClick && (
-            <button
-              className="edit-price-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSetPriceClick(h);
-              }}
-              style={{
-                opacity: 0,
-                transition: 'opacity 0.15s',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#2563eb',
-                padding: '2px',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-              title="Set Current Price"
-            >
-              <Pencil size={12} />
-            </button>
+          {isNonUnitized ? (
+            <span>—</span>
+          ) : (
+            <>
+              <span>{h.currentPrice > 0 ? fmt(h.currentPrice) : (h.avgPrice > 0 ? fmt(h.avgPrice) : '—')}</span>
+              {onSetPriceClick && (
+                <button
+                  className="edit-price-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetPriceClick(h);
+                  }}
+                  style={{
+                    opacity: 0,
+                    transition: 'opacity 0.15s',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--bbg-accent)',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Set Current Price"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </>
           )}
         </div>
       </td>
       {/* Today's Gain */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '120px', fontSize: '13px', whiteSpace: 'nowrap' }}>
-        <span style={{ fontWeight: 700, color: gainColor(h.todaysGain) }}>
-          {h.todaysGain !== 0 ? fmt(h.todaysGain, 0) : '—'}
-        </span>
-        {h.todaysGainPct !== 0 && (
-          <span style={{ fontSize: '11px', color: gainColor(h.todaysGainPct), marginLeft: '4px' }}>
-            ({h.todaysGainPct >= 0 ? '+' : ''}{h.todaysGainPct.toFixed(2)}%)
-          </span>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '120px', fontFamily: var(--bbg-mono), fontSize: 12px, whiteSpace: 'nowrap' }}>
+        {isNonUnitized ? (
+          <span style={{ color: 'var(--bbg-text-muted)' }}>—</span>
+        ) : (
+          <>
+            <span style={{ fontWeight: 700, color: gainColor(h.todaysGain) }}>
+              {fmt(h.todaysGain, 0)}
+            </span>
+            <span style={{ fontSize: '11px', color: gainColor(h.todaysGainPct), marginLeft: '4px' }}>
+              ({h.todaysGainPct >= 0 ? '+' : ''}{h.todaysGainPct.toFixed(2)}%)
+            </span>
+          </>
         )}
       </td>
       {/* Overall Gain */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontSize: '13px', whiteSpace: 'nowrap' }}>
-        <span style={{ fontWeight: 700, color: gainColor(h.overallGain) }}>
-          {h.currentPrice > 0 ? fmt(h.overallGain, 0) : '—'}
-        </span>
-        {h.currentPrice > 0 && h.overallGainPct !== 0 && (
-          <span style={{ fontSize: '11px', color: gainColor(h.overallGainPct), marginLeft: '4px' }}>
-            ({h.overallGainPct >= 0 ? '+' : ''}{h.overallGainPct.toFixed(2)}%)
-          </span>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontFamily: var(--bbg-mono), fontSize: 12px, whiteSpace: 'nowrap' }}>
+        {isNonUnitized ? (
+          <span style={{ color: 'var(--bbg-text-muted)' }}>—</span>
+        ) : (
+          <>
+            <span style={{ fontWeight: 700, color: gainColor(h.overallGain) }}>
+              {fmt(h.overallGain, 0)}
+            </span>
+            <span style={{ fontSize: '11px', color: gainColor(h.overallGainPct), marginLeft: '4px' }}>
+              ({h.overallGainPct >= 0 ? '+' : ''}{h.overallGainPct.toFixed(2)}%)
+            </span>
+          </>
         )}
       </td>
       {/* Current Value */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>
-        {h.currentPrice > 0 ? fmt(h.currentValue, 0) : fmt(h.amtInvested, 0)}
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontWeight: 700, fontFamily: var(--bbg-mono), fontSize: 12px, color: 'var(--bbg-text-main)' }}>
+        {fmt(h.currentValue > 0 ? h.currentValue : h.amtInvested, 0)}
       </td>
     </tr>
   );
+  };
+
  
   const renderCategoryHeader = (key: string, rows: AssetHolding[]) => {
     const label = categoryLabels[key] || rows[0]?.assetTypeName || key;
@@ -360,15 +428,15 @@ export default function HoldingsGrid({
       <React.Fragment key={key}>
         <tr
           onClick={() => toggleCategory(key)}
-          style={{ position: 'sticky', top: '31px', zIndex: 8, background: '#f1f5f9', cursor: 'pointer', borderBottom: '2px solid #cbd5e1' }}
+          style={{ position: 'sticky', top: '31px', zIndex: 8, background: 'var(--bbg-hover-bg)', cursor: 'pointer', borderBottom: '2px solid var(--bbg-border)' }}
         >
-          <td style={{ padding: '6px 16px', fontWeight: 700, fontSize: '12px', color: '#334155' }} colSpan={3}>
+          <td style={{ padding: '6px 16px', fontWeight: 700, fontSize: '12px', color: 'var(--bbg-text-main)' }} colSpan={3}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               {label} ({rows.length})
             </div>
           </td>
-          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', color: '#64748b' }} colSpan={1}>
+          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', color: 'var(--bbg-text-muted)' }} colSpan={1}>
             {fmt(totalInvested, 0)}
           </td>
           <td style={{ padding: '6px 16px' }} colSpan={1} />
@@ -378,7 +446,7 @@ export default function HoldingsGrid({
           <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: gainColor(totalGain) }} colSpan={1}>
             {totalValue > 0 ? fmt(totalGain, 0) : '—'}
           </td>
-          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#1e293b' }} colSpan={1}>
+          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: 'var(--bbg-text-main)' }} colSpan={1}>
             {fmt(totalValue > 0 ? totalValue : totalInvested, 0)}
           </td>
         </tr>
@@ -391,8 +459,8 @@ export default function HoldingsGrid({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Table */}
       <div style={{ flex: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 220px)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-          <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#ffffff' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: var(--bbg-mono), fontSize: 12px }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bbg-bg)' }}>
             <tr>
               {COLS.map(col => {
                 const isActive = sortColumn === col.key;
@@ -401,13 +469,13 @@ export default function HoldingsGrid({
                     key={col.key} 
                     onClick={() => handleHeaderClick(col.key)}
                     style={{
-                      position: 'sticky', top: 0, zIndex: 10, background: '#ffffff',
+                      position: 'sticky', top: 0, zIndex: 10, background: 'var(--bbg-bg)',
                       padding: '8px 16px', textAlign: col.align as any,
                       fontSize: '11px', fontWeight: 700, 
-                      color: isActive ? '#2563eb' : '#475569',
+                      color: isActive ? 'var(--bbg-accent)' : '#475569',
                       textTransform: 'uppercase', letterSpacing: '0.05em',
                       width: col.width, whiteSpace: 'nowrap',
-                      borderBottom: isActive ? '2px solid #2563eb' : '2px solid #cbd5e1',
+                      borderBottom: isActive ? '2px solid var(--bbg-accent)' : '2px solid var(--bbg-border)',
                       cursor: 'pointer',
                       userSelect: 'none',
                       transition: 'all 0.15s ease'
@@ -417,7 +485,7 @@ export default function HoldingsGrid({
                   >
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start', width: '100%' }}>
                       <span>{col.label}</span>
-                      <span style={{ fontSize: '10px', opacity: isActive ? 1 : 0.3, color: isActive ? '#2563eb' : '#94a3b8' }}>
+                      <span style={{ fontSize: '10px', opacity: isActive ? 1 : 0.3, color: isActive ? 'var(--bbg-accent)' : 'var(--bbg-text-muted)' }}>
                         {isActive ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
                       </span>
                     </div>
@@ -441,13 +509,13 @@ export default function HoldingsGrid({
             }
             {enrichedData.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                <td colSpan={8} style={{ padding: '48px', textAlign: 'center', color: 'var(--bbg-text-muted)', fontSize: '14px' }}>
                   No holdings found for selected portfolio
                 </td>
               </tr>
             )}
           </tbody>
-          <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 10, background: '#f8fafc', borderTop: '2px solid #cbd5e1', boxShadow: '0 -2px 0 #cbd5e1' }}>
+          <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 10, background: 'var(--bbg-surface)', borderTop: '2px solid var(--bbg-border)', boxShadow: '0 -2px 0 var(--bbg-border)' }}>
             <tr style={{ height: '40px', fontWeight: 800 }}>
               {/* Asset Name */}
               <td style={{ padding: '8px 16px', color: '#475569', fontSize: '12px' }}>
@@ -458,21 +526,21 @@ export default function HoldingsGrid({
               {/* Avg Price */}
               <td />
               {/* Amt Invested */}
-              <td style={{ padding: '8px 16px', textAlign: 'right', color: '#1e293b', fontSize: '13px' }}>
+              <td style={{ padding: '8px 16px', textAlign: 'right', color: 'var(--bbg-text-main)', fontFamily: var(--bbg-mono), fontSize: 12px }}>
                 {fmt(totals.invested, 0)}
               </td>
               {/* Cur Price */}
               <td />
               {/* Today's Gain */}
-              <td style={{ padding: '8px 16px', textAlign: 'right', color: gainColor(totals.todaysGain), fontSize: '13px' }}>
+              <td style={{ padding: '8px 16px', textAlign: 'right', color: gainColor(totals.todaysGain), fontFamily: var(--bbg-mono), fontSize: 12px }}>
                 {totals.todaysGain !== 0 ? fmt(totals.todaysGain, 0) : '—'}
               </td>
               {/* Overall Gain */}
-              <td style={{ padding: '8px 16px', textAlign: 'right', color: gainColor(totals.gain), fontSize: '13px' }}>
+              <td style={{ padding: '8px 16px', textAlign: 'right', color: gainColor(totals.gain), fontFamily: var(--bbg-mono), fontSize: 12px }}>
                 {totals.value > 0 ? fmt(totals.gain, 0) : '—'}
               </td>
               {/* Cur. Value */}
-              <td style={{ padding: '8px 16px', textAlign: 'right', color: '#1e293b', fontSize: '13px', fontWeight: 900 }}>
+              <td style={{ padding: '8px 16px', textAlign: 'right', color: 'var(--bbg-text-main)', fontFamily: var(--bbg-mono), fontSize: 12px, fontWeight: 900 }}>
                 {fmt(totals.value > 0 ? totals.value : totals.invested, 0)}
               </td>
             </tr>

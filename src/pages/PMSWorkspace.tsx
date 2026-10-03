@@ -145,7 +145,7 @@ class ModalErrorBoundary extends React.Component<{ onClose: () => void; children
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '500px', width: '90%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
             <h3 style={{ color: '#ef4444', margin: '0 0 12px', fontSize: '18px', fontWeight: 800 }}>Unable to Open Transaction</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', lineHeight: 1.5 }}>
+            <p style={{ color: var(--bbg-text-muted), fontSize: '13px', lineHeight: 1.5 }}>
               {this.state.error?.message || 'An error occurred while loading this transaction.'}
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
@@ -387,9 +387,9 @@ export default function PMSWorkspace() {
   const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: var(--bbg-bg), overflow: 'hidden' }}>
             {/* ── TOP BAR ── */}
-      <div style={{ height: '60px', background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 40px', justifyContent: 'space-between', flexShrink: 0, zIndex: 9999, position: 'relative' }}>
+      <div style={{ height: '60px', background: var(--bbg-surface), borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 40px', justifyContent: 'space-between', flexShrink: 0, zIndex: 9999, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <button onClick={() => setIsSelectorOpen('port')} className="btn-primary" style={{ height: '34px', padding: '0 14px', fontSize: '12px', gap: '6px' }}>
@@ -398,7 +398,7 @@ export default function PMSWorkspace() {
             <button onClick={() => setIsSelectorOpen('group')} className="btn-primary" style={{ height: '34px', padding: '0 14px', fontSize: '12px', gap: '6px' }}>
               <LayoutGrid size={14} /> Open Group
             </button>
-            <div style={{ width: '1px', height: '22px', background: '#cbd5e1', margin: '0 4px', alignSelf: 'center' }} />
+            <div style={{ width: '1px', height: '22px', background: var(--bbg-border), margin: '0 4px', alignSelf: 'center' }} />
             <button className="pms-topbar-btn" onClick={() => setIsReportsModalOpen(true)}><FileText size={14} /> Reports <ChevronDown size={12} /></button>
             <button className="pms-topbar-btn"><Plus size={14} /> Import</button>
             <button 
@@ -411,15 +411,19 @@ export default function PMSWorkspace() {
               {syncStatus || 'Sync'}
             </button>
 
-            <div style={{ width: '1px', height: '22px', background: '#cbd5e1', margin: '0 4px', alignSelf: 'center' }} />
+            <div style={{ width: '1px', height: '22px', background: var(--bbg-border), margin: '0 4px', alignSelf: 'center' }} />
 
-            {/* VIEWS DROPDOWN */}
+            {/* THEME TOGGLE */}
+              <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} className="btn-secondary" style={{ height: '34px', padding: '0 12px', fontSize: '12px' }}>
+                {theme === 'dark' ? 'Light Theme' : 'Bloomberg Dark'}
+              </button>
+              {/* VIEWS DROPDOWN */}
             <div style={{ position: 'relative', zIndex: 10000 }}>
               <button onClick={(e) => { e.stopPropagation(); setIsViewsMenuOpen(!isViewsMenuOpen); setIsActivityMenuOpen(false); }} className="btn-secondary" style={{ height: '34px', padding: '0 12px', gap: '6px', fontSize: '12px' }}>
                 Views <ChevronDown size={13} />
               </button>
               {isViewsMenuOpen && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '220px', zIndex: 10000, padding: '4px' }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: var(--bbg-surface), border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '220px', zIndex: 10000, padding: '4px' }}>
                   <button className="dropdown-item" onClick={() => setAreAllExpanded(!areAllExpanded)}>
                     {areAllExpanded ? 'Collapse All' : 'Expand All'}
                   </button>
@@ -427,7 +431,7 @@ export default function PMSWorkspace() {
                     {showZeroQty ? 'Hide 0 Qty Assets' : 'Show 0 Qty Assets'}
                   </button>
                   <button className="dropdown-item">Views of Summary Table</button>
-                  <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: var(--bbg-border), margin: '4px 0' }} />
                   <button className="dropdown-item" onClick={() => setSortBy('name')} style={{ fontWeight: sortBy === 'name' ? 700 : 500 }}>Sort By Name</button>
                   <button className="dropdown-item" onClick={() => setSortBy('value')} style={{ fontWeight: sortBy === 'value' ? 700 : 500 }}>Sort By Current Value</button>
                   <button className="dropdown-item" onClick={() => setSortBy('todaysGainPct')} style={{ fontWeight: sortBy === 'todaysGainPct' ? 700 : 500 }}>Sort By Today's Gain %</button>
@@ -444,7 +448,7 @@ export default function PMSWorkspace() {
                 <Activity size={14} /> Activity Menu <ChevronDown size={13} />
               </button>
               {isActivityMenuOpen && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10000, padding: '4px' }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: var(--bbg-surface), border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10000, padding: '4px' }}>
                   <button className="dropdown-item" onClick={() => { setIsActivityOpen(true); setIsActivityMenuOpen(false); }}>View Transactions</button>
                   <button className="dropdown-item" onClick={() => { setEditingVoucherId('new'); setIsActivityMenuOpen(false); }}>Add Transaction (Stocks / MF)</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd' }); setIsActivityMenuOpen(false); }}>+ Add Fixed Deposit (FD)</button>
@@ -453,7 +457,7 @@ export default function PMSWorkspace() {
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'bond' }); setIsActivityMenuOpen(false); }}>+ Add Traded Bond Buy</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_buy' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Purchase</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_sell' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Sale</button>
-                  <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: var(--bbg-border), margin: '4px 0' }} />
                   <div 
                     style={{ position: 'relative' }}
                     onMouseEnter={() => setIsOtherTxMenuOpen(true)}
@@ -463,7 +467,7 @@ export default function PMSWorkspace() {
                       Other Transactions <ChevronRight size={14} />
                     </button>
                     {isOtherTxMenuOpen && (
-                      <div style={{ position: 'absolute', top: 0, right: '100%', marginRight: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10001, padding: '4px' }}>
+                      <div style={{ position: 'absolute', top: 0, right: '100%', marginRight: '4px', background: var(--bbg-surface), border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10001, padding: '4px' }}>
                         <button className="dropdown-item">Add Bonus Received</button>
                         <button className="dropdown-item">Add Stock Split Details</button>
                         <button className="dropdown-item">Add Stock D'Merger Details</button>
@@ -475,7 +479,7 @@ export default function PMSWorkspace() {
                       </div>
                     )}
                   </div>
-                  <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: var(--bbg-border), margin: '4px 0' }} />
                   <button className="dropdown-item" onClick={() => {
                     if (selectedHolding) {
                       setIncomeAsset({
@@ -500,7 +504,7 @@ export default function PMSWorkspace() {
                   }}>Set Current Price</button>
                   <button className="dropdown-item">Update Prices of the portfolio</button>
                   <button className="dropdown-item">Edit/Delete asset for this portfolio</button>
-                  <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: var(--bbg-border), margin: '4px 0' }} />
                   <button className="dropdown-item">Advance</button>
                   <button className="dropdown-item">Edit Selected Asset</button>
                 </div>
@@ -553,8 +557,8 @@ export default function PMSWorkspace() {
                   padding: '10px 18px',
                   fontSize: '13px',
                   fontWeight: isActiveTab ? 700 : 500,
-                  color: isActiveTab ? '#1e293b' : '#64748b',
-                  background: isActiveTab ? '#ffffff' : '#e2e8f0',
+                  color: isActiveTab ? var(--bbg-text-main) : var(--bbg-text-muted),
+                  background: isActiveTab ? var(--bbg-surface) : var(--bbg-border),
                   borderRadius: '10px 10px 0 0',
                   border: isActiveTab ? '1px solid #cbd5e1' : '1px solid transparent',
                   borderBottom: isActiveTab ? '3px solid #3b82f6' : '1px solid transparent',
@@ -565,7 +569,7 @@ export default function PMSWorkspace() {
                   whiteSpace: 'nowrap'
                 }}
               >
-                {tab.isGroup ? <LayoutGrid size={14} color={isActiveTab ? '#3b82f6' : '#64748b'} /> : <Users size={14} color={isActiveTab ? '#3b82f6' : '#64748b'} />}
+                {tab.isGroup ? <LayoutGrid size={14} color={isActiveTab ? '#3b82f6' : var(--bbg-text-muted)} /> : <Users size={14} color={isActiveTab ? '#3b82f6' : var(--bbg-text-muted)} />}
                 <span>{tab.label}</span>
                 {tab.id !== 'all' && (
                   <span 
@@ -582,7 +586,7 @@ export default function PMSWorkspace() {
                       marginLeft: '4px',
                       transition: 'all 0.2s'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#cbd5e1'; e.currentTarget.style.color = '#1e293b'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = var(--bbg-border); e.currentTarget.style.color = var(--bbg-text-main); }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}
                   >
                     <X size={11} />
@@ -690,11 +694,11 @@ export default function PMSWorkspace() {
               onDataChange={setEnrichedHoldings} 
               areAllExpanded={areAllExpanded}
               sortBy={sortBy}
-            />
+            />}
           </div>
 
           {/* ── FOOTER ── */}
-          <div style={{ height: '40px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 20px', justifyContent: 'space-between' }}>
+          <div style={{ height: '40px', background: var(--bbg-bg), borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 20px', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', gap: '20px', fontSize: '11px' }}>
               <div>Invested: <span style={{ fontWeight: 700 }}>{fmt(totals.invested)}</span></div>
               <div>Value: <span style={{ fontWeight: 800, color: '#2563eb' }}>{fmt(totals.value)}</span></div>
@@ -826,7 +830,7 @@ export default function PMSWorkspace() {
                     key={item.id} 
                     style={{ 
                       display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', 
-                      background: isChecked ? '#eff6ff' : '#f8fafc', 
+                      background: isChecked ? '#eff6ff' : var(--bbg-bg), 
                       border: isChecked ? '1px solid #3b82f6' : '1px solid #e2e8f0', 
                       borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s'
                     }}
@@ -841,7 +845,7 @@ export default function PMSWorkspace() {
                       style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                     />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: isChecked ? '#2563eb' : '#1e293b' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: isChecked ? '#2563eb' : var(--bbg-text-main) }}>
                         {isSelectorOpen === 'port' ? item.portfolioName : item.groupName}
                       </div>
                       {isOpen && <div style={{ fontSize: '10px', color: '#10b981', fontWeight: 700 }}>ALREADY OPEN</div>}
