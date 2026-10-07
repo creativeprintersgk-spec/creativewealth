@@ -937,7 +937,7 @@ export function getStoredPortfolios() {
       p.pfolio_type !== 10 && 
       p.exit_status !== 2 && 
       p.exit_status !== 0 && 
-      !p.investor_name.toLowerCase().startsWith('x ')
+      !p.investor_name.toLowerCase().startsWith('x')
     )
     .map(p => {
       // Look up the linked account via accPflink join table
@@ -964,7 +964,7 @@ export function getStoredInvestorGroups() {
       p.is_group && 
       p.exit_status !== 2 && 
       p.exit_status !== 0 && 
-      !p.investor_name.toLowerCase().startsWith('x ')
+      !p.investor_name.toLowerCase().startsWith('x')
     )
     .map(p => ({
     id: String(p.id),
@@ -983,7 +983,7 @@ export function getStoredAccounts() {
       p.pfolio_type === 10 && 
       p.exit_status !== 2 && 
       p.exit_status !== 0 && 
-      !p.investor_name.toLowerCase().startsWith('x ')
+      !p.investor_name.toLowerCase().startsWith('x')
     )
     .map(p => ({
     id: String(p.id),
