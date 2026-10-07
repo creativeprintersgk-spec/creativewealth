@@ -52,7 +52,7 @@ import CorporateActionNotificationBanner from '../components/pms/CorporateAction
 
 // Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
 const ASSET_TYPE_TABS = [
-  'dashboard', 'all', 'stocks', 'mf_eq', 'mf_debt', 'nps', 'insurance', 'private_equity',
+  'dashboard', 'all', 'stocks', 'fno', 'mf_eq', 'mf_debt', 'nps', 'insurance', 'private_equity',
   'fds', 'bonds', 'ncd', 'deposits_loans', 'ppf',
   'gold', 'silver', 'jewellery', 'properties', 'aif', 'loans'
 ] as const;
@@ -61,6 +61,7 @@ const ASSET_TAB_LABELS: Record<string, string> = {
   dashboard:      'Analytics',
   all:              'All Assets',
   stocks:           'Stocks',
+  fno:              'F&O / Derivatives',
   mf_eq:            'MF Eq',
   mf_debt:          'MF Debt',
   nps:              'NPS / ULiP',
@@ -81,6 +82,12 @@ const ASSET_TAB_LABELS: Record<string, string> = {
 
 // Category labels for HoldingsGrid grouping (based on atty numbers)
 const CATEGORY_LABELS: Record<number, string> = {
+  30:  'Futures (Stock)',
+  31:  'Options (Stock)',
+  32:  'Futures (Index)',
+  33:  'Options (Index)',
+  81:  'Futures (Currency)',
+  82:  'Options (Currency)',
   50:  'Stocks',
   51:  'Stocks',
   60:  'Mutual Funds (Equity)',
@@ -110,11 +117,12 @@ const CATEGORY_LABELS: Record<number, string> = {
 
 const ATTY_MAP: Record<string, number[] | undefined> = {
   stocks:             [50, 51],
+  fno:                [30, 31, 32, 33, 81, 82],
   mf_eq:              [60, 62, 66, 75],
   mf_debt:            [61],
   nps:                [95],
   insurance:          [80],
-  fds:                [90, 30],
+  fds:                [90],
   bonds:              [100, 40],
   ncd:                [110, 70],
   deposits_loans:     [120],
