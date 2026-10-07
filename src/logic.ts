@@ -3964,11 +3964,19 @@ export async function saveMasterRecord(type: any, record: any) {
         investor_name: record.portfolioName,
         pfolio_type 
       }).eq('id', record.id);
+      
       if (!error) {
         const p = state.portfolios.find(pf => String(pf.id) === String(record.id));
         if (p) {
           p.investor_name = record.portfolioName;
           p.pfolio_type = pfolio_type;
+        }
+
+        if (record.accountId) {
+          await supabase.from('acc_pflink').delete().eq('pfid', record.id);
+          await supabase.from('acc_pflink').insert({ pfid: record.id, acid: record.accountId, client_id: 1 });
+          state.accPflink = state.accPflink.filter(l => String(l.pfid) !== String(record.id));
+          state.accPflink.push({ pfid: record.id, acid: record.accountId, client_id: 1 });
         }
       }
     }
