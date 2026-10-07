@@ -932,7 +932,7 @@ export function getAvailableFYs() {
 // ── PORTFOLIOS ────────────────────────────────────────────────────────────────
 export function getStoredPortfolios() {
   return state.portfolios
-    .filter(p => !p.is_group && p.pfolio_type !== 10 && p.pfolio_type !== 5)
+    .filter(p => !p.is_group && p.pfolio_type !== 10)
     .map(p => {
       // Look up the linked account via accPflink join table
       const link = state.accPflink.find((l: any) => l.pfid === p.id);
@@ -946,6 +946,7 @@ export function getStoredPortfolios() {
           : p.pfolio_type === 2 ? 'Mutual Funds'
           : p.pfolio_type === 3 ? 'Fixed Income'
           : p.pfolio_type === 4 ? 'Real Estate'
+          : p.pfolio_type === 5 ? 'F&O / Currency'
           : null
       };
     });
