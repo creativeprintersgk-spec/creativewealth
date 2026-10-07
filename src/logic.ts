@@ -930,14 +930,12 @@ export function getAvailableFYs() {
 }
 
 // ── PORTFOLIOS ────────────────────────────────────────────────────────────────
-export function getStoredPortfolios() {
+export function getStoredPortfolios(includeInactive = false) {
   return state.portfolios
     .filter(p => 
       !p.is_group && 
       p.pfolio_type !== 10 && 
-      p.exit_status !== 2 && 
-      p.exit_status !== 0 && 
-      !p.investor_name.toLowerCase().startsWith('x')
+      (includeInactive || (p.exit_status !== 2 && p.exit_status !== 0 && !p.investor_name.toLowerCase().startsWith('x')))
     )
     .map(p => {
       // Look up the linked account via accPflink join table
@@ -953,42 +951,41 @@ export function getStoredPortfolios() {
           : p.pfolio_type === 3 ? 'Fixed Income'
           : p.pfolio_type === 4 ? 'Real Estate'
           : p.pfolio_type === 5 ? 'F&O / Currency'
-          : null
+          : null,
+        isActive: (p.exit_status !== 2 && p.exit_status !== 0 && !p.investor_name.toLowerCase().startsWith('x'))
       };
     });
 }
 
-export function getStoredInvestorGroups() {
+export function getStoredInvestorGroups(includeInactive = false) {
   return state.portfolios
     .filter(p => 
       p.is_group && 
-      p.exit_status !== 2 && 
-      p.exit_status !== 0 && 
-      !p.investor_name.toLowerCase().startsWith('x')
+      (includeInactive || (p.exit_status !== 2 && p.exit_status !== 0 && !p.investor_name.toLowerCase().startsWith('x')))
     )
     .map(p => ({
     id: String(p.id),
     name: p.investor_name,
     groupName: p.investor_name,
-    fullName: p.full_name || p.investor_name,
+      fullName: p.full_name || p.investor_name,
+      isActive: (p.exit_status !== 2 && p.exit_status !== 0 && !p.investor_name.toLowerCase().startsWith('x')),
     portfolioIds: state.investorGroupMembers
       .filter((m: any) => m.investor_group_id === p.id)
       .map((m: any) => String(m.pfolio_id))
   }));
 }
 
-export function getStoredAccounts() {
+export function getStoredAccounts(includeInactive = false) {
   return state.portfolios
     .filter(p => 
       p.pfolio_type === 10 && 
-      p.exit_status !== 2 && 
-      p.exit_status !== 0 && 
-      !p.investor_name.toLowerCase().startsWith('x')
+      (includeInactive || (p.exit_status !== 2 && p.exit_status !== 0 && !p.investor_name.toLowerCase().startsWith('x')))
     )
     .map(p => ({
     id: String(p.id),
     name: p.investor_name,
     accountName: p.investor_name,
+    isActive: (p.exit_status !== 2 && p.exit_status !== 0 && !p.investor_name.toLowerCase().startsWith('x')),
     fullName: p.full_name || p.investor_name,
     pan: p.pan || '',
     familyId: '1',

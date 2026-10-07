@@ -30,9 +30,9 @@ export default function MasterEntry() {
 
   const refreshData = () => {
     setFamilies(getStoredFamilies());
-    setAccounts(getStoredAccounts());
-    setPortfolios(getStoredPortfolios());
-    setInvestorGroups(getStoredInvestorGroups());
+    setAccounts(getStoredAccounts(true));
+    setPortfolios(getStoredPortfolios(true));
+    setInvestorGroups(getStoredInvestorGroups(true));
     setAssets([...(state.assetMaster || [])]);
   };
 
