@@ -41,11 +41,12 @@ export async function getIndices() {
 
   for (const idx of symbols) {
     try {
-      // Use Vite proxy in browser (/api/yahoo/...) to avoid CORS
-      const path = `/v8/finance/chart/${encodeURIComponent(idx.symbol)}?interval=1d&range=1d`;
+      // Use Vite proxy in browser (/api/tt/...) to avoid CORS
+      const sid = idx.symbol === '^NSEI' ? '.NSEI' : '.BSESN';
+      const path = `/quotes?sids=${sid}`;
       const url = typeof window !== 'undefined'
-        ? `/api/yahoo${path}`
-        : `https://query1.finance.yahoo.com${path}`;
+        ? `/api/tt${path}`
+        : `https://quotes-api.tickertape.in${path}`;
 
       const res = await fetch(url, {
         headers: typeof window === 'undefined'
@@ -55,11 +56,11 @@ export async function getIndices() {
       if (!res.ok) continue;
 
       const json = await res.json();
-      const meta = json?.chart?.result?.[0]?.meta;
-      if (!meta) continue;
+      const quote = json?.data?.[0];
+      if (!quote) continue;
 
-      const price = meta.regularMarketPrice ?? 0;
-      const prev  = meta.previousClose ?? meta.chartPreviousClose ?? price;
+      const price = quote.price ?? 0;
+      const prev  = quote.c ?? price;
       const change     = parseFloat((price - prev).toFixed(2));
       const change_pct = prev > 0 ? parseFloat(((change / prev) * 100).toFixed(2)) : 0;
 

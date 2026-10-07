@@ -1,0 +1,77 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700&display=swap');
+
+:root {
+  --bbg-bg: #ffffff;
+  --bbg-surface: #f8fafc;
+  --bbg-border: #e2e8f0;
+  --bbg-text-main: #0f172a;
+  --bbg-text-muted: #64748b;
+  --bbg-green: #16a34a;
+  --bbg-red: #dc2626;
+  --bbg-accent: #2563eb;
+  --bbg-header-bg: #fcfcfd;
+  --bbg-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --bbg-active-bg: #eff6ff;
+  --bbg-hover-bg: #f1f5f9;
+
+  --text: #374151;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: #aa3bff;
+  --accent-bg: rgba(170, 59, 255, 0.1);
+  --accent-border: rgba(170, 59, 255, 0.5);
+  --social-bg: rgba(244, 243, 236, 0.5);
+  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+
+  --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --heading: 'Outfit', 'Inter', system-ui, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+}
+
+[data-theme="dark"], @media (prefers-color-scheme: dark) {
+  :root {
+    --bbg-bg: #000000;
+    --bbg-surface: #0a0a0a;
+    --bbg-border: #262626;
+    --bbg-text-main: #f3f4f6;
+    --bbg-text-muted: #9ca3af;
+    --bbg-green: #4ade80;
+    --bbg-red: #f87171;
+    --bbg-accent: #f59e0b;
+    --bbg-header-bg: #171717;
+    --bbg-active-bg: #262626;
+    --bbg-hover-bg: #1f1f1f;
+
+    --text: #9ca3af;
+    --text-h: #f3f4f6;
+    --bg: #16171d;
+    --border: #2e303a;
+    --code-bg: #1f2028;
+    --accent: #c084fc;
+    --accent-bg: rgba(192, 132, 252, 0.15);
+    --accent-border: rgba(192, 132, 252, 0.5);
+    --social-bg: rgba(47, 48, 58, 0.5);
+    --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  }
+}
+
+body {
+  font: 18px/145% var(--sans);
+  letter-spacing: 0.18px;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (max-width: 1024px) {
+  body {
+    font-size: 16px;
+  }
+}
+

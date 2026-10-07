@@ -1,0 +1,7612 @@
+[
+  {
+    "amid": 1,
+    "anm": "FUTIDXNIFTY30JAN2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 2,
+    "anm": "OPTIDXNIFTY30JAN2014-6000-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 3,
+    "anm": "OPTSTKLT30JAN2014-900-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 4,
+    "anm": "OPTSTKLT26FEB2014-900-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 5,
+    "anm": "OPTSTKSBIN26FEB2014-1350-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 6,
+    "anm": "OPTSTKLT27MAR2014-900-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 7,
+    "anm": "OPTSTKLT24APR2014-1000-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 8,
+    "anm": "OPTSTKLT24APR2014-1160-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 9,
+    "anm": "FUTCURUSDINR26APR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 10,
+    "anm": "FUTCURUSDINR29MAY2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 11,
+    "anm": "FUTCURUSDINR26JUN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 12,
+    "anm": "FUTCURUSDINR29JUL2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 13,
+    "anm": "FUTCURUSDINR26SEP2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 14,
+    "anm": "FUTCURUSDINR29OCT2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 15,
+    "anm": "FUTCURUSDINR28AUG2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 16,
+    "anm": "FUTCURUSDINR27NOV2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 17,
+    "anm": "FUTCURUSDINR27DEC2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 18,
+    "anm": "FUTCUREURINR26SEP2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 19,
+    "anm": "FUTCUREURINR28AUG2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 20,
+    "anm": "FUTCUREURINR29OCT2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 21,
+    "anm": "OPTCURUSDINR27NOV2013-61-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 22,
+    "anm": "OPTCURUSDINR27NOV2013-63-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 23,
+    "anm": "OPTCURUSDINR27DEC2013-62-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 24,
+    "anm": "OPTCURUSDINR29JAN2014-61-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 25,
+    "anm": "OPTCURUSDINR29JAN2014-62-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 26,
+    "anm": "FUTCURUSDINR29JAN2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 27,
+    "anm": "FUTIRC883GS202326FEB2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 28,
+    "anm": "FUTIRC883GS202327MAR2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 29,
+    "anm": "FUTCURUSDINR26FEB2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 30,
+    "anm": "FUTCURUSDINR29JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 31,
+    "anm": "FUTCURUSDINR27DEC2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 32,
+    "anm": "FUTCURUSDINR27NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 33,
+    "anm": "FUTCURUSDINR27MAR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 34,
+    "anm": "OPTSTKLT29MAY2014-1100-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 35,
+    "anm": "FUTIRC840GS202424DEC2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 36,
+    "anm": "FUTCURUSDINR25FEB2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 37,
+    "anm": "FUTIRC840GS202426FEB2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 38,
+    "anm": "FUTCUREURINR27MAR2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}70.2",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 39,
+    "anm": "FUTIRC840GS202427NOV2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 40,
+    "anm": "FUTCUREURINR28JAN2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 41,
+    "anm": "FUTCUREURINR25FEB2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 42,
+    "anm": "FUTIRC840GS202429JAN2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 43,
+    "anm": "BSE CM",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 44,
+    "anm": "FUTSTKTATAMTRDVR27NOV2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 45,
+    "anm": "FUTSTKBIOCON24DEC2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 46,
+    "anm": "FUTSTKBIOCON27NOV2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 47,
+    "anm": "FUTSTKTATAMTRDVR24DEC2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 48,
+    "anm": "0.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 49,
+    "anm": "FUTSTKLT25SEP2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 50,
+    "anm": "OPTSTKBIOCON25SEP2014-480-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 51,
+    "anm": "OPTSTKLT25SEP2014-1550-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 52,
+    "anm": "FUTSTKCENTURYTEX25SEP2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 53,
+    "anm": "OPTSTKBIOCON30OCT2014-480-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 54,
+    "anm": "FUTSTKRPOWER25SEP2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 55,
+    "anm": "FUTSTKRPOWER30OCT2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 56,
+    "anm": "FUTSTKRPOWER28AUG2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 57,
+    "anm": "FUTSTKLT30OCT2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 58,
+    "anm": "FUTSTKLT28AUG2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 59,
+    "anm": "FUTCURUSDINR26NOV2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 60,
+    "anm": "FUTCURUSDINR29OCT2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 61,
+    "anm": "FUTIRC840GS202425SEP2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 62,
+    "anm": "FUTIRC840GS202430OCT2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 63,
+    "anm": "FUTIRC883GS202325SEP2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 64,
+    "anm": "FUTCURUSDINR26SEP2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 65,
+    "anm": "FUTIRC883GS202328AUG2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 66,
+    "anm": "FUTSTKJINDALSTEL24APR2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 67,
+    "anm": "OPTSTKBIOCON29MAY2014-440-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 68,
+    "anm": "OPTSTKLUPIN29MAY2014-940-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 69,
+    "anm": "OPTSTKLT29MAY2014-1200-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 70,
+    "anm": "FUTSTKJISLJALEQS26JUN2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 71,
+    "anm": "FUTSTKRPOWER31JUL2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 72,
+    "anm": "FUTSTKCENTURYTEX31JUL2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 73,
+    "anm": "FUTSTKJISLJALEQS31JUL2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 74,
+    "anm": "FUTSTKCIPLA31JUL2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 75,
+    "anm": "FUTSTKADANIENT31JUL2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 76,
+    "anm": "FUTSTKCIPLA28AUG2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 77,
+    "anm": "FUTSTKADANIENT28AUG2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 78,
+    "anm": "OPTSTKLT26MAR2015-1540-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 79,
+    "anm": "FUTIRC840GS202426MAR2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}104.85",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 80,
+    "anm": "FUTCURUSDINR26AUG2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 81,
+    "anm": "FUTCUREURINR26AUG2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 82,
+    "anm": "FUTIRC883GS202331JUL2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 83,
+    "anm": "FUTIRC883GS202326JUN2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 84,
+    "anm": "FUTIRC883GS202329MAY2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 85,
+    "anm": "Security (Contract Description)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 86,
+    "anm": "FUTCUR USDINR 29Jul13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 87,
+    "anm": "FUTCUR USDINR 26Sep13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 88,
+    "anm": "FUTCUR USDINR 29Oct13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 89,
+    "anm": "FUTCUR USDINR 27Nov13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 90,
+    "anm": "FUTCUR USDINR 27Dec13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 91,
+    "anm": "FUTCUR EURINR 29Oct13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 92,
+    "anm": "FUTCUR EURINR 27Nov13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 93,
+    "anm": "FUTCUR EURINR 27Dec13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 94,
+    "anm": "FUTCUR USDINR 29Jan14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 95,
+    "anm": "FUTCUR USDINR 26Feb14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 96,
+    "anm": "FUTCUR USDINR 27Mar14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 97,
+    "anm": "muthoot NCD",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}1010",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 98,
+    "anm": "STT",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 99,
+    "anm": "TOTAL",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 100,
+    "anm": "OPTSTKPFC29NOV2012-180-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 101,
+    "anm": "OPTSTKPFC29NOV2012-190-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 102,
+    "anm": "FUTSTKAPOLLOTYRE31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 103,
+    "anm": "FUTSTKEXIDEIND31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 104,
+    "anm": "FUTSTKADANIENT29NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 105,
+    "anm": "OPTSTKHINDALCO29NOV2012-110-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 106,
+    "anm": "OPTSTKSBIN29NOV2012-2250-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 107,
+    "anm": "FUTCUR JPYINR 29Oct13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 108,
+    "anm": "FUTCUR JPYINR 27Nov13",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 109,
+    "anm": "FUTCUR USDINR 28Apr14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 110,
+    "anm": "FUTCUR EURINR 29Jan14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 111,
+    "anm": "FUTCUR USDINR 28May14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 112,
+    "anm": "FUTCUR EURINR 25Feb14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 113,
+    "anm": "FUTCUR EURINR 26Mar14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 114,
+    "anm": "FUTCUR EURINR 28Apr14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 115,
+    "anm": "FUTCUR EURINR 28May14",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 116,
+    "anm": "FUTSTKSBIN28MAR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 117,
+    "anm": "FUTSTKBANKBARODA28MAR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 118,
+    "anm": "FUTSTKADANIENT28MAR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 119,
+    "anm": "FUTSTKADANIENT28FEB2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 120,
+    "anm": "OPTIDXNIFTY28MAR2013-5900-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 121,
+    "anm": "OPTSTKTATASTEEL28MAR2013-360-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 122,
+    "anm": "OPTSTKADANIENT28FEB2013-240-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 123,
+    "anm": "FUTSTKAPOLLOTYRE28FEB2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 124,
+    "anm": "FUTSTKBHEL31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 125,
+    "anm": "FUTSTKRELIANCE31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 126,
+    "anm": "FUTSTKHEROMOTOCO31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 127,
+    "anm": "FUTSTKIGL31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 128,
+    "anm": "FUTSTKEXIDEIND27DEC2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 129,
+    "anm": "FUTSTKSINTEX31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 130,
+    "anm": "FUTSTKAPOLLOTYRE27DEC2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 131,
+    "anm": "FUTSTKSINTEX27DEC2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 132,
+    "anm": "FUTSTKPFC29NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 133,
+    "anm": "FUTSTKSTER29NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 134,
+    "anm": "OPTSTKSTER29NOV2012-100-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 135,
+    "anm": "FUTSTKNTPC29NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 136,
+    "anm": "OPTSTKADANIENT29NOV2012-230-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 137,
+    "anm": "FUTSTKSBIN29NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 138,
+    "anm": "OPTSTKADANIENT29NOV2012-220-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 139,
+    "anm": "FUTSTKHINDALCO29NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 140,
+    "anm": "OPTSTKTATASTEEL29NOV2012-380-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 141,
+    "anm": "OPTSTKSBIN29NOV2012-2200-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 142,
+    "anm": "OPTSTKNTPC29NOV2012-170-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 143,
+    "anm": "FUTSTKTATASTEEL29NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 144,
+    "anm": "FUTSTKMARUTI25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 145,
+    "anm": "FUTSTKNTPC25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 146,
+    "anm": "FUTSTKTATASTEEL25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 147,
+    "anm": "FUTSTKHDFC25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 148,
+    "anm": "FUTSTKPFC25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 149,
+    "anm": "OPTSTKPFC25OCT2012-190-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 150,
+    "anm": "FUTSTKSBIN25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 151,
+    "anm": "FUTSTKBHARTIARTL25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 152,
+    "anm": "OPTSTKNTPC25OCT2012-170-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 153,
+    "anm": "FUTSTKDISHTV25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 154,
+    "anm": "FUTSTKSTER25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 155,
+    "anm": "FUTSTKRELIANCE25OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 156,
+    "anm": "FUTSTKSBIN25APR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 157,
+    "anm": "10:52:07",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 158,
+    "anm": "Buy Value 0",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 159,
+    "anm": "Net Value.",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 160,
+    "anm": "OPTSTKJISLJALEQS24APR2014-55-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 161,
+    "anm": "OPTSTKLT26JUN2014-1440-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 162,
+    "anm": "FUTCOMALUMINIUM31DEC2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 163,
+    "anm": "FUTCOMALUMINIUM30NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 164,
+    "anm": "FUTCOMALUMINIUM28FEB2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 165,
+    "anm": "FUTCOMALUMINIUM31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 166,
+    "anm": "FUTCOMNICKEL28JUN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 167,
+    "anm": "FUTCOMNICKEL31MAY2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 168,
+    "anm": "FUTCOMNICKELM30APR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 169,
+    "anm": "FUTCOMNICKELM28JUN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 170,
+    "anm": "FUTCOMALUMINI30APR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 171,
+    "anm": "FUTCOMALUMINI28MAR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 172,
+    "anm": "FUTCOMNICKEL28MAR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 173,
+    "anm": "FUTCOMZINC31JAN2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 174,
+    "anm": "FUTCOMZINC31DEC2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 175,
+    "anm": "FUTCOMALUMINIUM31OCT2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 176,
+    "anm": "FUTCOMZINC30NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 177,
+    "anm": "FUTCOMNICKEL31JUL2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 178,
+    "anm": "FUTCOMNICKEL30AUG2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 179,
+    "anm": "FUTCOMNICKEL30APR2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 180,
+    "anm": "FUTCOMNICKEL31DEC2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 181,
+    "anm": "FUTCOMNICKEL30NOV2012",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 182,
+    "anm": "FUTCOMNICKELM31MAY2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 183,
+    "anm": "FUTCURUSDINR27MAR2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 184,
+    "anm": "OPTCURUSDINR26APR2013-53.25-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 185,
+    "anm": "FUTCURGBPINR26SEP2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 186,
+    "anm": "FUTCURGBPINR29OCT2013",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 187,
+    "anm": "FUTIRC883GS202324APR2014",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 188,
+    "anm": "muthoot NCD 14sep14 12.25",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 189,
+    "anm": "Mutooth Fin NCD INE414G07084",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 190,
+    "anm": "FUTCUREURINR28APR2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 191,
+    "anm": "FUTIRC840GS202430APR2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}104",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 192,
+    "anm": "FUTCURUSDINR28APR2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 193,
+    "anm": "FUTCUREURINR27MAY2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}73",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 194,
+    "anm": "FUTCURUSDINR27MAY2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 195,
+    "anm": "FUTIRC840GS202428MAY2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103.37",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 196,
+    "anm": "FUTCUREURINR26JUN2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}71.8",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 197,
+    "anm": "FUTCURUSDINR26JUN2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}64.02",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 198,
+    "anm": "FUTCURGBPINR26JUN2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.02",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 199,
+    "anm": "FUTIRC840GS202425JUN2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}102.9",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 200,
+    "anm": "FUTIRC772GS202525JUN2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.6",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 201,
+    "anm": "FUTCUREURINR29JUL2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}70.15",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 202,
+    "anm": "OPTSTKADANIPOWER29MAY2014-45-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 203,
+    "anm": "OPTSTKADANIPOWER26JUN2014-50-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 204,
+    "anm": "FUTIRC772GS202530JUL2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.45",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 205,
+    "anm": "FUTCURUSDINR29JUL2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 206,
+    "anm": "FUTCUREURINR27AUG2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 207,
+    "anm": "FUTIRC772GS202527AUG2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.74",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 208,
+    "anm": "FUTCURUSDINR27AUG2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}64.25",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 209,
+    "anm": "FUTCURUSDINR28SEP2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 210,
+    "anm": "FUTIRC788GS203027AUG2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 211,
+    "anm": "FUTIRC772GS202524SEP2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.17",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 212,
+    "anm": "FUTCUREURINR28SEP2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 213,
+    "anm": "FUTIDXBANKNIFTY24SEP2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 214,
+    "anm": "FUTIRC772GS202529OCT2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.19",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 215,
+    "anm": "FUTCUREURINR28OCT2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}75",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 216,
+    "anm": "FUTCURUSDINR28OCT2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 217,
+    "anm": "OPTSTKLT29OCT2015-1350-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 218,
+    "anm": "FUTIRC772GS202526NOV2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 219,
+    "anm": "FUTCUREURINR26NOV2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}71",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 220,
+    "anm": "FUTCURUSDINR26NOV2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 221,
+    "anm": "FUTIRC772GS202531DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.65",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 222,
+    "anm": "FUTCUREURINR29DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 223,
+    "anm": "FUTCURUSDINR29DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 224,
+    "anm": "FUTCUREURINR27JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}74.2",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 225,
+    "anm": "FUTIRC772GS202528JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.54",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 226,
+    "anm": "FUTSTKGLENMARK31DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 227,
+    "anm": "FUTSTKGAIL31DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 228,
+    "anm": "FUTSTKTATASTEEL31DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 229,
+    "anm": "OPTSTKLT31DEC2015-1300-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 230,
+    "anm": "FUTSTKJINDALSTEL31DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 231,
+    "anm": "FUTSTKHINDALCO31DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 232,
+    "anm": "FUTSTKTATAMOTORS31DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 233,
+    "anm": "FUTSTKBHARATFORG28JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 234,
+    "anm": "FUTSTKRCOM31DEC2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 235,
+    "anm": "FUTCUREURINR25FEB2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 236,
+    "anm": "FUTIRC772GS202525FEB2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 237,
+    "anm": "FUTCURJPYINR27JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 238,
+    "anm": "FUTCUREURINR29MAR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}76.04",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 239,
+    "anm": "FUTIRC772GS202531MAR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 240,
+    "anm": "FUTIDXBANKNIFTY29OCT2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 241,
+    "anm": "FUTIDXNIFTY27AUG2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 242,
+    "anm": "FUTIDXBANKNIFTY25FEB2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 243,
+    "anm": "FUTIDXBANKNIFTY28JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 244,
+    "anm": "FUTSTKSBIN25FEB2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 245,
+    "anm": "FUTSTKSBIN28JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 246,
+    "anm": "FUTSTKTATAMOTORS28JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 247,
+    "anm": "FUTSTKRELCAPITAL28JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 248,
+    "anm": "FUTSTKBANKINDIA25FEB2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 249,
+    "anm": "FUTSTKBANKINDIA28JAN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 250,
+    "anm": "FUTSTKBANKINDIA31MAR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 251,
+    "anm": "OPTSTKSBIN25FEB2016-155-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 252,
+    "anm": "FUTSTKTATAMOTORS25FEB2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 253,
+    "anm": "FUTSTKLT25FEB2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 254,
+    "anm": "FUTSTKRELIANCE25FEB2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 255,
+    "anm": "OPTSTKSBIN25FEB2016-150-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 256,
+    "anm": "FUTCUREURINR27APR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 257,
+    "anm": "FUTIRC772GS202528APR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.55",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 258,
+    "anm": "FUTSTKBANKINDIA28APR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 259,
+    "anm": "OPTSTKBANKINDIA28APR2016-100-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 260,
+    "anm": "OPTSTKBANKINDIA31MAR2016-100-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 261,
+    "anm": "FUTCUREURINR27MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}76.78",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 262,
+    "anm": "FUTCURUSDINR27APR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 263,
+    "anm": "FUTCURJPYINR27MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 264,
+    "anm": "FUTIRC759GS202626MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.05",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 265,
+    "anm": "FUTCURUSDINR27MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 266,
+    "anm": "FUTSTKMARUTI26MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 267,
+    "anm": "FUTSTKBANKINDIA26MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 268,
+    "anm": "FUTIRC772GS202526MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.74",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 269,
+    "anm": "FUTCUREURINR28JUN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}76",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 270,
+    "anm": "FUTIRC759GS202630JUN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.85",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 271,
+    "anm": "FUTIRC772GS202530JUN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.53",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 272,
+    "anm": "FUTSTKTATAMOTORS31MAR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 273,
+    "anm": "OPTSTKSBIN31MAR2016-145-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 274,
+    "anm": "FUTIDXBANKNIFTY31MAR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 275,
+    "anm": "OPTSTKBANKINDIA31MAR2016-100-PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 276,
+    "anm": "OPTSTKTATAMOTORS31MAR2016-340-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 277,
+    "anm": "FUTSTKBHEL28APR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 278,
+    "anm": "FUTSTKMARUTI28APR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 279,
+    "anm": "FUTSTKSBIN28APR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 280,
+    "anm": "FUTSTKSBIN26MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 281,
+    "anm": "FUTSTKTATAMOTORS26MAY2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 282,
+    "anm": "FUTSTKBANKINDIA30JUN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}96",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 283,
+    "anm": "FUTSTKTATAMOTORS30JUN2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 284,
+    "anm": "FUTSTKTATAMOTORS28APR2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 285,
+    "anm": "FUTCUREURINR27JUL2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 286,
+    "anm": "FUTIRC759GS202628JUL2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.67",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 287,
+    "anm": "FUTCUREURINR29AUG2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 288,
+    "anm": "FUTSTKCENTURYTEX25JUN2015",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 289,
+    "anm": "FUTCUREURINR28SEP2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 290,
+    "anm": "FUTIRC759GS202629SEP2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}104.43",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 291,
+    "anm": "FUTCUREURINR26OCT2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}75.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 292,
+    "anm": "FUTCUREURINR28NOV2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}75.03",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 293,
+    "anm": "FUTIRC759GS202627OCT2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}104.92",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 294,
+    "anm": "FUTIRC788GS203027OCT2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}107.4",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 295,
+    "anm": "FUTIRC759GS202624NOV2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}106.94",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 296,
+    "anm": "FUTCUREURINR28DEC2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 297,
+    "anm": "FUTIRC759GS202629DEC2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}106.05",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 298,
+    "anm": "FUTCUREURINR27JAN2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 299,
+    "anm": "FUTIRC759GS202625JAN2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}106.35",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 300,
+    "anm": "FUTCUREURINR23FEB2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 301,
+    "anm": "FUTIRC759GS202623FEB2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103.15",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 302,
+    "anm": "PPF PRS",
+    "atyp": 120,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 303,
+    "anm": "PPF SPS",
+    "atyp": 120,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 304,
+    "anm": "OPTCURUSDINR23FEB2017-69-CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 305,
+    "anm": "FUTCUREURINR29MAR2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}70.76",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 306,
+    "anm": "FUTIRC759GS202630MAR2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103.98",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 307,
+    "anm": "FUTCUREURINR26APR2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 308,
+    "anm": "FUTIRC759GS202627APR2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103.6",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 309,
+    "anm": "FUTCUR USDINR May 27 2016 (BT)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 310,
+    "anm": "FUTIRC 759GS2026 May 26 2016 (BT)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 311,
+    "anm": "FUTIRC 759GS2026 Jun 30 2016 (BT)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 312,
+    "anm": "FUTIRC 759GS2026 Jul 28 2016 (BT)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 313,
+    "anm": "FUTCUR EURINR Jul 27 2016 (BT)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 314,
+    "anm": "FUTCUR EURINR Aug 29 2016 (BT)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 315,
+    "anm": "FUTCUREURINR29MAY2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 316,
+    "anm": "FUTIRC759GS202625MAY2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}104.25",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 317,
+    "anm": "FUTIRC759GS202629JUN2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}104.34",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 318,
+    "anm": "FUTCUREURINR28JUN2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 319,
+    "anm": "FUTCUREURINR27JUL2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 320,
+    "anm": "FUTIRC697GS202629JUN2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}102.12",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 321,
+    "anm": "FUTCUREURINR29AUG2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}76",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 322,
+    "anm": "FUTIRC697GS202627JUL2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}102.38",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 323,
+    "anm": "FUTIRC697GS202631AUG2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.6",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 324,
+    "anm": "FUTCURUSDINR27JUL2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 325,
+    "anm": "FUTCURGBPINR27JUL2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 326,
+    "anm": "FUTCURJPYINR27JUL2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 327,
+    "anm": "FUTIRC759GS202625AUG2016",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 328,
+    "anm": "FUTCUREURINR27SEP2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 329,
+    "anm": "FUTIRC679GS202728SEP2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.06",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 330,
+    "anm": "FUTIRC679GS202731AUG2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 331,
+    "anm": "FUTIRC697GS202628SEP2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.6",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 332,
+    "anm": "FUTCUREURINR27OCT2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}77.4",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 333,
+    "anm": "FUTIRC679GS202726OCT2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 334,
+    "anm": "FUTCUREURINR28NOV2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}80.2",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 335,
+    "anm": "FUTIRC679GS202730NOV2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.25",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 336,
+    "anm": "FUTCUREURINR27DEC2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 337,
+    "anm": "FUTIRC679GS202728DEC2017",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 338,
+    "anm": "FUTCUREURINR29JAN2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}78.2",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 339,
+    "anm": "FUTIRC679GS202725JAN2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}94.2",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 340,
+    "anm": "FUTIRC679GS202722FEB2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}94.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 341,
+    "anm": "FUTCUREURINR26FEB2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 342,
+    "anm": "FUTCUREURINR26MAR2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 343,
+    "anm": "FUTIRC679GS202728MAR2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}95.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 344,
+    "anm": "FUTCUREURINR25APR2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 345,
+    "anm": "FUTIRC668GS203128MAR2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 346,
+    "anm": "FUTIRC717GS202828MAR2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 347,
+    "anm": "FUTIRC679GS202726APR2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}94.3",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 348,
+    "anm": "FUTCUREURINR29MAY2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 349,
+    "anm": "FUTIRC679GS202731MAY2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}93.4",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 350,
+    "anm": "FUTCUREURINR27JUN2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 351,
+    "anm": "FUTIRC679GS202728JUN2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}92",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 352,
+    "anm": "FUTCUREURINR27JUL2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 353,
+    "anm": "UP POWER CORPORATION",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 354,
+    "anm": "679GS2027 FUTIRC 28JUN2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}92",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 355,
+    "anm": "717GS2028 FUTIRC 28JUN2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 356,
+    "anm": "EURINR FUTCUR 27JUL2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 357,
+    "anm": "EURINR FUTCUR 29AUG2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}80",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 358,
+    "anm": "EURINR FUTCUR 27JUN2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 359,
+    "anm": "717GS2028 FUTIRC 26JUL2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 360,
+    "anm": "717GS2028 FUTIRC 30AUG2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}94.2",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 361,
+    "anm": "EURINR FUTCUR 26SEP2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 362,
+    "anm": "EURINR FUTCUR 29OCT2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 363,
+    "anm": "717GS2028 FUTIRC 27SEP2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}94",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 364,
+    "anm": "717GS2028 FUTIRC 25OCT2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}97",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 365,
+    "anm": "EURINR FUTCUR 28NOV2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 366,
+    "anm": "EURINR FUTCUR 27DEC2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}79.96",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 367,
+    "anm": "717GS2028 FUTIRC 29NOV2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}96.93",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 368,
+    "anm": "EURINR FUTCUR 29JAN2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}70",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 369,
+    "anm": "717GS2028 FUTIRC 27DEC2018",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 370,
+    "anm": "EURINR FUTCUR 26FEB2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 371,
+    "anm": "717GS2028 FUTIRC 31JAN2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}97.55",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 372,
+    "anm": "717GS2028 FUTIRC 28FEB2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}97.46",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 373,
+    "anm": "EURINR FUTCUR 27MAR2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 374,
+    "anm": "717GS2028 FUTIRC 28MAR2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}97.91",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 375,
+    "anm": "EURINR FUTCUR 26APR2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 376,
+    "anm": "717GS2028 FUTIRC 25APR2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 377,
+    "anm": "EURINR FUTCUR 25APR2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 378,
+    "anm": "EURINR FUTCUR 29MAY2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 379,
+    "anm": "717GS2028 FUTIRC 30MAY2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.3",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 380,
+    "anm": "956 SBI PERP",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 381,
+    "anm": "726GS2029 FUTIRC 27JUN2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}102.75",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 382,
+    "anm": "726GS2029 FUTIRC 30MAY2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.75",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 383,
+    "anm": "EURINR FUTCUR 26JUN2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 384,
+    "anm": "EURINR FUTCUR 29JUL2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 385,
+    "anm": "EURINR FUTCUR 28AUG2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 386,
+    "anm": "726GS2029 FUTIRC 25JUL2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 387,
+    "anm": "HDFC BANK FD",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 388,
+    "anm": "HDFC BANK FD 2",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 389,
+    "anm": "HDFC BANK FD 3",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 390,
+    "anm": "HDFC BANK FD 4",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 391,
+    "anm": "EURINR FUTCUR 26SEP2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 392,
+    "anm": "EURINR FUTCUR 29OCT2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 393,
+    "anm": "PPF UPS",
+    "atyp": 120,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 394,
+    "anm": "EURINR FUTCUR 27NOV2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 395,
+    "anm": "Maruti Udyog Limited -(INE585B01010)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 396,
+    "anm": "EURINR FUTCUR 27DEC2019",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 397,
+    "anm": "Srtransfin-(INE721A07NZ0)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 398,
+    "anm": "EURINR FUTCUR 29JAN2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 399,
+    "anm": "Srtransfin-(INE721A07NX5)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 400,
+    "anm": "EURINR FUTCUR 26FEB2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 401,
+    "anm": "EURINR FUTCUR 28APR2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}82.53",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 402,
+    "anm": "EURINR FUTCUR 27MAR2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}82.75",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 403,
+    "anm": "EURINR FUTCUR 27MAY2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}81.7",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 404,
+    "anm": "ups fd",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 405,
+    "anm": "UPS HDFC FD 1",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 406,
+    "anm": "UPS HDFC FD 2",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 407,
+    "anm": "UPS HDFC FD 1 - 9TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 408,
+    "anm": "UPS HDFC FD 1 - 22ND MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 409,
+    "anm": "SPS SBI FD 1 - 9TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 410,
+    "anm": "SPS SBI FD 2 - 22ND MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 411,
+    "anm": "SPS SBI FD 3 - 6TH JUNE 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 412,
+    "anm": "SPS SBI FD 4 - 21ST JUNE 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 413,
+    "anm": "SPS SBI FD 5 - 16TH  JULY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 414,
+    "anm": "UPS HDFC FD 3 - 6TH JUNE 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 415,
+    "anm": "UPS HDFC FD 4 - 21ST JUNE 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 416,
+    "anm": "PRS SBI FD - 1 - 9TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 417,
+    "anm": "PRS SBI FD - 2 - 22ND MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 418,
+    "anm": "PRS SBI FD - 3 - 6TH JUNE 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 419,
+    "anm": "UPS SBI FD 1 - 11TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 420,
+    "anm": "UPS SBI FD 2 - 23RD MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 421,
+    "anm": "UPS SBI FD 3 - 11TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 422,
+    "anm": "UPS HDFC FD 5",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 423,
+    "anm": "UPS HDFC FD 5 - 17 JUNE 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 424,
+    "anm": "UPS HDFC FD 5 - 17 JULY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 425,
+    "anm": "SPS HDFC FD 1 - 10TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 426,
+    "anm": "SPS HDFC FD 2 - 11TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 427,
+    "anm": "SPS HDFC FD 3 - 10TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 428,
+    "anm": "SPS SBI FD 6 - 13TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 429,
+    "anm": "SPS SBI FD 7 -",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 430,
+    "anm": "SPS SBI FD 7 - 14TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 431,
+    "anm": "SPS SBI FD 8 - 15TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 432,
+    "anm": "SPS SBI FD 7 - 16TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 433,
+    "anm": "SPS SBI FD 9 - 16TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 434,
+    "anm": "SPS SBI FD 10 - 17TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 435,
+    "anm": "SPS HDFC FD 4 - 15TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 436,
+    "anm": "SPS HDFC FD 5 - 13TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 437,
+    "anm": "SPS HDFC FD 6 - 25TH JULY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 438,
+    "anm": "SPS HDFC FD 7 - 25TH JULY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 439,
+    "anm": "GBPINR FUTCUR 28APR2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}95.08",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 440,
+    "anm": "UPS SBI FD 4 - 26th June 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 441,
+    "anm": "UPS SBI FD 5 - 26TH jUNE  2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 442,
+    "anm": "SPS SBI FD - 26 JUNE 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 443,
+    "anm": "L&T Finance NCD NO 9% 15/04/2024 (ISIN INE027E07AF3)",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 444,
+    "anm": "SPS HDFC FD - 13TH OCT 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 445,
+    "anm": "SPS HDFC FD 2 - 13TH OCT 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 446,
+    "anm": "SPS HDFC FD 3 - 13TH OCT 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 447,
+    "anm": "UPS HDFC FD 7 - 13TH OCT 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 448,
+    "anm": "UPS HDFC FD 6 - 13TH OCT 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 449,
+    "anm": "UPS HDFC FD 8 - 13TH OCT 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 450,
+    "anm": "PRS HDFC FD 5 - 13TH OCT 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 451,
+    "anm": "PRS HDFC FD 6 - 13TH OCT 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 452,
+    "anm": "PRS SBI FD 1 - 9TH MAY 2020",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 453,
+    "anm": "GBPINR FUTCUR 27MAY2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}91.83",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 454,
+    "anm": "RBI Bonds 7.75",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 455,
+    "anm": "RBI BOND 7.75 %",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": 5,
+    "alias": null
+  },
+  {
+    "amid": 456,
+    "anm": "GBPINR FUTCUR 26JUN2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 457,
+    "anm": "EURINR FUTCUR 26JUN2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 458,
+    "anm": "GBPINR FUTCUR 29JUL2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}93.15",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 459,
+    "anm": "EURINR FUTCUR 29JUL2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 460,
+    "anm": "EURINR FUTCUR 27AUG2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}88",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 461,
+    "anm": "GBPINR FUTCUR 27AUG2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.21",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 462,
+    "anm": "EURINR FUTCUR 28SEP2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}86.1",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 463,
+    "anm": "GBPINR FUTCUR 28SEP2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}94.48",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 464,
+    "anm": "EURINR FUTCUR 27OCT2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}85.98",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 465,
+    "anm": "GBPINR FUTCUR 27OCT2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}96.25",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 466,
+    "anm": "Gold",
+    "atyp": 75,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}152",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 467,
+    "anm": "EURINR FUTCUR 25NOV2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 468,
+    "anm": "GBPINR FUTCUR 25NOV2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 469,
+    "anm": "EURINR FUTCUR 29DEC2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}89.79",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 470,
+    "anm": "GBPINR FUTCUR 29DEC2020",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.96",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 471,
+    "anm": "GBPINR FUTCUR 30APR2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 472,
+    "anm": "GBPINR FUTCUR 28APR2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103.06",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 473,
+    "anm": "EURINR FUTCUR 28APR2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}88.8",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 474,
+    "anm": "GBPINR FUTCUR 27MAY2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103.2",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 475,
+    "anm": "CDSL",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 476,
+    "anm": "FUTCUREURINR28APR2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 477,
+    "anm": "MTM/Net Value : -98.49",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 478,
+    "anm": "MTM/Net Value : 360.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 479,
+    "anm": "MTM/Net Value : 912.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 480,
+    "anm": "MTM/Net Value : -545.99",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 481,
+    "anm": "MTM/Net Value : 180.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 482,
+    "anm": "MTM/Net Value : 3467.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 483,
+    "anm": "MTM/Net Value : -2000.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 484,
+    "anm": "MTM/Net Value : -97.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 485,
+    "anm": "MTM/Net Value : -1282.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 486,
+    "anm": "MTM/Net Value : -1600.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 487,
+    "anm": "MTM/Net Value : -195.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 488,
+    "anm": "MTM/Net Value : -337.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 489,
+    "anm": "MTM/Net Value : 3362.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 490,
+    "anm": "MTM/Net Value : 795.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 491,
+    "anm": "MTM/Net Value : 15912.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 492,
+    "anm": "MTM/Net Value : 2690.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 493,
+    "anm": "MTM/Net Value : 1590.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 494,
+    "anm": "MTM/Net Value : 4187.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 495,
+    "anm": "MTM/Net Value : 2017.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 496,
+    "anm": "MTM/Net Value : 1675.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 497,
+    "anm": "MTM/Net Value : 1310.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 498,
+    "anm": "EURINR FUTCUR 27MAY2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}89.12",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 499,
+    "anm": "EURINR FUTCUR 28JUN2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}88.2",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 500,
+    "anm": "GBPINR FUTCUR 28JUN2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}102.88",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 501,
+    "anm": "USDINR FUTCUR 29MAR2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}76.52",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 502,
+    "anm": "FUTCUREURINR27MAY2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 503,
+    "anm": "MTM/Net Value : 63.07",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 504,
+    "anm": "FUTCUREURINR28JUN2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 505,
+    "anm": "MTM/Net Value : 1585.57",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 506,
+    "anm": "FUTCURGBPINR27MAY2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 507,
+    "anm": "MTM/Net Value : 1938.07",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 508,
+    "anm": "FUTCURGBPINR28JUN2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 509,
+    "anm": "MTM/Net Value : 2005.57",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 510,
+    "anm": "MTM/Net Value : -23.96",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 511,
+    "anm": "MTM/Net Value : 946.04",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 512,
+    "anm": "MTM/Net Value : -949.43",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 513,
+    "anm": "MTM/Net Value : 2008.07",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 514,
+    "anm": "MTM/Net Value : 1680.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 515,
+    "anm": "MTM/Net Value : 6247.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 516,
+    "anm": "MTM/Net Value : 2292.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 517,
+    "anm": "MTM/Net Value : 960.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 518,
+    "anm": "MTM/Net Value : -4776.83",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 519,
+    "anm": "MTM/Net Value : 7180.67",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 520,
+    "anm": "MTM/Net Value : -919.33",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 521,
+    "anm": "MTM/Net Value : 3000.67",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 522,
+    "anm": "MTM/Net Value : 1490.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 523,
+    "anm": "MTM/Net Value : 542.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 524,
+    "anm": "MTM/Net Value : -935.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 525,
+    "anm": "MTM/Net Value : 1980.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 526,
+    "anm": "MTM/Net Value : -4140.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 527,
+    "anm": "MTM/Net Value : 330.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 528,
+    "anm": "MTM/Net Value : -1207.50",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 529,
+    "anm": "MTM/Net Value : -1020.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 530,
+    "anm": "MTM/Net Value : 9480.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 531,
+    "anm": "MTM/Net Value : 280.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 532,
+    "anm": "MTM/Net Value : 2765.00",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 533,
+    "anm": "USDINR FUTCUR 27MAY2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 534,
+    "anm": "GBPINR FUTCUR 28JUL2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.81",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 535,
+    "anm": "EURINR FUTCUR 28JUL2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}88.43",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 536,
+    "anm": "USDINR OPTCUR 28JUL2021 73 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 537,
+    "anm": "PPF - Krisha",
+    "atyp": 120,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 538,
+    "anm": "EURINR FUTCUR 27AUG2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}87.13",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 539,
+    "anm": "EURINR FUTCUR 28SEP2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}87.44",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 540,
+    "anm": "GBPINR FUTCUR 28SEP2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.81",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 541,
+    "anm": "GBPINR FUTCUR 27AUG2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.46",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 542,
+    "anm": "NTPC OPTSTK 30SEP2021 125 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 543,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35400 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 544,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35400 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 545,
+    "anm": "BANKNIFTY OPTIDX 22JUL2021 36000 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 546,
+    "anm": "BANKNIFTY OPTIDX 22JUL2021 36000 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 547,
+    "anm": "BANKNIFTY OPTIDX 22JUL2021 35800 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 548,
+    "anm": "BANKNIFTY OPTIDX 22JUL2021 35800 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 549,
+    "anm": "NTPC OPTSTK 26AUG2021 100 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 550,
+    "anm": "FUTCUREURINR28SEP2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 551,
+    "anm": "FUTCURGBPINR28SEP2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 552,
+    "anm": "Qty",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 553,
+    "anm": "GBPINR FUTCUR 29DEC2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.32",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 554,
+    "anm": "EURINR FUTCUR 27JAN2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}84.34",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 555,
+    "anm": "EURINR FUTCUR 26NOV2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}83.92",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 556,
+    "anm": "GBPINR FUTCUR 27OCT2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103.15",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 557,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35000 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 558,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35000 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 559,
+    "anm": "NIFTY OPTIDX 08JUL2021 15700 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 560,
+    "anm": "NIFTY OPTIDX 08JUL2021 15700 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 561,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 34800 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 562,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35200 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 563,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35000 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 564,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35300 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 565,
+    "anm": "BANKNIFTY FUTIDX 29JUL2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 566,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35600 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 567,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35800 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 568,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35800 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 569,
+    "anm": "NIFTY OPTIDX 15JUL2021 15900 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 570,
+    "anm": "NIFTY OPTIDX 15JUL2021 15900 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 571,
+    "anm": "NTPC FUTSTK 28OCT2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 572,
+    "anm": "NTPC OPTSTK 28OCT2021 125 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 573,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35600 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 574,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35600 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 575,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35000 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 576,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35300 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 577,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 34800 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 578,
+    "anm": "BANKNIFTY OPTIDX 15JUL2021 35700 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 579,
+    "anm": "NTPC OPTSTK 29JUL2021 100 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 580,
+    "anm": "NTPC OPTSTK 29JUL2021 130 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 581,
+    "anm": "HDFC OPTSTK 28OCT2021 3300 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}0.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 582,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35500 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 583,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35500 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 584,
+    "anm": "NTPC OPTSTK 28OCT2021 130 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}12",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 585,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35100 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 586,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35300 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 587,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35300 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 588,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 34300 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 589,
+    "anm": "BANKNIFTY OPTIDX 08JUL2021 35200 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 590,
+    "anm": "GBPINR FUTCUR 27JAN2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.93",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 591,
+    "anm": "RBI New",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 592,
+    "anm": "RBI 900",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 593,
+    "anm": "RBI 400",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 594,
+    "anm": "RBI 800",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 595,
+    "anm": "RBI 900 U",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 596,
+    "anm": "RBI 800 HUF",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 597,
+    "anm": "HDFC OPTSTK 25NOV2021 3400 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 598,
+    "anm": "T Bill 24/11/22",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 599,
+    "anm": "Bajaj Finserv 1",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 600,
+    "anm": "Bajaj Finserv FD 1",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 601,
+    "anm": "Bajaj Finserv UPS FD 1",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 602,
+    "anm": "HDFC FD SPS 1",
+    "atyp": 95,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 603,
+    "anm": "gbp",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 604,
+    "anm": "gbpinr mar",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}102",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 605,
+    "anm": "eurinr mar",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}85.08",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 606,
+    "anm": "772GS2055",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 607,
+    "anm": "6.67 GS 2050",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 608,
+    "anm": "6.10 GS 2031",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 609,
+    "anm": "FUTCUREURINR28JUN2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}81.35",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 610,
+    "anm": "7.72 GS 2055",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 611,
+    "anm": "FUTCUREURINR29MAR2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 612,
+    "anm": "FUTCURGBPINR28JUN2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}96.53",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 613,
+    "anm": "FUTCURGBPINR29MAR2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 614,
+    "anm": "FUTCURUSDINR24FEB2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}78.83",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 615,
+    "anm": "FUTCUREURINR24FEB2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 616,
+    "anm": "FUTCUREURINR27JAN2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 617,
+    "anm": "FUTCURGBPINR24FEB2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 618,
+    "anm": "FUTCURGBPINR27JAN2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 619,
+    "anm": "FUTCURGBPINR29DEC2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 620,
+    "anm": "FUTCUREURINR29APR2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}84.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 621,
+    "anm": "FUTCUREURINR27AUG2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 622,
+    "anm": "FUTCUREURINR28JUL2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 623,
+    "anm": "FUTCURGBPINR28JUL2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 624,
+    "anm": "FUTCURGBPINR27AUG2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 625,
+    "anm": "FUTCUREURINR26NOV2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 626,
+    "anm": "FUTCURGBPINR27OCT2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 627,
+    "anm": "FUTCURGBPINR28APR2021",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 628,
+    "anm": "OPTSTKNTPC29JUL2021 CE 130",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 629,
+    "anm": "OPTSTKNTPC29JUL2021 PE 100",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 630,
+    "anm": "OPTCURUSDINR28JUL2021 PE 73",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 631,
+    "anm": "FUTCUR USDINR 24FEB23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}82.26",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 632,
+    "anm": "FUTCUR EURINR 28JUN22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}81.72",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 633,
+    "anm": "FUTCUR GBPINR 28JUN22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.35",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 634,
+    "anm": "6.65 GS 2035",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 635,
+    "anm": "FUTCUR EURINR 26AUG22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}81.4",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 636,
+    "anm": "FUTCUR GBPINR 26AUG22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}94.33",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 637,
+    "anm": "7.54 GS 2036",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 638,
+    "anm": "6.67 GS 2035",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 639,
+    "anm": "6.99 GS 2051",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 640,
+    "anm": "364 D T Bill 22-Jun-2023 IN002022Z127",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 641,
+    "anm": "FUTCUR EURINR 28SEP22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}78.73",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 642,
+    "anm": "FUTCUR GBPINR 27OCT22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}91.27",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 643,
+    "anm": "FUTCUR EURINR 27OCT22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}80.1",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 644,
+    "anm": "FUTCUR GBPINR 28SEP22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}91.76",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 645,
+    "anm": "FUTCUR GBPINR 28NOV22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.85",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 646,
+    "anm": "FUTCUR EURINR 28NOV22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}85.27",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 647,
+    "anm": "FUTCURGBPINR28NOV2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.85",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 648,
+    "anm": "FUTCUREURINR28NOV2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}85.27",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 649,
+    "anm": "FUTCUREURINR27OCT2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}80.1",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 650,
+    "anm": "FUTCURGBPINR27OCT2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}95.43",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 651,
+    "anm": "FUTCURGBPINR28DEC2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.33",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 652,
+    "anm": "FUTCUREURINR28DEC2022",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}87.52",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 653,
+    "anm": "FUTCUR GBPINR 28DEC22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.33",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 654,
+    "anm": "FUTCUR EURINR 28NOV22  (*)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 655,
+    "anm": "FUTCUR EURINR 28DEC22",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}87.52",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 656,
+    "anm": "FUTCUR EURINR 27JAN23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}87.15",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 657,
+    "anm": "FUTCUR GBPINR 27JAN23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.65",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 658,
+    "anm": "FUTCUR EURINR 28DEC22  (*)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 659,
+    "anm": "FUTCUR GBPINR 28DEC22  (*)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 660,
+    "anm": "FUTCUR USDINR 24FEB23  (*)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 661,
+    "anm": "FUTCUREURINR27JAN2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}87.15",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 662,
+    "anm": "FUTCURGBPINR27JAN2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}98.65",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 663,
+    "anm": "FUTCUREURINR24FEB2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}87.68",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 664,
+    "anm": "Alwin Pinto PPF",
+    "atyp": 120,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 665,
+    "anm": "Glydys Pinto PPF",
+    "atyp": 120,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 666,
+    "anm": "FUTCUR EURINR 24FEB23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}86.66",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 667,
+    "anm": "FUTCUR GBPINR 24FEB23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99.48",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 668,
+    "anm": "FUTCURGBPINR24FEB2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}99",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 669,
+    "anm": "FUTCUR USDINR 26APR23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}82.44",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 670,
+    "anm": "FUTCUREURINR28MAR2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}86.66",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 671,
+    "anm": "FUTCURGBPINR28MAR2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}97.29",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 672,
+    "anm": "FUTCUR EURINR 28MAR23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}89.57",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 673,
+    "anm": "FUTCUR GBPINR 28MAR23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.05",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 674,
+    "anm": "FUTCUREURINR26APR2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}89.57",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 675,
+    "anm": "FUTCURGBPINR26APR2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.89",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 676,
+    "anm": "FUTCUR EURINR 26APR23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}89.57",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 677,
+    "anm": "FUTCUR GBPINR 26APR23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}101.89",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 678,
+    "anm": "FUTCUR EURINR 28MAR23  (*)",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 679,
+    "anm": "FUTCUREURINR29MAY2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 680,
+    "anm": "FUTCURUSDINR29MAY2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 681,
+    "anm": "EPF - Salary",
+    "atyp": 120,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 682,
+    "anm": "FUTCURGBPINR29MAY2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 683,
+    "anm": "FUTCUR EURINR 29MAY23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 684,
+    "anm": "FUTCUREURINR27JUN2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}89.61",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 685,
+    "anm": "FUTCURGBPINR27JUN2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}103.48",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 686,
+    "anm": "FUTCURUSDINR27JUN2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}82.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 687,
+    "anm": "FUTCUR EURINR 27JUN23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}88.95",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 688,
+    "anm": "OPTIDXNIFTY08JUN2023 CE 18750",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 689,
+    "anm": "OPTIDXNIFTY08JUN2023 CE 18850",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 690,
+    "anm": "OPTIDXNIFTY08JUN2023 CE 19000",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 691,
+    "anm": "OPTIDXNIFTY08JUN2023 PE 18250",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 692,
+    "anm": "OPTIDXNIFTY08JUN2023 PE 18350",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 693,
+    "anm": "FUTCURGBPINR27JUL2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}104.9",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 694,
+    "anm": "FUTCUREURINR27JUL2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}90.5",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 695,
+    "anm": "7.36 GS 2052",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 696,
+    "anm": "FUTCURUSDINR27JUL2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}81.8",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 697,
+    "anm": "OPTIDXNIFTY06JUL2023 CE 19050",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 698,
+    "anm": "OPTIDXNIFTY06JUL2023 CE 19200",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 699,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 18600",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 700,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 18700",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 701,
+    "anm": "OPTIDXNIFTY27JUL2023 PE 18500",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 702,
+    "anm": "OPTIDXNIFTY27JUL2023 PE 18900",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 703,
+    "anm": "OPTIDXNIFTY06JUL2023 CE 19250",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 704,
+    "anm": "OPTIDXNIFTY06JUL2023 CE 19300",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 705,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 18800",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 706,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 18950",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 707,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 19000",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 708,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 19050",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 709,
+    "anm": "OPTIDXNIFTY27JUL2023 CE 19250",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 710,
+    "anm": "OPTIDXNIFTY27JUL2023 CE 19400",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 711,
+    "anm": "OPTIDXNIFTY27JUL2023 PE 19050",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 712,
+    "anm": "OPTIDXNIFTY06JUL2023 CE 19450",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 713,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 18000",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 714,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 19200",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 715,
+    "anm": "OPTIDXNIFTY27JUL2023 CE 19700",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 716,
+    "anm": "FUTCUR EURINR 27JUL23",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}92",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 717,
+    "anm": "FUTCURGBPINR29AUG2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}105",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 718,
+    "anm": "OPTIDX NIFTY 28APR22 15500.00 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 719,
+    "anm": "OPTIDX NIFTY 28APR22 16000.00 PE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 720,
+    "anm": "OPTIDX NIFTY 28APR22 18000.00 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 721,
+    "anm": "OPTIDX NIFTY 28APR22 18500.00 CE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 722,
+    "anm": "Edelweiss NCD",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 723,
+    "anm": "IIFL NCD",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 724,
+    "anm": "FUTCUREURINR29AUG2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}90.7",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 725,
+    "anm": "FUTCURUSDINR29AUG2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}82.8",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 726,
+    "anm": "7.30 GS 2053",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 727,
+    "anm": "FUTCUREURINR26SEP2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}88.47",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 728,
+    "anm": "FUTCURGBPINR26SEP2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}102.45",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 729,
+    "anm": "FUTCURUSDINR26SEP2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}83.12",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 730,
+    "anm": "FUTCUREURINR27OCT2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}87.75",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 731,
+    "anm": "FUTCURGBPINR27OCT2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}100.57",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 732,
+    "anm": "FUTCURUSDINR27OCT2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}83.33",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 733,
+    "anm": "Gold Physical",
+    "atyp": 75,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}5900",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 734,
+    "anm": "Cash",
+    "atyp": 75,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 735,
+    "anm": "Outstanding",
+    "atyp": 115,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 736,
+    "anm": "Outstanding Creative",
+    "atyp": 75,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}2000000",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 737,
+    "anm": "FUTCUREURINR28NOV2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 738,
+    "anm": "FUTCURGBPINR28NOV2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 739,
+    "anm": "FUTCURUSDINR28NOV2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 740,
+    "anm": "Edelweiss NCD 2",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 741,
+    "anm": "FUTCUREURINR27DEC2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 742,
+    "anm": "FUTCURGBPINR27DEC2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 743,
+    "anm": "FUTCURUSDINR27DEC2023",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 744,
+    "anm": "OPTIDXNIFTY06JUL2023 PE 18450",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 745,
+    "anm": "OPTIDXNIFTY27JUL2023 CE 19100",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 746,
+    "anm": "OPTIDXNIFTY28JUN2023 CE 18900",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 747,
+    "anm": "OPTIDXNIFTY28JUN2023 PE 18000",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 748,
+    "anm": "OPTIDXNIFTY28JUN2023 PE 18550",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 749,
+    "anm": "Muthoot NCD 2",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 750,
+    "anm": "TATA AIA",
+    "atyp": 140,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 751,
+    "anm": "MLD",
+    "atyp": 70,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 752,
+    "anm": "Silver",
+    "atyp": 77,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}2430",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 753,
+    "anm": "Gold R",
+    "atyp": 75,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}152",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 754,
+    "anm": "Silver R",
+    "atyp": 77,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}2430",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 755,
+    "anm": "Chennai Super Kings",
+    "atyp": 66,
+    "grp": null,
+    "exint1": null,
+    "extstr": "{P}300",
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 756,
+    "anm": "NIFTY2632423000CE-NSE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 757,
+    "anm": "NIFTY2632423000PE-NSE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 758,
+    "anm": "NIFTY2632423700CE-NSE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 759,
+    "anm": "NIFTY2632423700PE-NSE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 760,
+    "anm": "NIFTY26APR23000CE-NSE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  },
+  {
+    "amid": 761,
+    "anm": "NIFTY26APR23400PE-NSE",
+    "atyp": 81,
+    "grp": null,
+    "exint1": null,
+    "extstr": null,
+    "isr": null,
+    "alias": null
+  }
+]

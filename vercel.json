@@ -4,6 +4,7 @@
     { "source": "/api/gfinance/(.*)", "destination": "https://www.google.com/finance/quote/$1" },
     { "source": "/api/mfapi/(.*)", "destination": "https://api.mfapi.in/$1" },
     { "source": "/api/nse-bhavcopy/(.*)", "destination": "https://nsearchives.nseindia.com/products/content/$1" },
+    { "source": "/api/tt/(.*)", "destination": "https://quotes-api.tickertape.in/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

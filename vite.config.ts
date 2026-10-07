@@ -365,7 +365,7 @@ export default defineConfig({
     port: 5173, allowedHosts: true,
     strictPort: true,
     proxy: {
-      '/api/yahoo': {
+      '/api/tt': { target: 'https://quotes-api.tickertape.in', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/tt/, '') }, '/api/yahoo': {
         target: 'https://query1.finance.yahoo.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/yahoo/, ''),
@@ -399,3 +399,4 @@ export default defineConfig({
   },
 })
  
+

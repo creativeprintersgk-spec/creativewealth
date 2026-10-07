@@ -1,0 +1,200 @@
+[
+  {
+    "investor_group_id": 18,
+    "pfolio_id": 1,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 1,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 2,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 18,
+    "pfolio_id": 2,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 3,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 4,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 18,
+    "pfolio_id": 4,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 9,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 13,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 17,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 34,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 35,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 18,
+    "pfolio_id": 35,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 37,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 38,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 39,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 18,
+    "pfolio_id": 40,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 40,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 47,
+    "pfolio_id": 43,
+    "ext_src_id": -1,
+    "client_id": 2
+  },
+  {
+    "investor_group_id": 47,
+    "pfolio_id": 44,
+    "ext_src_id": -1,
+    "client_id": 2
+  },
+  {
+    "investor_group_id": 47,
+    "pfolio_id": 45,
+    "ext_src_id": -1,
+    "client_id": 2
+  },
+  {
+    "investor_group_id": 47,
+    "pfolio_id": 46,
+    "ext_src_id": -1,
+    "client_id": 2
+  },
+  {
+    "investor_group_id": 53,
+    "pfolio_id": 48,
+    "ext_src_id": -1,
+    "client_id": 3
+  },
+  {
+    "investor_group_id": 53,
+    "pfolio_id": 49,
+    "ext_src_id": -1,
+    "client_id": 3
+  },
+  {
+    "investor_group_id": 53,
+    "pfolio_id": 50,
+    "ext_src_id": -1,
+    "client_id": 3
+  },
+  {
+    "investor_group_id": 53,
+    "pfolio_id": 51,
+    "ext_src_id": -1,
+    "client_id": 3
+  },
+  {
+    "investor_group_id": 53,
+    "pfolio_id": 52,
+    "ext_src_id": -1,
+    "client_id": 3
+  },
+  {
+    "investor_group_id": 18,
+    "pfolio_id": 64,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 64,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 65,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 68,
+    "pfolio_id": 67,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 18,
+    "pfolio_id": 67,
+    "ext_src_id": -1,
+    "client_id": 1
+  },
+  {
+    "investor_group_id": 18,
+    "pfolio_id": 70,
+    "ext_src_id": -1,
+    "client_id": 1
+  }
+]

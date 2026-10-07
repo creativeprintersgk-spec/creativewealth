@@ -1,0 +1,675 @@
+import { supabase } from "./supabase";
+import { defaultGroups } from "./logic_defaults";
+
+// ── TYPES ────────────────────────────────────────────────────────────────────
+export type { Group, Ledger, Voucher, Entry, VoucherLine } from "./logic_defaults";
+
+// ── GLOBAL STATE ─────────────────────────────────────────────────────────────
+let state = {
+  // ── MProfit raw tables (PMS / Holdings) ───────────────────────
+  clients: [] as any[],              // families/investors
+  portfolios: [] as any[],           // portfolios (incl. groups where is_group=true)
+  investorGroupMembers: [] as any[], // group-portfolio links
+  sacm: [] as any[],                 // Accounting accounts (9 rows)
+  acma1: [] as any[],                // Top-level COA groups
+  acmac1: [] as any[],               // Full ledger tree (2366 rows)
+  accPflink: [] as any[],            // Account-portfolio links
+  sam: [] as any[],                  // Asset master summary
+  bs1: [] as any[],                  // PMS transactions (14860 rows)
+  sumTable: [] as any[],             // Holdings summary (2636 rows)
+  vouchers1: [] as any[],            // All vouchers
+  vouchersC1: [] as any[],           // Accounting vouchers
+  trans1: [] as any[],               // PMS journal lines
+  transC1: [] as any[],              // Accounting journal lines
+  mprices: [] as any[],              // Market prices
+
+  initialized: false
+};
+
+// ── SAFE PAGINATED FETCH ──────────────────────────────────────────────────────
+async function safeFetch(table: string, limit = 50000): Promise<any[]> {
+  try {
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (allData.length < limit) {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      if (error) {
+        console.warn(`⚠️ ${table}: ${error.message}`);
+        return allData;
+      }
+      if (!data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      page++;
+    }
+    return allData;
+  } catch (err) {
+    console.warn(`⚠️ ${table} exception:`, err);
+    return [];
+  }
+}
+
+// ── INIT DATABASE ─────────────────────────────────────────────────────────────
+export async function initDatabase() {
+  if (state.initialized) return;
+  console.log("🚀 Initializing WealthCore from Supabase...");
+
+  try {
+    // Fetch all tables in parallel — safe, never throws
+    const [
+      clients, portfolios, igm, sacm,
+      acma1, acmac1, accPflink, sam,
+      bs1, sumTable, vouchers1, vouchersC1,
+      trans1, transC1, mprices
+    ] = await Promise.all([
+      safeFetch('clients'),
+      safeFetch('portfolios'),
+      safeFetch('investor_group_members'),
+      safeFetch('sacm'),
+      safeFetch('acma1'),
+      safeFetch('acmac1'),
+      safeFetch('acc_pflink'),
+      safeFetch('sam'),
+      safeFetch('bs1'),
+      safeFetch('sum_table'),
+      safeFetch('vouchers1'),
+      safeFetch('vouchersc1'),
+      safeFetch('trans1'),
+      safeFetch('transc1'),
+      safeFetch('mprices')
+    ]);
+
+    state.clients = clients;
+    state.portfolios = portfolios;
+    state.investorGroupMembers = igm;
+    state.sacm = sacm;
+    state.acma1 = acma1;
+    state.acmac1 = acmac1;
+    state.accPflink = accPflink;
+    state.sam = sam;
+    state.bs1 = bs1;
+    state.sumTable = sumTable;
+    state.vouchers1 = vouchers1;
+    state.vouchersC1 = vouchersC1;
+    state.trans1 = trans1;
+    state.transC1 = transC1;
+    state.mprices = mprices;
+
+    state.initialized = true;
+    console.log(`✅ WealthCore Ready — ${portfolios.length} portfolios, ${bs1.length} PMS transactions, ${acmac1.length} accounting ledgers`);
+  } catch (err) {
+    console.error("❌ Init failed:", err);
+    state.initialized = true;
+  }
+}
+
+// ── GETTERS — Families ──────
+export function getStoredFamilies() {
+  return state.clients.map(c => ({
+    id: String(c.id),
+    familyName: c.name || `Client ${c.id}`,
+    name: c.name || `Client ${c.id}`,
+    category: c.category || null
+  }));
+}
+
+// ── GETTERS — Accounts ─────────
+export function getStoredAccounts() {
+  // Use portfolios with pfolio_type=10 as Accounts since sacm lacks links to families
+  return state.portfolios.filter(p => p.pfolio_type === 10).map(a => ({
+    id: String(a.id),
+    accountName: a.investor_name || a.full_name || `Account ${a.id}`,
+    familyId: String(a.client_id),
+    pan: a.pan || null
+  }));
+}
+
+// ── GETTERS — Groups ─────────
+export function getStoredGroups() {
+  return state.acmac1.filter(a => a.is_group).map(a => ({
+    id: String(a.id),
+    name: a.name,
+    parent: a.parent_id ? String(a.parent_id) : undefined,
+    type: 'ASSET' as const
+  }));
+}
+
+// ── GETTERS — Ledgers ────────
+export function getStoredLedgers() {
+  return state.acmac1.filter(a => !a.is_group).map(a => ({
+    id: String(a.id),
+    name: a.name,
+    groupId: String(a.parent_id || ''),
+    openingBalance: 0,
+    openingType: 'DR' as const,
+    amid: a.acid || null   // acmac1 uses 'acid' as the linked account ID
+  }));
+}
+
+// ── GETTERS — Vouchers ────
+// vouchersc1 columns: vid, vtyp, dt, narr, pms_trans_id, cnid, acctlist, extid_source, pfid, atype, sid, imp_rec_id, chqno, acid
+export function getStoredVouchers() {
+  return state.vouchersC1.map(v => ({
+    id: String(v.vid),
+    date: v.dt,           // only 'dt' exists, no 'date' column
+    type: v.vtyp || 'journal',
+    narration: v.narr || '',
+    accountId: v.acid ? String(v.acid) : null,
+    portfolioId: v.pfid ? String(v.pfid) : null,
+    voucherNo: String(v.vid),
+    fy: ''
+  }));
+}
+
+// ── GETTERS — Entries ────────
+export function getStoredEntries() {
+  return state.transC1.map(t => ({
+    id: String(t.transid ?? t.id),
+    voucherId: String(t.vid),
+    ledgerId: String(t.maid),
+    debit: t.dramt || 0,
+    credit: t.cramt || 0,
+    quantity: 0,
+    price: 0
+  }));
+}
+
+// ── PMS GETTERS (always from MProfit raw) ────────────────────────────────────
+export function getStoredPortfolios() {
+  return state.portfolios.filter(p => !p.is_group && p.pfolio_type !== 10).map(p => ({
+    ...p,
+    name: p.investor_name || p.full_name || `Portfolio ${p.id}`,
+    portfolioName: p.investor_name || p.full_name || `Portfolio ${p.id}`
+  }));
+}
+
+export function getStoredInvestorGroups() {
+  return state.portfolios.filter(p => p.is_group).map(p => ({
+    id: p.id,
+    name: p.investor_name,
+    groupName: p.investor_name,
+    fullName: p.full_name,
+    portfolioIds: state.investorGroupMembers
+      .filter(m => m.investor_group_id === p.id)
+      .map(m => m.pfolio_id)
+  }));
+}
+
+export function getStoredPrices() {
+  const map: Record<number, number> = {};
+  state.mprices.forEach(p => { map[p.amid] = p.currp; });
+  return map;
+}
+
+export function getStoredTaxLots() { return []; }
+
+// ── AVAILABLE FINANCIAL YEARS ─────────────────────────────────────────────────
+export function getAvailableFYs() {
+  // Derive from bs1 transaction dates, plus current FY
+  const today = new Date();
+  const currentFYStart = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+
+  // Build list from oldest BS1 date to current FY
+  let earliestYear = 2019; // sensible default
+  if (state.bs1.length > 0) {
+    const dates = state.bs1.map(t => t.dt || '').filter(Boolean).sort();
+    if (dates.length > 0) {
+      const earliest = new Date(dates[0]);
+      const yr = earliest.getFullYear();
+      const mo = earliest.getMonth() + 1;
+      earliestYear = mo >= 4 ? yr : yr - 1;
+    }
+  }
+
+  const fys: Array<{ label: string; start: string; end: string }> = [];
+  for (let startYear = earliestYear; startYear <= currentFYStart; startYear++) {
+    const endYear = startYear + 1;
+    const label = `${startYear}-${endYear}`;
+    fys.push({
+      label,
+      start: `${startYear}-04-01`,
+      end: `${endYear}-03-31`
+    });
+  }
+  return fys.reverse(); // most recent first
+}
+
+// ── HOLDINGS (from SumTable + MPrices) ───────────────────────────────────────
+export interface AssetHolding {
+  assetId: number;
+  assetName: string;
+  amid: number;
+  groupId: number;
+  assetType: number;
+  quantity: number;
+  avgPrice: number;
+  amtInvested: number;
+  currentPrice: number;
+  prevPrice: number;
+  todaysGain: number;
+  todaysGainPct: number;
+  overallGain: number;
+  overallGainPct: number;
+  currentValue: number;
+  portfolioSplits: Array<{
+    portfolioId: number;
+    portfolioName: string;
+    quantity: number;
+    amtInvested: number;
+    currentValue: number;
+  }>;
+}
+
+// sum_table columns: sid, pfolio_id, client_id, atty, amid, agentcode, qnt, amtinv, balpurc, sellcnt, currv, tgain, ...
+// mprices columns: source_id_atyp, amid, currp, prevp, date, row_id
+// sam columns: amid, anm, atyp, grp, exint1, extstr, exint2, isr, alias
+// acmac1 columns: id, ext_id, parent_id, is_group, name, acid, special_type_id, ...
+//
+// ASSET TYPE IDs (atty in sum_table / atyid in bs1):
+//   50=Stocks, 60=Mutual Funds (Equity), 61=Mutual Funds (Debt), 62=Mutual Funds (Other)
+//   70=NPS/ULiP, 80=Insurance, 90=FDs, 100=Traded Bonds, 110=NCD/Debentures
+//   120=Deposits/Loans, 130=PPF/EPF, 140=Post Office, 150=Gold, 151=Silver
+//   160=Property, 170=Jewellery, 180=Art, 190=Private Equity, 200=Special Inv Funds
+//   210=AIF, 220=Loans, 230=PMS/AIF, 240=Stock in Trade
+export const ATTY_MAP: Record<string, number[]> = {
+  stocks:             [50],
+  mf:                 [60, 61, 62],
+  nps:                [70],
+  insurance:          [80],
+  fds:                [90],
+  bonds:              [100],
+  ncd:                [110],
+  deposits_loans:     [120],
+  ppf:                [130],
+  post:               [140],
+  gold:               [150],
+  silver:             [151],
+  properties:         [160],
+  jewellery:          [170],
+  art:                [180],
+  private_equity:     [190],
+  special_inv_funds:  [200],
+  aif:                [210],
+  loans:              [220],
+};
+
+export function getHoldings(portfolioIds: (number|string)[], assetTypeKey?: string | null, asOfDate?: string): AssetHolding[] {
+  const numericIds = portfolioIds.map(Number);
+  const allowedAtty = assetTypeKey && assetTypeKey !== 'all' ? (ATTY_MAP[assetTypeKey] || []) : null;
+
+  const relevantRows = state.sumTable.filter(s =>
+    numericIds.includes(s.pfolio_id) &&
+    s.qnt > 0 &&
+    (!allowedAtty || allowedAtty.includes(s.atty))
+  );
+
+  const holdingsMap: Record<number, AssetHolding> = {};
+
+  relevantRows.forEach(s => {
+    const amid = s.amid;
+    // acmac1.id may match amid from sam/sum_table — try both
+    const ledger = state.acmac1.find(a => a.id === amid);
+    const samRow = state.sam.find(a => a.amid === amid);
+    const assetName = ledger?.name || samRow?.anm || `Asset ${amid}`;
+
+    // Use mprices for live price; fallback to sum_table.currv / qnt
+    const priceRow = state.mprices.find(p => p.amid === amid);
+    const currPrice = priceRow?.currp ?? (s.qnt > 0 ? (s.currv || 0) / s.qnt : 0);
+    const prevPrice = priceRow?.prevp ?? currPrice;
+
+    if (!holdingsMap[amid]) {
+      holdingsMap[amid] = {
+        assetId: amid,
+        assetName,
+        amid,
+        groupId: ledger?.parent_id || 0,
+        assetType: s.atty,
+        quantity: 0,
+        avgPrice: 0,
+        amtInvested: 0,
+        currentPrice: currPrice,
+        prevPrice,
+        todaysGain: 0,
+        todaysGainPct: 0,
+        overallGain: 0,
+        overallGainPct: 0,
+        currentValue: 0,
+        portfolioSplits: []
+      };
+    }
+
+    const h = holdingsMap[amid];
+    h.quantity += s.qnt;
+    h.amtInvested += s.amtinv;     // amtinv = amount invested
+
+    const portfolio = state.portfolios.find(p => p.id === s.pfolio_id);
+    h.portfolioSplits.push({
+      portfolioId: s.pfolio_id,
+      portfolioName: portfolio?.investor_name || `Portfolio ${s.pfolio_id}`,
+      quantity: s.qnt,
+      amtInvested: s.amtinv,
+      currentValue: s.currv || (s.qnt * currPrice)  // use pre-calculated currv
+    });
+  });
+
+  return Object.values(holdingsMap).map(h => {
+    h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : 0;
+    h.currentValue = h.quantity * h.currentPrice;
+    h.overallGain = h.currentValue - h.amtInvested;
+    h.overallGainPct = h.amtInvested > 0 ? (h.overallGain / h.amtInvested) * 100 : 0;
+    h.todaysGain = h.quantity * (h.currentPrice - h.prevPrice);
+    h.todaysGainPct = h.prevPrice > 0 ? ((h.currentPrice - h.prevPrice) / h.prevPrice) * 100 : 0;
+    return h;
+  }).filter(h => h.quantity > 0.0001);
+}
+
+// ── ASSET TRANSACTIONS (from BS1) ─────────────────────────────────────────────
+// bs1 columns: trid, pfid, amid, atyid, sid, cnid, trty, trstr, acvch, dt, qn, purpr, brkg, netpr, amt, chrgs, narr, ...
+export function getAssetTransactions(portfolioIds: (number|string)[], amid: number|string) {
+  const numericIds = portfolioIds.map(Number);
+  const numAmid = Number(amid);
+  return state.bs1
+    .filter(t => numericIds.includes(t.pfid) && t.amid === numAmid)
+    .sort((a, b) => (a.dt || '').localeCompare(b.dt || ''))
+    .map(t => {
+      const portfolio = state.portfolios.find(p => p.id === t.pfid);
+      return {
+        id: t.trid,
+        date: t.dt,
+        type: t.trstr,       // trstr = transaction string/type
+        portfolioName: portfolio?.investor_name || `Portfolio ${t.pfid}`,
+        quantity: t.qn,      // qn = quantity
+        price: t.purpr,      // purpr = purchase price
+        amount: t.amt,       // amt = amount
+        brokerage: t.brkg,   // brkg = brokerage
+        charges: t.chrgs,    // chrgs = charges
+        narration: t.narr || ''
+      };
+    });
+}
+
+// ── PORTFOLIO ACTIVITY (recent transactions) ──────────────────────────────────
+export function getPortfolioActivity(portfolioIds: (number|string)[]) {
+  const numericIds = portfolioIds.map(Number);
+  return state.bs1
+    .filter(t => numericIds.includes(t.pfid))
+    .sort((a, b) => (b.dt || '').localeCompare(a.dt || ''))
+    .slice(0, 100)
+    .map(t => {
+      const portfolio = state.portfolios.find(p => p.id === t.pfid);
+      // acmac1.id may match amid; fallback to sam.anm
+      const ledger = state.acmac1.find(a => a.id === t.amid);
+      const samRow = state.sam.find(a => a.amid === t.amid);
+      return {
+        id: t.trid,
+        date: t.dt,
+        assetName: ledger?.name || samRow?.anm || `Asset ${t.amid}`,
+        portfolioName: portfolio?.investor_name || `Portfolio ${t.pfid}`,
+        type: t.trstr,        // trstr = transaction type string
+        quantity: t.qn,       // qn = quantity
+        price: t.purpr,       // purpr = purchase price
+        netPrice: t.netpr,    // netpr = net price
+        amount: t.amt,
+        brokerage: t.brkg,
+        charges: t.chrgs,
+        narration: t.narr || ''
+      };
+    });
+}
+
+// ── LEDGER WITH BALANCE (from TransC1 / accounting journal) ───────────────────
+export function getLedgerWithBalance(ledgerId: number|string, startDate?: string, endDate?: string, acid?: number|string) {
+  const numLedgerId = Number(ledgerId);
+  const ledger = state.acmac1.find(a => a.id === numLedgerId);
+  if (!ledger) return { transactions: [], openingBalance: 0, closingBalance: 0 };
+
+  let entries = state.transC1.filter(e => e.maid === numLedgerId);
+
+  if (acid) {
+    const numAcid = Number(acid);
+    const linkedVoucherIds = new Set(
+      state.vouchersC1.filter(v => v.acid === numAcid).map(v => v.vid)
+    );
+    entries = entries.filter(e => linkedVoucherIds.has(e.vid));
+  }
+
+  entries = entries.sort((a, b) => (a.dt || '').localeCompare(b.dt || ''));
+
+  let openingBalance = 0;
+  let runningBalance = 0;
+  const fyTransactions: any[] = [];
+
+  entries.forEach(e => {
+    const inRange = (!startDate || e.dt >= startDate) && (!endDate || e.dt <= endDate);
+    const beforeRange = startDate && e.dt < startDate;
+
+    if (beforeRange) {
+      runningBalance += (e.dramt || 0) - (e.cramt || 0);
+      openingBalance = runningBalance;
+    } else if (inRange) {
+      runningBalance += (e.dramt || 0) - (e.cramt || 0);
+      const voucher = state.vouchersC1.find(v => v.vid === e.vid);
+      fyTransactions.push({
+        date: e.dt,
+        voucherId: e.vid,
+        voucherType: voucher?.vtyp,
+        narration: voucher?.narr || '',
+        debit: e.dramt || 0,
+        credit: e.cramt || 0,
+        balance: runningBalance
+      });
+    }
+  });
+
+  return {
+    transactions: fyTransactions,
+    openingBalance,
+    closingBalance: runningBalance
+  };
+}
+
+export function getLedgerBalance(ledgerId: number|string, acid?: number|string): number {
+  const result = getLedgerWithBalance(ledgerId, undefined, undefined, acid);
+  return result.closingBalance;
+}
+
+export function calculateGroupTotal(groupId: number|string, acid?: number|string): number {
+  const numGroupId = Number(groupId);
+  let total = 0;
+  state.acmac1.filter(a => !a.is_group && a.parent_id === numGroupId).forEach(l => {
+    total += getLedgerBalance(l.id, acid);
+  });
+  state.acmac1.filter(a => a.is_group && a.parent_id === numGroupId).forEach(g => {
+    total += calculateGroupTotal(g.id, acid);
+  });
+  return total;
+}
+
+// ── BALANCE SHEET ─────────────────────────────────────────────────────────────
+export function generateBS(acid?: number|string) {
+  const getType = (specialTypeId: number) => {
+    if ([150, 40, 50].includes(specialTypeId)) return 'ASSET';
+    if ([250, 125, 275, 276].includes(specialTypeId)) return 'LIABILITY';
+    if (specialTypeId === 280) return 'INCOME';
+    if (specialTypeId === 290) return 'EXPENSE';
+    return 'ASSET';
+  };
+
+  let assets = 0, liabilities = 0, income = 0, expense = 0;
+
+  state.acmac1.filter(a => !a.is_group).forEach(ledger => {
+    const parent = state.acmac1.find(g => g.id === ledger.parent_id);
+    const type = getType(parent?.special_type_id || ledger.special_type_id || 150);
+    const bal = getLedgerBalance(ledger.id, acid);
+    if (type === 'ASSET') assets += bal;
+    else if (type === 'LIABILITY') liabilities += bal;
+    else if (type === 'INCOME') income += bal;
+    else if (type === 'EXPENSE') expense += bal;
+  });
+
+  const profit = income - expense;
+  return {
+    assets, liabilities, profit,
+    assetGroups: state.acmac1.filter(g => g.is_group && !g.parent_id && getType(g.special_type_id) === 'ASSET').map(g => ({ id: g.id, name: g.name, total: calculateGroupTotal(g.id, acid) })),
+    liabilityGroups: state.acmac1.filter(g => g.is_group && !g.parent_id && getType(g.special_type_id) === 'LIABILITY').map(g => ({ id: g.id, name: g.name, total: calculateGroupTotal(g.id, acid) }))
+  };
+}
+
+// ── TRIAL BALANCE ─────────────────────────────────────────────────────────────
+export function getTrialBalance(asOfDate?: string, accountId?: string) {
+  // Determine which ledgers/entries to use
+  const ledgers = getStoredLedgers();
+  const groups = getStoredGroups();
+  const entries = getStoredEntries();
+  const vouchers = getStoredVouchers();
+
+  // Walk up parent chain to find root type
+  const getGroupType = (groupId: string): 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE' => {
+    let current: any = groups.find((g: any) => g.id === groupId);
+    while (current) {
+      if (current.type) return current.type;
+      current = groups.find((g: any) => g.id === current.parent);
+    }
+    return 'ASSET';
+  };
+
+  const getGroupName = (groupId: string): string => {
+    const g = groups.find((g: any) => g.id === groupId);
+    return g?.name || groupId;
+  };
+
+  // Pre-group entries by voucher
+  const entriesByVoucher: Record<string, any[]> = {};
+  entries.forEach((e: any) => {
+    if (!entriesByVoucher[e.voucherId]) entriesByVoucher[e.voucherId] = [];
+    entriesByVoucher[e.voucherId].push(e);
+  });
+
+  return ledgers.map(ledger => {
+    let debit = 0;
+    let credit = 0;
+
+    if (ledger.openingBalance) {
+      if (ledger.openingType === 'DR') debit += ledger.openingBalance;
+      else credit += ledger.openingBalance;
+    }
+
+    vouchers.forEach((v: any) => {
+      if (asOfDate && v.date > asOfDate) return;
+      if (accountId && v.accountId !== accountId) return;
+      (entriesByVoucher[v.id] || []).forEach((e: any) => {
+        if (e.ledgerId === ledger.id) {
+          debit += e.debit || 0;
+          credit += e.credit || 0;
+        }
+      });
+    });
+
+    const bal = debit - credit;
+    if (Math.abs(bal) < 0.001) return null;
+
+    const type = getGroupType(ledger.groupId);
+    return {
+      ledgerId: ledger.id,
+      ledgerName: ledger.name,
+      groupName: getGroupName(ledger.groupId),
+      type,
+      debit: bal > 0 ? bal : 0,
+      credit: bal < 0 ? Math.abs(bal) : 0,
+      balance: bal
+    };
+  }).filter(Boolean);
+}
+
+// ── CAPITAL GAINS (from BS1 FIFO matching) ────────────────────────────────────
+// bs1.trstr values for buy/sell (from actual MProfit data)
+export function getCapitalGains(portfolioIds: (number|string)[], fromDate: string, toDate: string) {
+  const numericIds = portfolioIds.map(Number);
+  // trty=1 is Buy, trty=2 is Sell in MProfit; trstr is the readable label
+  const buyTrty = [1, 3, 4, 5, 6, 7]; // Buy, IPO, Rights, Bonus, Dividend Reinvest, Off-Market Buy
+  const sellTrty = [2];               // Sell
+
+  const allTx = state.bs1.filter(t => numericIds.includes(t.pfid)).sort((a, b) => (a.dt || '').localeCompare(b.dt || ''));
+  const sells = allTx.filter(t => sellTrty.includes(t.trty) && t.dt >= fromDate && t.dt <= toDate);
+
+  const lots: any[] = [];
+  allTx.filter(t => buyTrty.includes(t.trty)).forEach(t => {
+    lots.push({
+      pfid: t.pfid, amid: t.amid, date: t.dt,
+      qty: t.qn, remaining: t.qn,
+      // purpr is per-unit price; use amt/qn as fallback
+      costPerUnit: t.purpr || (t.qn > 0 ? t.amt / t.qn : 0)
+    });
+  });
+
+  const results: any[] = [];
+  sells.forEach(sell => {
+    let sellQty = sell.qn;
+    const sellPrice = sell.netpr || (sell.qn > 0 ? sell.amt / sell.qn : 0); // netpr = net price per unit
+    const relevantLots = lots.filter(l => l.pfid === sell.pfid && l.amid === sell.amid && l.remaining > 0).sort((a, b) => a.date.localeCompare(b.date));
+
+    relevantLots.forEach(lot => {
+      if (sellQty <= 0) return;
+      const matchQty = Math.min(sellQty, lot.remaining);
+      lot.remaining -= matchQty;
+      sellQty -= matchQty;
+
+      const costBasis = matchQty * lot.costPerUnit;
+      const saleProceeds = matchQty * sellPrice;
+      const gainLoss = saleProceeds - costBasis;
+
+      const sellDate = new Date(sell.dt);
+      const buyDate = new Date(lot.date);
+      const holdingDays = Math.floor((sellDate.getTime() - buyDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // atyid: 50=Stocks, 60=MF Equity — both qualify for 365-day LTCG rule
+      const isEquity = sell.atyid === 50 || sell.atyid === 60 || sell.atyid === 61 || sell.atyid === 62;
+      const ltcgThreshold = isEquity ? 365 : 1095;
+      const isLTCG = holdingDays >= ltcgThreshold;
+
+      const ledger = state.acmac1.find(a => a.id === sell.amid);
+      const samRow = state.sam.find(a => a.amid === sell.amid);
+      const portfolio = state.portfolios.find(p => p.id === sell.pfid);
+
+      results.push({
+        portfolioId: sell.pfid,
+        portfolioName: portfolio?.investor_name || `Portfolio ${sell.pfid}`,
+        assetName: ledger?.name || samRow?.anm || `Asset ${sell.amid}`,
+        amid: sell.amid,
+        buyDate: lot.date,
+        sellDate: sell.dt,
+        holdingDays,
+        quantity: matchQty,
+        buyPrice: lot.costPerUnit,
+        sellPrice,
+        costBasis,
+        saleProceeds,
+        gainLoss,
+        gainType: isLTCG ? 'LTCG' : 'STCG',
+        taxRate: isLTCG ? 12.5 : 20,
+        estimatedTax: gainLoss > 0 ? gainLoss * (isLTCG ? 0.125 : 0.20) : 0
+      });
+    });
+  });
+
+  return results;
+}
+
+// ── VOUCHER STUBS (for compatibility) ─────────────────────────────────────────
+export function getNextVoucherNo(type: string, fy: string) { return `${type.toUpperCase()}-0001`; }
+export function getVoucherById(id: any) { return null; }
+export async function createVoucher(data: any) { console.log('createVoucher not implemented'); }
+export async function updateVoucher(data: any) { console.log('updateVoucher not implemented'); }
+export async function deleteVoucher(id: any) { console.log('deleteVoucher not implemented'); }
+export async function saveLedger(ledger: any) { console.log('saveLedger not implemented'); }
+export async function deleteLedger(id: any) { console.log('deleteLedger not implemented'); }
+export async function saveMasterRecord(type: any, record: any) { console.log('saveMasterRecord not implemented'); }
+export async function deleteMasterRecord(type: any, id: any) { console.log('deleteMasterRecord not implemented'); }
+export async function handleYearClose(fy: string, onSuccess?: () => void) { console.log('handleYearClose not implemented'); }
+export async function syncLivePrices() { console.log('syncLivePrices not implemented'); }
+export async function ensureLedgerExists(name: string, groupId: string) { return null; }
+export async function updateAssetPrice(assetId: string, price: number) { console.log('updateAssetPrice not implemented'); }
