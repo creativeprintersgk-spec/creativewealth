@@ -932,7 +932,13 @@ export function getAvailableFYs() {
 // ── PORTFOLIOS ────────────────────────────────────────────────────────────────
 export function getStoredPortfolios() {
   return state.portfolios
-    .filter(p => !p.is_group && p.pfolio_type !== 10)
+    .filter(p => 
+      !p.is_group && 
+      p.pfolio_type !== 10 && 
+      p.exit_status !== 2 && 
+      p.exit_status !== 0 && 
+      !p.investor_name.toLowerCase().startsWith('x ')
+    )
     .map(p => {
       // Look up the linked account via accPflink join table
       const link = state.accPflink.find((l: any) => l.pfid === p.id);
@@ -953,7 +959,14 @@ export function getStoredPortfolios() {
 }
 
 export function getStoredInvestorGroups() {
-  return state.portfolios.filter(p => p.is_group).map(p => ({
+  return state.portfolios
+    .filter(p => 
+      p.is_group && 
+      p.exit_status !== 2 && 
+      p.exit_status !== 0 && 
+      !p.investor_name.toLowerCase().startsWith('x ')
+    )
+    .map(p => ({
     id: String(p.id),
     name: p.investor_name,
     groupName: p.investor_name,
@@ -965,7 +978,14 @@ export function getStoredInvestorGroups() {
 }
 
 export function getStoredAccounts() {
-  return state.portfolios.filter(p => p.pfolio_type === 10).map(p => ({
+  return state.portfolios
+    .filter(p => 
+      p.pfolio_type === 10 && 
+      p.exit_status !== 2 && 
+      p.exit_status !== 0 && 
+      !p.investor_name.toLowerCase().startsWith('x ')
+    )
+    .map(p => ({
     id: String(p.id),
     name: p.investor_name,
     accountName: p.investor_name,
