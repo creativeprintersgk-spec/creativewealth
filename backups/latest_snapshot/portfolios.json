@@ -739,5 +739,43 @@
     "view_settings": 0,
     "pfolio_type": 0,
     "ext_id": -1
+  },
+  {
+    "id": 73,
+    "client_id": 1,
+    "investor_name": "UPS - Car",
+    "is_group": false,
+    "full_name": null,
+    "investor_addr": null,
+    "city": null,
+    "pin_code": null,
+    "country": null,
+    "phone": null,
+    "mobile": null,
+    "pan": null,
+    "exit_status": 1,
+    "risk_profile": null,
+    "view_settings": 0,
+    "pfolio_type": 0,
+    "ext_id": -1
+  },
+  {
+    "id": 1000001,
+    "client_id": 1,
+    "investor_name": "PRAMESH R SHAH",
+    "is_group": true,
+    "full_name": "PRAMESH R SHAH",
+    "investor_addr": null,
+    "city": null,
+    "pin_code": null,
+    "country": null,
+    "phone": null,
+    "mobile": null,
+    "pan": null,
+    "exit_status": null,
+    "risk_profile": null,
+    "view_settings": null,
+    "pfolio_type": null,
+    "ext_id": null
   }
 ]

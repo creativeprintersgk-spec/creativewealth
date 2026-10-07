@@ -43,17 +43,42 @@ export const CII_TABLE: Record<number, number> = {
 };
 
 export function getCII(dateStr: string): number {
-  if (!dateStr) return 363;
-  const d = new Date(dateStr);
-  const year = d.getFullYear();
-  const month = d.getMonth(); // 0-11. April is 3
-  const fyYear = month >= 3 ? year : year - 1;
+  if (!dateStr || dateStr.length < 7) return 363;
+  const year = parseInt(dateStr.slice(0, 4), 10);
+  const month = parseInt(dateStr.slice(5, 7), 10);
+  if (isNaN(year) || isNaN(month)) return 363;
+  const fyYear = month >= 4 ? year : year - 1;
   const clampedYear = Math.max(2001, Math.min(2025, fyYear));
   return CII_TABLE[clampedYear] || 363;
 }
 
-// ─── Category Classifier ─────────────────────────────────────────────────────
+export function calcHoldingDays(purchaseDate: string, saleDate: string): number {
+  if (!purchaseDate || !saleDate) return 0;
+  const p = Date.parse(purchaseDate.slice(0, 10));
+  const s = Date.parse(saleDate.slice(0, 10));
+  return (!isNaN(p) && !isNaN(s)) ? Math.floor((s - p) / 86400000) : 0;
+}
+
+// ─── Category Classifier Memoization ─────────────────────────────────────────
+const categoryCache = new Map<string, FinVaultAssetCategory>();
+
+export function clearCategoryCache() {
+  categoryCache.clear();
+}
+
 export function classifyAssetCategory(
+  atyid: number,
+  assetName: string
+): FinVaultAssetCategory {
+  const cacheKey = `${atyid}_${assetName}`;
+  const hit = categoryCache.get(cacheKey);
+  if (hit) return hit;
+  const result = _classifyAssetCategoryInner(atyid, assetName);
+  categoryCache.set(cacheKey, result);
+  return result;
+}
+
+function _classifyAssetCategoryInner(
   atyid: number,
   assetName: string
 ): FinVaultAssetCategory {
@@ -107,22 +132,7 @@ export function classifyAssetCategory(
     return 'UNLISTED_SHARE';
   }
 
-  // 7.5. Safety net: NO structured equity-allocation/SEBI-category field exists
-  // anywhere in asset_master today (only the coarse atyid code), so classification
-  // for mutual funds ultimately depends on scheme-name pattern matching above.
-  // If a fund is already tagged atyid 61/62 (debt/hybrid, per the import source --
-  // see ATYID_TO_CG_CLASS in capitalGainsEngine.ts) but its name didn't match any
-  // pattern in step 4, it must NOT be allowed to fall through to the step-8
-  // default below. That default (LISTED_EQUITY_SHARE) is meant for individually
-  // held shares, not fund units, and previously any unmatched debt/hybrid fund
-  // silently got equity's lower rate + Sec 112A exemption instead of the
-  // mandatory Sec 50AA slab-rate treatment -- a materially wrong tax outcome
-  // driven purely by an AMC's naming convention not matching our regex list.
-  // TODO: the durable fix is a `sebi_category` / `equity_allocation_pct` column
-  // on asset_master, populated from AMFI scheme master data, used as the PRIMARY
-  // signal ahead of any name matching. Until that exists, defaulting an
-  // unmatched debt/hybrid-coded fund to DEBT_MF_SPECIFIED errs toward the
-  // higher-tax outcome rather than silently under-taxing it.
+  // 7.5. Safety net
   if (atyid === 61 || atyid === 62) {
     return 'DEBT_MF_SPECIFIED';
   }
@@ -132,11 +142,6 @@ export function classifyAssetCategory(
 }
 
 // ─── Budget 2024 rate-change cutoff (23-Jul-2024) ────────────────────────────
-// STCG on equity/equity-oriented-MF (Sec 111A) went 15% -> 20%, LTCG (Sec 112A)
-// went 10% -> 12.5%, and the Sec 112A pooled exemption went ₹1L -> ₹1.25L, all
-// effective for TRANSFERS (i.e. the sale date) on/after 23-Jul-2024. A flat
-// 20%/12.5% applied to every sale regardless of date would overstate tax on
-// any equity sale in Apr-Jul 2024 (and understate the exemption available to it).
 const BUDGET_2024_CUTOFF = '2024-07-23';
 
 export function getEquityRates(saleDate: string): { stcgRate: number; ltcgRate: number; exemptionLimit: number } {
@@ -156,9 +161,7 @@ export function listed_365_logic(
   rateLt: number,
   exemption112A: boolean = false
 ): TaxResult {
-  const holdingDays = purchaseDate && saleDate
-    ? Math.floor((new Date(saleDate).getTime() - new Date(purchaseDate).getTime()) / 86400000)
-    : 0;
+  const holdingDays = calcHoldingDays(purchaseDate, saleDate);
 
   const isLT = holdingDays > 365;
   const gain = proceeds - cost;
@@ -198,9 +201,7 @@ export function unlisted_730_logic(
   purchaseDate: string,
   saleDate: string
 ): TaxResult {
-  const holdingDays = purchaseDate && saleDate
-    ? Math.floor((new Date(saleDate).getTime() - new Date(purchaseDate).getTime()) / 86400000)
-    : 0;
+  const holdingDays = calcHoldingDays(purchaseDate, saleDate);
 
   const isLT = holdingDays > 730;
   const gain = proceeds - cost;
@@ -238,9 +239,7 @@ export function debt_specified_mf_logic(
   purchaseDate: string,
   saleDate: string
 ): TaxResult {
-  const holdingDays = purchaseDate && saleDate
-    ? Math.floor((new Date(saleDate).getTime() - new Date(purchaseDate).getTime()) / 86400000)
-    : 0;
+  const holdingDays = calcHoldingDays(purchaseDate, saleDate);
   const gain = proceeds - cost;
 
   // Post Finance Act 2023: Acquired on or after 01/04/2023 -> NO LTCG EVER
@@ -299,9 +298,7 @@ export function real_estate_logic(
   purchaseDate: string,
   saleDate: string
 ): TaxResult {
-  const holdingDays = purchaseDate && saleDate
-    ? Math.floor((new Date(saleDate).getTime() - new Date(purchaseDate).getTime()) / 86400000)
-    : 0;
+  const holdingDays = calcHoldingDays(purchaseDate, saleDate);
 
   if (holdingDays <= 730) {
     const gain = proceeds - cost;
@@ -457,11 +454,11 @@ export function computeAssetTax(
 // sees already-corrected tax figures.
 export function applySection112AExemption(results: any[]): any[] {
   const getFY = (dateStr: string): string => {
-    if (!dateStr) return 'unknown';
-    const d = new Date(dateStr);
-    const y = d.getFullYear();
-    const m = d.getMonth(); // 0-11, April = 3
-    const fyStartYear = m >= 3 ? y : y - 1;
+    if (!dateStr || dateStr.length < 7) return 'unknown';
+    const y = parseInt(dateStr.slice(0, 4), 10);
+    const m = parseInt(dateStr.slice(5, 7), 10);
+    if (isNaN(y) || isNaN(m)) return 'unknown';
+    const fyStartYear = m >= 4 ? y : y - 1;
     return `${fyStartYear}-${fyStartYear + 1}`;
   };
 

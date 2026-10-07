@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Download, Calculator, Users } from 'lucide-react';
-import { getTrialBalance, getStoredAccounts } from '../logic';
+import { getTrialBalance, getStoredAccounts, formatDateDDMMMYYYY } from '../logic';
 import { useFamily } from '../contexts/FamilyContext';
 import { useFY } from '../FYContext';
 
@@ -156,7 +156,7 @@ export default function TrialBalance() {
         </div>
         <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #f59e0b' }}>
           <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>As of Date</div>
-          <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>{new Date(effectiveDates.end).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>{formatDateDDMMMYYYY(effectiveDates.end)}</div>
         </div>
       </div>
     </div>

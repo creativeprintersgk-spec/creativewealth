@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Plus, ArrowLeft, Printer } from "lucide-react"
-import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredAccounts } from "../logic"
+import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredAccounts, formatDateDDMMMYYYY } from "../logic"
 import VoucherModal from "../VoucherModal"
 import LedgerModal from "../LedgerModal"
 import { useFY } from "../FYContext"
@@ -130,6 +130,26 @@ export default function LedgerPage() {
   const selectedLedger = ledgers.find(l => String(l.id) === String(selectedLedgerId) || l.name === selectedLedgerId);
   const selectedLedgerName = selectedLedger?.name || selectedLedgerId;
 
+  const isBankLedger = useMemo(() => {
+    if (!selectedLedger) return false;
+    const groups = getStoredGroups();
+    const grp = groups.find(g => String(g.id) === String(selectedLedger.groupId));
+    const grpName = (grp?.name || '').toLowerCase();
+    const ledName = (selectedLedger.name || '').toLowerCase();
+    return (
+      String(selectedLedger.groupId) === '60' ||
+      grpName.includes('bank') ||
+      ledName.includes('bank') ||
+      ledName.includes('kotak') ||
+      ledName.includes('hdfc') ||
+      ledName.includes('icici') ||
+      ledName.includes('sbi') ||
+      ledName.includes('axis') ||
+      ledName.includes('idbi') ||
+      ledName.includes('dbs')
+    );
+  }, [selectedLedger]);
+
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;
     const lower = searchTerm.toLowerCase();
@@ -137,7 +157,7 @@ export default function LedgerPage() {
       return (
         (row.againstLedger && row.againstLedger.toLowerCase().includes(lower)) ||
         (row.narration && row.narration.toLowerCase().includes(lower)) ||
-        (row.date && row.date.includes(lower)) ||
+        (row.date && (row.date.includes(lower) || formatDateDDMMMYYYY(row.date).toLowerCase().includes(lower))) ||
         (row.voucherType && row.voucherType.toLowerCase().includes(lower)) ||
         (row.debit > 0 && String(row.debit).includes(lower)) ||
         (row.credit > 0 && String(row.credit).includes(lower))
@@ -230,13 +250,17 @@ export default function LedgerPage() {
           </div>
         </div>
         <div className="card" style={{ padding: '1rem' }}>
-          <div style={{ fontSize: '0.7rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Total Debit</div>
+          <div style={{ fontSize: '0.7rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+            Total Debit {isBankLedger && <span style={{ color: '#059669', textTransform: 'none', fontWeight: 700 }}>(Deposit)</span>}
+          </div>
           <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#059669' }}>
             {filteredData.reduce((sum: number, row: any) => sum + row.debit, 0).toLocaleString()}
           </div>
         </div>
         <div className="card" style={{ padding: '1rem' }}>
-          <div style={{ fontSize: '0.7rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Total Credit</div>
+          <div style={{ fontSize: '0.7rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+            Total Credit {isBankLedger && <span style={{ color: '#dc2626', textTransform: 'none', fontWeight: 700 }}>(Withdrawal)</span>}
+          </div>
           <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#dc2626' }}>
             {filteredData.reduce((sum: number, row: any) => sum + row.credit, 0).toLocaleString()}
           </div>
@@ -354,8 +378,14 @@ export default function LedgerPage() {
               <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: '0.7rem', textTransform: 'uppercase', color: '#666' }}>Date</th>
               <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: '0.7rem', textTransform: 'uppercase', color: '#666' }}>Type</th>
               <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: '0.7rem', textTransform: 'uppercase', color: '#666' }}>Against</th>
-              <th style={{ padding: '6px 12px', textAlign: 'right', fontSize: '0.7rem', textTransform: 'uppercase', color: '#666' }}>Debit</th>
-              <th style={{ padding: '6px 12px', textAlign: 'right', fontSize: '0.7rem', textTransform: 'uppercase', color: '#666' }}>Credit</th>
+              <th style={{ padding: '6px 12px', textAlign: 'right', fontSize: '0.7rem', textTransform: 'uppercase', color: '#666' }}>
+                <div>Debit</div>
+                {isBankLedger && <div style={{ fontSize: '9px', fontWeight: 600, color: '#059669', textTransform: 'none' }}>(Deposit)</div>}
+              </th>
+              <th style={{ padding: '6px 12px', textAlign: 'right', fontSize: '0.7rem', textTransform: 'uppercase', color: '#666' }}>
+                <div>Credit</div>
+                {isBankLedger && <div style={{ fontSize: '9px', fontWeight: 600, color: '#dc2626', textTransform: 'none' }}>(Withdrawal)</div>}
+              </th>
               <th style={{ padding: '6px 12px', textAlign: 'right', fontSize: '0.7rem', textTransform: 'uppercase', color: '#666' }}>Balance</th>
             </tr>
           </thead>
@@ -375,7 +405,7 @@ export default function LedgerPage() {
                   borderLeft: isTestRow ? '3px solid #f97316' : '3px solid transparent',
                   color: isTestRow ? '#c2410c' : 'inherit',
                 }} className="hover-row">
-                  <td style={{ padding: '5px 12px', fontSize: '12px' }}>{row.date}</td>
+                  <td style={{ padding: '5px 12px', fontSize: '12px', whiteSpace: 'nowrap' }}>{formatDateDDMMMYYYY(row.date)}</td>
                   <td style={{ padding: '5px 12px', textTransform: 'capitalize', fontSize: '12px' }}>{row.voucherType}</td>
                   <td style={{ padding: '5px 12px', color: isTestRow ? '#c2410c' : '#2563eb', cursor: 'pointer', fontSize: '12px' }} onClick={() => handleEdit(row.voucherId)}>
                     {row.againstLedger}

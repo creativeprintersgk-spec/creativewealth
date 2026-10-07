@@ -10,7 +10,7 @@ const ASSET_TYPE_FILTER_MAP: Record<string, number[]> = {
   'Traded Bonds':          [100],
   'NCDs':                  [110],
   'Gold':                  [150, 151],
-  'NPS / ULIP':            [70, 80],
+  'NPS / ULIP':            [95, 80],
   'Fixed Deposits':        [90],
   'PPF / EPF':             [120, 130, 140],
   'Properties':            [160],
@@ -25,7 +25,8 @@ const ATTY_CLASS_MAP: Record<number, string> = {
   62: 'Mutual Funds (Liquid/Debt)',
   63: 'Mutual Funds',
   66: 'Private Equity',
-  70: 'NPS / ULIP',
+  70: 'NCD / Debentures',
+  95: 'NPS / ULIP',
   75: 'Gold',
   80: 'Insurance',
   81: 'Insurance',
@@ -213,11 +214,11 @@ export const generateAssetAllocationReport = (portfolioIds: string[], assetTypes
   const allocations: Record<string, number> = {};
   
   for (const h of holdings) {
-    const cls = ATTY_CLASS_MAP[h.asset_type] || 'Other Assets';
+    const cls = ATTY_CLASS_MAP[h.assetType] || 'Other Assets';
     const isAllowed = assetTypes.includes('All Assets') || assetTypes.includes(cls);
     if (!isAllowed) continue;
     
-    const val = (h.livePrice || h.avgCost) * h.qty;
+    const val = h.currentValue || (h.quantity * (h.currentPrice || h.avgPrice || 0));
     if (val > 0) {
       allocations[cls] = (allocations[cls] || 0) + val;
       totalValuation += val;

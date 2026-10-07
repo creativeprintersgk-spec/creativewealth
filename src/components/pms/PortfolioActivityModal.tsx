@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, ArrowUpRight, ArrowDownLeft, Download, Filter } from 'lucide-react';
-import { getPortfolioActivity } from '../../logic';
+import { getPortfolioActivity, formatDateDDMMMYYYY } from '../../logic';
+import { useFY } from '../../FYContext';
 
 interface Props {
   open: boolean;
@@ -15,10 +16,12 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
   const [selectedAssetName, setSelectedAssetName] = useState<string>('ALL');
   const [selectedTxType, setSelectedTxType] = useState<string>('ALL');
 
+  const { globalRefreshTrigger } = useFY();
+
   const rawActivity = useMemo(() => {
     if (!open) return [];
     return getPortfolioActivity(portfolioIds.map(Number), 10000);
-  }, [open, portfolioIds]);
+  }, [open, portfolioIds, globalRefreshTrigger]);
 
   // Distinct Asset Names for Filter Dropdown
   const availableAssetNames = useMemo(() => {
@@ -76,7 +79,7 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
   const exportToCSV = () => {
     const headers = ['Date', 'Voucher', 'Portfolio', 'Type', 'Asset Name', 'Quantity', 'Price (Rs.)', 'Amount (Rs.)', 'Narration'];
     const rows = filteredActivity.map(tx => [
-      `"${tx.date}"`,
+      `"${formatDateDDMMMYYYY(tx.date)}"`,
       `"${tx.voucherNo}"`,
       `"${tx.portfolioName}"`,
       `"${tx.type}"`,
@@ -225,9 +228,9 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
                   <tr 
                     key={tx.id} 
                     style={{ borderBottom: '1px solid #f1f5f9', background: isImported ? '#e0f2fe' : (i % 2 === 0 ? 'white' : '#fafafa'), cursor: 'pointer' }}
-                    onDoubleClick={() => onEditTransaction?.(String(tx.id))}
+                    onDoubleClick={() => onEditTransaction?.(String(tx.voucherId || `trid_${tx.id}`))}
                   >
-                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{tx.date}</td>
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{formatDateDDMMMYYYY(tx.date)}</td>
                     <td style={{ padding: '12px 16px', fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{tx.voucherNo}</td>
                     <td style={{ padding: '12px 16px', color: '#64748b' }}>{tx.portfolioName}</td>
                     <td style={{ padding: '12px 16px' }}>

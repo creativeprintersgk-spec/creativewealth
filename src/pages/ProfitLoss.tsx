@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { getProfitLoss } from "../services/profitLoss"
 import { useFY } from "../FYContext"
-import { getStoredAccounts } from "../logic"
+import { getStoredAccounts, formatDateDDMMMYYYY } from "../logic"
 import LedgerDrilldownModal from "../LedgerDrilldownModal"
 import VoucherModal from "../VoucherModal"
 import { useFamily } from "../contexts/FamilyContext"
@@ -208,7 +208,7 @@ export default function ProfitLoss() {
           <div>
             <h2 style={{ fontSize: "1.4rem", fontWeight: "bold", margin: 0, color: '#111827' }}>Profit &amp; Loss Statement</h2>
             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: 2 }}>
-              {reportFilter === 'custom' ? `From ${effectiveDates.start} to ${effectiveDates.end}` : 
+              {reportFilter === 'custom' ? `From ${formatDateDDMMMYYYY(effectiveDates.start)} to ${formatDateDDMMMYYYY(effectiveDates.end)}` : 
                reportFilter === 'previous' ? `Period: 1 April to 31 March — FY ${getPreviousFY(selectedFY)}` :
                `Period: 1 April to 31 March — FY ${reportFilter === 'last' ? getLastFY(selectedFY) : selectedFY}`}
             </div>

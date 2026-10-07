@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useFY } from '../FYContext';
 import { useFamily } from '../contexts/FamilyContext';
-import { getStoredPortfolios } from '../logic';
+import { getStoredPortfolios, formatDateDDMMMYYYY } from '../logic';
 import {
   getTaxLossHarvestingData,
   exportTaxLossHarvestingCSV,
@@ -493,7 +493,7 @@ export default function TaxLossHarvesting() {
                                   <tbody>
                                     {asset.lots.map((lot, idx) => (
                                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                        <td style={{ padding: '8px 12px' }}>{lot.buyDate}</td>
+                                        <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{formatDateDDMMMYYYY(lot.buyDate)}</td>
                                         <td style={{ padding: '8px 12px' }}>{lot.holdingDays} days</td>
                                         <td style={{ padding: '8px 12px' }}>
                                           <span
@@ -592,7 +592,7 @@ export default function TaxLossHarvesting() {
                           <div style={{ fontSize: 11, color: '#64748b' }}>{lot.isin || 'No ISIN'}</div>
                         </td>
                         <td style={{ padding: '12px 16px', color: '#475569' }}>{lot.portfolioName}</td>
-                        <td style={{ padding: '12px 16px' }}>{lot.buyDate}</td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{formatDateDDMMMYYYY(lot.buyDate)}</td>
                         <td style={{ padding: '12px 16px' }}>{lot.holdingDays} days</td>
                         <td style={{ padding: '12px 16px' }}>
                           <span

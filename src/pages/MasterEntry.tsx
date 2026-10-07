@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit2, Trash2, Search, X, PieChart, Settings, ArrowLeft } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, X, PieChart, Settings, ArrowLeft, ShieldCheck, TrendingUp, Filter } from "lucide-react";
 import {
   getStoredFamilies, getStoredAccounts, getStoredPortfolios, getStoredInvestorGroups,
-  saveMasterRecord, deleteMasterRecord, togglePortfolioStatus
+  saveMasterRecord, deleteMasterRecord, togglePortfolioStatus, state
 } from "../logic";
+import AddAssetModal from "../components/pms/AddAssetModal";
 
-type TabType = "families" | "accounts" | "portfolios" | "investorGroups";
+type TabType = "families" | "accounts" | "portfolios" | "investorGroups" | "securities";
 
 export default function MasterEntry() {
   const navigate = useNavigate();
@@ -15,6 +16,11 @@ export default function MasterEntry() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [portfolios, setPortfolios] = useState<any[]>([]);
   const [investorGroups, setInvestorGroups] = useState<any[]>([]);
+  const [assets, setAssets] = useState<any[]>([]);
+  const [secFilter, setSecFilter] = useState<'all' | 'stock' | 'mf' | 'bond'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
+  const [isAddAssetModalOpen, setIsAddAssetModalOpen] = useState(false);
 
   // Form State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -27,10 +33,14 @@ export default function MasterEntry() {
     setAccounts(getStoredAccounts());
     setPortfolios(getStoredPortfolios());
     setInvestorGroups(getStoredInvestorGroups());
+    setAssets([...(state.assetMaster || [])]);
   };
 
   useEffect(() => {
     refreshData();
+    const handleSync = () => refreshData();
+    window.addEventListener('wealthcore-sync-complete', handleSync);
+    return () => window.removeEventListener('wealthcore-sync-complete', handleSync);
   }, []);
 
   const openDrawer = (record: any = null) => {
@@ -66,7 +76,8 @@ export default function MasterEntry() {
         { id: "families", label: "Families" },
         { id: "accounts", label: "Accounts" },
         { id: "portfolios", label: "Portfolios" },
-        { id: "investorGroups", label: "Investor Groups" }
+        { id: "investorGroups", label: "Investor Groups" },
+        { id: "securities", label: "Securities Master (Stocks / MF / Bonds)" }
       ].map(tab => (
         <button
           key={tab.id}
@@ -96,6 +107,22 @@ export default function MasterEntry() {
     if (activeTab === "accounts") data = accounts;
     if (activeTab === "portfolios") data = portfolios;
     if (activeTab === "investorGroups") data = investorGroups;
+    if (activeTab === "securities") {
+      let filtered = assets;
+      if (secFilter === 'stock') filtered = assets.filter(a => a.asset_type === 50);
+      else if (secFilter === 'mf') filtered = assets.filter(a => a.asset_type === 60 || a.asset_type === 61 || a.asset_type === 75);
+      else if (secFilter === 'bond') filtered = assets.filter(a => a.asset_type === 100 || a.asset_type === 40 || a.asset_type === 70 || a.asset_type === 115);
+
+      if (!search) return filtered;
+      const s = search.toLowerCase();
+      return filtered.filter(a => 
+        String(a.name || '').toLowerCase().includes(s) ||
+        String(a.isin || '').toLowerCase().includes(s) ||
+        String(a.nse_symbol || '').toLowerCase().includes(s) ||
+        String(a.bse_code || '').toLowerCase().includes(s) ||
+        String(a.amfi_code || '').toLowerCase().includes(s)
+      );
+    }
 
     if (!search) return data;
     const s = search.toLowerCase();
@@ -244,6 +271,227 @@ export default function MasterEntry() {
             ))}
           </tbody>
         </table>
+      );
+    }
+
+    if (activeTab === "securities") {
+      const totalPages = Math.ceil(data.length / pageSize) || 1;
+      const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+      return (
+        <div>
+          {/* Sub-filter chips */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginRight: '6px', textTransform: 'uppercase' }}>Filter Asset:</span>
+              {[
+                { id: 'all', label: 'All Instruments' },
+                { id: 'stock', label: 'Stocks / Equities' },
+                { id: 'mf', label: 'Mutual Funds / ETFs' },
+                { id: 'bond', label: 'Traded Bonds & G-Secs' },
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => { setSecFilter(f.id as any); setCurrentPage(1); }}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: '1px solid',
+                    borderColor: secFilter === f.id ? '#2563eb' : '#cbd5e1',
+                    background: secFilter === f.id ? '#eff6ff' : 'white',
+                    color: secFilter === f.id ? '#1d4ed8' : '#64748b',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={() => setIsAddAssetModalOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#16a34a',
+                  color: 'white',
+                  border: 'none',
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <Plus size={14} /> Add Security (ISIN)
+              </button>
+            </div>
+          </div>
+
+          <table className="financial-table">
+            <thead>
+              <tr>
+                <th>Security Name / Instrument</th>
+                <th>Asset Class</th>
+                <th>ISIN (Mandatory)</th>
+                <th>Tickers / Exchange Codes</th>
+                <th style={{ textAlign: 'right' }}>Live CMP / NAV</th>
+                <th style={{ textAlign: 'center' }}>Pricing Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedData.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", padding: "30px", color: "#94a3b8" }}>
+                    No securities match your filter or search criteria.
+                  </td>
+                </tr>
+              )}
+              {paginatedData.map((asset: any) => {
+                const amid = Number(asset.amid);
+                const priceObj = state.priceMap[amid];
+                const livePrice = priceObj?.curr || Number(asset.current_price) || 0;
+                const isBond = [100, 40, 70, 115].includes(Number(asset.asset_type));
+                const isStock = Number(asset.asset_type) === 50;
+                const isMF = [60, 61, 75].includes(Number(asset.asset_type));
+                const effectiveIsin = asset.isin || state.isinMap[amid] || (typeof asset.name === 'string' ? asset.name.match(/\b(IN[A-Z0-9]{10})\b/i)?.[1]?.toUpperCase() : null);
+
+                let classBadgeBg = '#f1f5f9';
+                let classBadgeColor = '#475569';
+                let classLabel = asset.asset_type_name || 'Other';
+                if (isStock) {
+                  classBadgeBg = '#eff6ff';
+                  classBadgeColor = '#2563eb';
+                  classLabel = 'Stock (Equity)';
+                } else if (isMF) {
+                  classBadgeBg = '#ecfdf5';
+                  classBadgeColor = '#059669';
+                  classLabel = 'Mutual Fund';
+                } else if (isBond) {
+                  classBadgeBg = '#fffbeb';
+                  classBadgeColor = '#d97706';
+                  classLabel = 'Traded Bond / G-Sec';
+                }
+
+                return (
+                  <tr key={asset.amid || asset.isin || Math.random()}>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#0f172a' }}>{asset.name}</div>
+                      {isBond && (
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px', fontSize: '11px', color: '#64748b', flexWrap: 'wrap' }}>
+                          {asset.bond_coupon && <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>Coupon: {asset.bond_coupon}%</span>}
+                          {asset.bond_maturity_date && <span>Maturity: {asset.bond_maturity_date}</span>}
+                          {asset.bond_face_value && <span>FV: ₹{Number(asset.bond_face_value).toLocaleString('en-IN')}</span>}
+                          {asset.bond_interest_frequency && <span>Freq: {asset.bond_interest_frequency}</span>}
+                          {asset.bond_category && <span style={{ color: '#2563eb' }}>[{asset.bond_category}]</span>}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <span style={{
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        background: classBadgeBg,
+                        color: classBadgeColor
+                      }}>
+                        {classLabel}
+                      </span>
+                    </td>
+                    <td>
+                      {effectiveIsin ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#f8fafc', padding: '3px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                          <ShieldCheck size={13} color="#16a34a" />
+                          <code style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0f172a', fontSize: '12px' }}>{effectiveIsin}</code>
+                        </div>
+                      ) : (
+                        <span style={{ color: '#ef4444', fontSize: '12px', fontWeight: 600 }}>Missing ISIN</span>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ fontSize: '12px', color: '#475569' }}>
+                        {asset.nse_symbol && <span style={{ marginRight: '8px', fontWeight: 600 }}>NSE: {asset.nse_symbol}</span>}
+                        {asset.bse_code && <span style={{ marginRight: '8px' }}>BSE: {asset.bse_code}</span>}
+                        {asset.amfi_code && <span style={{ color: '#059669', fontWeight: 600 }}>AMFI: {asset.amfi_code}</span>}
+                        {!asset.nse_symbol && !asset.bse_code && !asset.amfi_code && <span style={{ color: '#94a3b8' }}>-</span>}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                      {livePrice > 0 ? (
+                        <span>₹{livePrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                      ) : (
+                        <span style={{ color: '#94a3b8', fontStyle: 'italic', fontWeight: 400 }}>No Quote</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {livePrice > 0 ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontSize: '11px', fontWeight: 700, background: '#dcfce7', padding: '2px 8px', borderRadius: '12px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#16a34a' }} />
+                          Live Tagged
+                        </span>
+                      ) : (
+                        <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600 }}>
+                          Pending Quote
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px 4px', borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                Showing {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, data.length)} of {data.length} instruments
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0',
+                    background: currentPage === 1 ? '#f8fafc' : 'white',
+                    color: currentPage === 1 ? '#cbd5e1' : '#1e293b',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0',
+                    background: currentPage === totalPages ? '#f8fafc' : 'white',
+                    color: currentPage === totalPages ? '#cbd5e1' : '#1e293b',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       );
     }
   };
@@ -400,8 +648,18 @@ export default function MasterEntry() {
             <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em", margin: 0 }}>Portfolio Hierarchy</h1>
             <p style={{ color: "#64748b", fontSize: "14px", marginTop: "4px" }}>Configure families, accounts, and portfolio groupings</p>
           </div>
-          <button onClick={() => openDrawer()} className="btn-primary" style={{ padding: "10px 20px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <Plus size={16} /> Add {activeTab.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+          <button 
+            onClick={() => {
+              if (activeTab === "securities") {
+                setIsAddAssetModalOpen(true);
+              } else {
+                openDrawer();
+              }
+            }} 
+            className="btn-primary" 
+            style={{ padding: "10px 20px", display: "flex", alignItems: "center", gap: "8px" }}
+          >
+            <Plus size={16} /> Add {activeTab === "securities" ? "Security (ISIN)" : activeTab.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
           </button>
         </div>
 
@@ -454,6 +712,18 @@ export default function MasterEntry() {
       
       {/* Drawer Overlay */}
       {isDrawerOpen && <div onClick={closeDrawer} style={{ position: "fixed", top: 0, left: 0, right: "400px", bottom: 0, background: "rgba(15, 23, 42, 0.4)", zIndex: 2999 }} />}
+
+      {/* Add Asset Modal */}
+      <AddAssetModal
+        isOpen={isAddAssetModalOpen}
+        onClose={() => {
+          setIsAddAssetModalOpen(false);
+          refreshData();
+        }}
+        onAssetCreated={() => {
+          refreshData();
+        }}
+      />
     </div>
   );
 }

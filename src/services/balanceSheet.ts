@@ -70,7 +70,7 @@ const SYNTHETIC_MAID_NAME: Record<number, string> = {
 // SAM atty → MProfit Investment group
 const ATTY_TO_GROUP: Record<number, string> = {
   50: '200050', 60: '200061', 61: '200062', 62: '200061',
-  70: '200141', 75: '200075', 77: '200077', 80: '200140',
+  70: '200070', 75: '200075', 77: '200077', 80: '200140', 95: '200141',
   90: '200095', 100: '200040', 110: '200070', 120: '200115',
   130: '200120', 140: '200135', 150: '200075', 151: '200077',
   160: '200150', 170: '200155', 180: '200145', 190: '200066',
@@ -348,9 +348,9 @@ export function mergeComparativeTrees(currGroups: any[], prevGroups: any[]): any
     const balance = Number(currG?.balance || 0);
     const prevBalance = Number(prevG?.balance || 0);
     const variance = Number((balance - prevBalance).toFixed(2));
-    const pctChange = prevBalance !== 0 
+    const pctChange = Math.abs(prevBalance) > 0.01 
       ? Number((((balance - prevBalance) / Math.abs(prevBalance)) * 100).toFixed(1))
-      : (balance !== 0 ? 100 : 0);
+      : (Math.abs(balance) > 0.01 ? 100 : 0);
 
     // Merge ledgers
     const currLedgers: any[] = currG?.ledgers || [];
@@ -366,9 +366,9 @@ export function mergeComparativeTrees(currGroups: any[], prevGroups: any[]): any
       const lDisp = Number(cL?.displayBalance ?? lBal);
       const lpDisp = Number(pL?.displayBalance ?? lpBal);
       const lVar = Number((lDisp - lpDisp).toFixed(2));
-      const lPct = lpDisp !== 0
+      const lPct = Math.abs(lpDisp) > 0.01
         ? Number((((lDisp - lpDisp) / Math.abs(lpDisp)) * 100).toFixed(1))
-        : (lDisp !== 0 ? 100 : 0);
+        : (Math.abs(lDisp) > 0.01 ? 100 : 0);
 
       return {
         id: lid,
@@ -433,16 +433,16 @@ export async function getComparativeBalanceSheet(
   const totalAssets = current.totalAssets;
   const prevTotalAssets = previous.totalAssets;
   const assetsVariance = Number((totalAssets - prevTotalAssets).toFixed(2));
-  const assetsPctChange = prevTotalAssets !== 0
+  const assetsPctChange = Math.abs(prevTotalAssets) > 0.01
     ? Number((((totalAssets - prevTotalAssets) / Math.abs(prevTotalAssets)) * 100).toFixed(1))
-    : (totalAssets !== 0 ? 100 : 0);
+    : (Math.abs(totalAssets) > 0.01 ? 100 : 0);
 
   const totalLiabilities = current.totalLiabilities;
   const prevTotalLiabilities = previous.totalLiabilities;
   const liabilitiesVariance = Number((totalLiabilities - prevTotalLiabilities).toFixed(2));
-  const liabilitiesPctChange = prevTotalLiabilities !== 0
+  const liabilitiesPctChange = Math.abs(prevTotalLiabilities) > 0.01
     ? Number((((totalLiabilities - prevTotalLiabilities) / Math.abs(prevTotalLiabilities)) * 100).toFixed(1))
-    : (totalLiabilities !== 0 ? 100 : 0);
+    : (Math.abs(totalLiabilities) > 0.01 ? 100 : 0);
 
   return {
     primaryEndDate,

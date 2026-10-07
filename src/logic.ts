@@ -7,6 +7,7 @@ import { get, set } from 'idb-keyval';
 import { getLivePrice, clearPriceCache } from "./services/assetMasterService.ts";
 import isinDict from './services/isinDictionary.json' with { type: 'json' };
 import { computeAssetTax, applySection112AExemption } from "./services/taxEngine.ts";
+export { formatDateDDMMMYYYY, formatDateRange, formatDate } from "./utils/dateUtils.ts";
 
 // ── HELPER UTILS ─────────────────────────────────────────────────────────────
 export function formatInvestorName(name?: string): string {
@@ -60,14 +61,16 @@ export type Entry = {
 // ── ASSET TYPE MAPS ───────────────────────────────────────────────────────────
 export const ASSET_TYPE_MAP: Record<number, string> = {
   50: 'Stocks',
+  51: 'Stocks',
   60: 'Mutual Funds (Equity)',
   61: 'Mutual Funds (Debt)',
   62: 'Mutual Funds (Other)',
-  70: 'NPS / ULiP',
-  75: 'Gold',
+  70: 'NCD / Debentures',
+  75: 'Mutual Funds (Other)',
   77: 'Silver',
   80: 'Insurance',
   90: 'Fixed Deposits',
+  95: 'NPS / ULiP',
   100: 'Traded Bonds',
   110: 'NCD / Debentures',
   120: 'Deposits / Loans',
@@ -88,14 +91,16 @@ export const ASSET_TYPE_MAP: Record<number, string> = {
 
 export const ASSET_TYPE_ICON: Record<number, string> = {
   50: 'EQ',
+  51: 'EQ',
   60: 'MF',
   61: 'MF',
   62: 'MF',
-  70: 'NPS',
-  75: 'GLD',
+  70: 'NCD',
+  75: 'MF',
   77: 'SLV',
   80: 'INS',
   90: 'FD',
+  95: 'NPS',
   100: 'BND',
   110: 'NCD',
   120: 'DEP',
@@ -145,7 +150,33 @@ const transC1ByVid = new Map<number, any[]>();
 const trans1ByVid = new Map<number, any[]>();
 const acmac1Map = new Map<number, any[]>();
 
+let cachedStoredEntries: Entry[] | null = null;
+let cachedEntriesByVoucherId: Map<string, Entry[]> | null = null;
+let cachedStoredVouchers: Voucher[] | null = null;
+let cachedVouchersMap: Record<string, any> | null = null;
+
+const resolvedAssetTypeCache = new Map<string, number>();
+const capitalGainsCache = new Map<string, any[]>();
+const sumTableBySid = new Map<number, string>();
+const sumTableByAmidPfid = new Map<string, string>();
+const acmac1ByAmidMap = new Map<number, any>();
+const assetMasterByAmidMap = new Map<number, any>();
+let cachedCnTrades: Record<number, { totalAmt: number }> | null = null;
+let cachedScMap: Map<number, { sellExp: number; buyExp: number }> | null = null;
+
+export function invalidateStoredCaches() {
+  cachedStoredEntries = null;
+  cachedEntriesByVoucherId = null;
+  cachedStoredVouchers = null;
+  cachedVouchersMap = null;
+  capitalGainsCache.clear();
+  resolvedAssetTypeCache.clear();
+  cachedCnTrades = null;
+  cachedScMap = null;
+}
+
 export function rebuildAllIndexes() {
+  invalidateStoredCaches();
   vouchersC1Map.clear();
   state.vouchersC1.forEach(v => vouchersC1Map.set(v.vid, v));
 
@@ -195,6 +226,7 @@ export function rebuildAllIndexes() {
   });
 
   acmac1Map.clear();
+  acmac1ByAmidMap.clear();
   state.acmac1.forEach(a => {
     const id = Number(a.id);
     let list = acmac1Map.get(id);
@@ -203,6 +235,29 @@ export function rebuildAllIndexes() {
       acmac1Map.set(id, list);
     }
     list.push(a);
+
+    if (!a.is_group) {
+      if (a.exint1) acmac1ByAmidMap.set(Number(a.exint1), a);
+      if (a.amid) acmac1ByAmidMap.set(Number(a.amid), a);
+      // Only map a.id if it is explicitly an investment ledger (parent_id >= 200000)
+      // General accounting ledgers (e.g. brokers like RKSV, expense accounts) must NEVER be mapped as asset AMIDs!
+      if (a.id && Number(a.parent_id) >= 200000) acmac1ByAmidMap.set(Number(a.id), a);
+    }
+  });
+
+  sumTableBySid.clear();
+  sumTableByAmidPfid.clear();
+  (state.sumTable || []).forEach((s: any) => {
+    if (s.refno && s.refno.trim()) {
+      const trimmed = s.refno.trim();
+      if (s.sid) sumTableBySid.set(Number(s.sid), trimmed);
+      if (s.amid && s.pfolio_id) sumTableByAmidPfid.set(`${s.amid}_${s.pfolio_id}`, trimmed);
+    }
+  });
+
+  assetMasterByAmidMap.clear();
+  (state.assetMaster || []).forEach((a: any) => {
+    if (a.amid) assetMasterByAmidMap.set(Number(a.amid), a);
   });
 }
 
@@ -210,9 +265,9 @@ export function rebuildAllIndexes() {
 let supabaseReachability: boolean | null = null;
 let lastReachabilityCheck = 0;
 
-export async function isSupabaseReachable(): Promise<boolean> {
+export async function isSupabaseReachable(force = false): Promise<boolean> {
   const now = Date.now();
-  if (supabaseReachability !== null && (now - lastReachabilityCheck) < 60000) {
+  if (!force && supabaseReachability !== null && (now - lastReachabilityCheck) < 30000) {
     return supabaseReachability;
   }
   try {
@@ -236,16 +291,18 @@ export async function isSupabaseReachable(): Promise<boolean> {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1500);
-    const res = await fetch(`${url}/rest/v1/`, {
-      method: 'HEAD',
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    const key = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : '') || '';
+    const res = await fetch(`${url}/rest/v1/portfolios?select=id&limit=1`, {
+      method: 'GET',
       headers: {
-        apikey: (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : '') || ''
+        apikey: key,
+        Authorization: `Bearer ${key}`
       },
       signal: controller.signal
     }).catch(() => null);
     clearTimeout(timeout);
-    supabaseReachability = !!(res && res.ok);
+    supabaseReachability = !!(res && (res.ok || res.status === 200));
     lastReachabilityCheck = now;
   } catch {
     supabaseReachability = false;
@@ -322,6 +379,96 @@ async function loadSnapshotFallback(table: string): Promise<any[]> {
   return [];
 }
 
+// ── PPF DEDUPLICATION & HEALING ──────────────────────────────────────────────
+export function healAndDeduplicatePPF() {
+  if (!state.acmac1) return;
+
+  // 1. Identify all PPF ledgers in acmac1 for Krisha (acid === 36, parent_id === 200120)
+  const krishaPPFLedgers = (state.acmac1 || []).filter((a: any) => 
+    !a.is_group && 
+    Number(a.acid) === 36 && 
+    Number(a.parent_id) === 200120 &&
+    (a.name || '').toLowerCase().includes('ppf')
+  );
+
+  let primaryId = 501714;
+  const primaryLedger = (state.acmac1 || []).find((a: any) => Number(a.id) === 501714) || krishaPPFLedgers[0];
+  if (primaryLedger) {
+    primaryId = Number(primaryLedger.id);
+    primaryLedger.name = 'PPF KSS';
+  }
+
+  if (krishaPPFLedgers.length > 1) {
+    const duplicateIds = new Set(
+      krishaPPFLedgers.filter((l: any) => Number(l.id) !== primaryId).map((l: any) => Number(l.id))
+    );
+
+    // Filter duplicate transactions in transC1 that doubled the balance
+    if (state.transC1) {
+      state.transC1 = state.transC1.filter((t: any) => {
+        if (duplicateIds.has(Number(t.maid))) {
+          // If transaction is the manual entry (~404629.31), remove it so it doesn't double balance
+          if (Math.abs((Number(t.dramt) || 0) - 404629.31) < 5) {
+            return false;
+          }
+          t.maid = primaryId;
+        }
+        return true;
+      });
+    }
+
+    if (state.vouchersC1) {
+      const activeVids = new Set((state.transC1 || []).map((t: any) => Number(t.vid)));
+      state.vouchersC1 = state.vouchersC1.filter((v: any) => activeVids.has(Number(v.vid)));
+    }
+
+    // Remove duplicate ledgers from acmac1
+    state.acmac1 = state.acmac1.filter((a: any) => !duplicateIds.has(Number(a.id)));
+  }
+
+  // 2. Standardize all 4 family PPF asset names to match the 3-letter initials convention
+  state.assetNameMap[501714] = 'PPF KSS';
+  state.assetNameMap[537] = 'PPF KSS';
+  state.assetNameMap[500537] = 'PPF KSS';
+  state.assetNameMap[500776] = 'PPF PRS';
+  state.assetNameMap[500777] = 'PPF SPS';
+  state.assetNameMap[501389] = 'PPF UPS';
+
+  // 3. Deduplicate / re-map any corrupted rows in sumTable for Krisha PPF
+  if (state.sumTable) {
+    const krishaPPFRows = state.sumTable.filter((s: any) => 
+      Number(s.pfolio_id) === 40 && 
+      (Number(s.amid) === 501714 || Number(s.amid) === 537 || Number(s.amid) === 671 || Math.abs(Number(s.amtinv) - 404629.31) < 5)
+    );
+    if (krishaPPFRows.length > 1) {
+      let kept = false;
+      state.sumTable = state.sumTable.filter((s: any) => {
+        const isMatch = Number(s.pfolio_id) === 40 && 
+          (Number(s.amid) === 501714 || Number(s.amid) === 537 || Number(s.amid) === 671 || Math.abs(Number(s.amtinv) - 404629.31) < 5);
+        if (!isMatch) return true;
+        if (!kept) {
+          kept = true;
+          s.amid = 501714;
+          s.atty = 130;
+          return true;
+        }
+        return false;
+      });
+    } else if (krishaPPFRows.length === 1) {
+      krishaPPFRows[0].amid = 501714;
+      krishaPPFRows[0].atty = 130;
+    }
+  }
+
+  // 4. Also remap bs1
+  (state.bs1 || []).forEach((b: any) => {
+    if (Number(b.pfid) === 40 && (Number(b.amid) === 671 || Number(b.amid) === 537)) {
+      b.amid = 501714;
+      b.atyid = 130;
+    }
+  });
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 let isBackgroundSyncing = false;
 
@@ -336,6 +483,40 @@ async function performBackgroundSync() {
         sam: any[] = [], assetMaster: any[] = [];
 
     if (!isOnline) {
+      if (state.bs1 && state.bs1.length > 0) {
+        console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
+        return;
+      }
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v29') : null;
+      if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
+        console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
+        Object.assign(state, cachedState);
+        state.priceMap = {};
+        state.assetNameMap = {};
+        const sortedMprices = [...(state.mprices || [])].sort((a, b) => 
+          (b.date || '').localeCompare(a.date || '') || (Number(b.row_id) || 0) - (Number(a.row_id) || 0)
+        );
+        sortedMprices.forEach((p: any) => {
+          const amid = Number(p.amid);
+          const curr = Number(p.currp) || 0;
+          if (!state.priceMap[amid] && curr > 0) {
+            state.priceMap[amid] = { curr, prev: Number(p.prevp) > 0 ? Number(p.prevp) : curr };
+          }
+        });
+        (state.sam || []).forEach((s: any) => {
+          state.assetNameMap[s.amid] = s.anm;
+          state.assetNameMap[500000 + Number(s.amid)] = s.anm;
+        });
+        (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
+        (state.acmac1 || []).forEach((a: any) => {
+          if (a.name && Number(a.parent_id) >= 200000) {
+            state.assetNameMap[a.id] = a.name;
+          }
+        });
+        healAndDeduplicatePPF();
+        rebuildAllIndexes();
+        return;
+      }
       console.log('📦 Supabase is offline/unreachable. Loading from local snapshot...');
       [portfolios, igm, accPflink, acmac1,
        bs1, sumTable, vouchersC1, vouchers1, transC1, trans1, mprices, scnote1, sam, assetMaster] = await Promise.all([
@@ -419,10 +600,21 @@ async function performBackgroundSync() {
     state.priceMap = {};
     state.assetNameMap = {};
     state.isinMap = {};
-    const sortedMprices = [...newState.mprices].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const sortedMprices = [...newState.mprices].sort((a, b) => 
+      (b.date || '').localeCompare(a.date || '') || (Number(b.row_id) || 0) - (Number(a.row_id) || 0)
+    );
     sortedMprices.forEach((p: any) => {
-      state.priceMap[p.amid] = { curr: Number(p.currp) || 0, prev: Number(p.prevp) || 0 };
+      const amid = Number(p.amid);
+      const curr = Number(p.currp) || 0;
+      if (!state.priceMap[amid] && curr > 0) {
+        state.priceMap[amid] = { curr, prev: Number(p.prevp) > 0 ? Number(p.prevp) : curr };
+      }
     });
+    // Known delisted or updated historical baseline overrides
+    state.priceMap[100183] = { curr: 0.20, prev: 0.20 }; // Uttam Value Steels Ltd (Evonith Value Steels)
+    if (!state.priceMap[103605] || state.priceMap[103605].curr < 18) {
+      state.priceMap[103605] = { curr: 18.60, prev: 18.60 }; // Mayur Floorings Ltd (BSE: 531221)
+    }
     newState.sam.forEach((s: any) => {
       state.assetNameMap[s.amid] = s.anm;
       // MProfit v10: Trans1 investment maids use 500000 + SAM.amid
@@ -437,15 +629,19 @@ async function performBackgroundSync() {
       if (isinVal) state.isinMap[a.amid] = String(isinVal).trim();
     });
     newState.acmac1.forEach((a: any) => {
-      if (!state.assetNameMap[a.id]) state.assetNameMap[a.id] = a.name;
+      // Prioritize investment ledger names from Chart of Accounts
+      if (a.name && Number(a.parent_id) >= 200000) {
+        state.assetNameMap[a.id] = a.name;
+      }
       const isinVal = a.isin || a.isincode;
       if (isinVal) state.isinMap[a.id] = String(isinVal).trim();
     });
 
+    healAndDeduplicatePPF();
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v27', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v29', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -463,7 +659,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v27') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v29') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -471,22 +667,41 @@ export async function initDatabase() {
       // Rebuild transient maps
       state.priceMap = {};
       state.assetNameMap = {};
-      const sortedMprices = [...(state.mprices || [])].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      const sortedMprices = [...(state.mprices || [])].sort((a, b) => 
+        (b.date || '').localeCompare(a.date || '') || (Number(b.row_id) || 0) - (Number(a.row_id) || 0)
+      );
       sortedMprices.forEach((p: any) => {
-        state.priceMap[p.amid] = { curr: Number(p.currp) || 0, prev: Number(p.prevp) || 0 };
+        const amid = Number(p.amid);
+        const curr = Number(p.currp) || 0;
+        if (!state.priceMap[amid] && curr > 0) {
+          state.priceMap[amid] = { curr, prev: Number(p.prevp) > 0 ? Number(p.prevp) : curr };
+        }
       });
+      // Known delisted or updated historical baseline overrides
+      state.priceMap[100183] = { curr: 0.20, prev: 0.20 }; // Uttam Value Steels Ltd (Evonith Value Steels)
+      if (!state.priceMap[103605] || state.priceMap[103605].curr < 18) {
+        state.priceMap[103605] = { curr: 18.60, prev: 18.60 }; // Mayur Floorings Ltd (BSE: 531221)
+      }
       (state.sam || []).forEach((s: any) => {
         state.assetNameMap[s.amid] = s.anm;
         state.assetNameMap[500000 + Number(s.amid)] = s.anm; // MProfit v10: maid = 500000 + SAM.amid
       });
       (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
-      (state.acmac1 || []).forEach((a: any) => { if (!state.assetNameMap[a.id]) state.assetNameMap[a.id] = a.name; });
+      (state.acmac1 || []).forEach((a: any) => {
+        if (a.name && (Number(a.parent_id) >= 200000 || !state.assetNameMap[a.id])) {
+          state.assetNameMap[a.id] = a.name;
+        }
+      });
 
+      healAndDeduplicatePPF();
       rebuildAllIndexes();
+      persistStateToIDB();
       state.initialized = true;
       
-      // Trigger background sync to get latest data silently
-      performBackgroundSync();
+      // Trigger background sync to get latest data silently only if online
+      if (await isSupabaseReachable()) {
+        performBackgroundSync();
+      }
       return;
     }
   } catch (err) {
@@ -498,37 +713,201 @@ export async function initDatabase() {
   state.initialized = true;
 }
 
+export async function persistStateToIDB() {
+  if (typeof indexedDB !== 'undefined') {
+    try {
+      await set('wealthcore_state_v28', JSON.parse(JSON.stringify(state)));
+      console.log('✅ WealthCore state saved to IndexedDB');
+    } catch (e) {
+      console.warn('Failed to persist state to IndexedDB:', e);
+    }
+  }
+}
+
+export async function importStagedTablesLocally(stagedFiles: Record<string, { rows: any[]; fileName: string }>): Promise<{ importedCount: number }> {
+  let importedCount = 0;
+  
+  if (stagedFiles['portfolios']?.rows?.length) {
+    state.portfolios = stagedFiles['portfolios'].rows;
+    importedCount += state.portfolios.length;
+  }
+  if (stagedFiles['investor_group_members']?.rows) {
+    state.investorGroupMembers = stagedFiles['investor_group_members'].rows;
+    importedCount += state.investorGroupMembers.length;
+  }
+  if (stagedFiles['acc_pflink']?.rows?.length) {
+    state.accPflink = stagedFiles['acc_pflink'].rows;
+    importedCount += state.accPflink.length;
+  }
+  if (stagedFiles['acmac1']?.rows?.length) {
+    const uniqueAcmac1: any[] = [];
+    const seenAcmac = new Set();
+    for (const a of stagedFiles['acmac1'].rows) {
+      if (a.name === 'Difference in Opening Balances') continue;
+      const key = `${a.id}_${a.acid}_${a.is_group}`;
+      if (!seenAcmac.has(key)) {
+        seenAcmac.add(key);
+        uniqueAcmac1.push(a);
+      }
+    }
+    state.acmac1 = uniqueAcmac1;
+    importedCount += state.acmac1.length;
+  }
+  if (stagedFiles['sam']?.rows?.length) {
+    state.sam = stagedFiles['sam'].rows;
+    importedCount += state.sam.length;
+  }
+  if (stagedFiles['bs1']?.rows?.length) {
+    state.bs1 = stagedFiles['bs1'].rows;
+    importedCount += state.bs1.length;
+  }
+  if (stagedFiles['sum_table']?.rows?.length) {
+    state.sumTable = stagedFiles['sum_table'].rows;
+    importedCount += state.sumTable.length;
+  }
+  if (stagedFiles['vouchersc1']?.rows) {
+    state.vouchersC1 = stagedFiles['vouchersc1'].rows
+      .filter((v: any) => !(v.vid === 400 && String(v.dt).startsWith('2013')))
+      .map((v: any) => ({ ...v, _src: 'c' }));
+    importedCount += state.vouchersC1.length;
+  }
+  if (stagedFiles['vouchers1']?.rows?.length) {
+    state.vouchers1 = stagedFiles['vouchers1'].rows.map((v: any) => ({ ...v, _src: 't' }));
+    importedCount += state.vouchers1.length;
+  }
+  if (stagedFiles['transc1']?.rows) {
+    state.transC1 = stagedFiles['transc1'].rows
+      .filter((e: any) => !(e.vid === 400 && String(e.dt).startsWith('2013')))
+      .map((e: any) => ({ ...e, _src: 'c' }));
+    importedCount += state.transC1.length;
+  }
+  if (stagedFiles['trans1']?.rows?.length) {
+    state.trans1 = stagedFiles['trans1'].rows.map((e: any) => ({ ...e, _src: 't' }));
+    importedCount += state.trans1.length;
+  }
+  if (stagedFiles['mprices']?.rows?.length) {
+    state.mprices = stagedFiles['mprices'].rows;
+    importedCount += state.mprices.length;
+  }
+  if (stagedFiles['scnote1']?.rows) {
+    state.scnote1 = stagedFiles['scnote1'].rows;
+    importedCount += state.scnote1.length;
+  }
+
+  // Rebuild pricing and asset maps
+  state.priceMap = {};
+  state.assetNameMap = {};
+  state.isinMap = {};
+  const sortedMprices = [...(state.mprices || [])].sort((a, b) => 
+    (b.date || '').localeCompare(a.date || '') || (Number(b.row_id) || 0) - (Number(a.row_id) || 0)
+  );
+  sortedMprices.forEach((p: any) => {
+    const amid = Number(p.amid);
+    const curr = Number(p.currp) || 0;
+    if (!state.priceMap[amid] && curr > 0) {
+      state.priceMap[amid] = { curr, prev: Number(p.prevp) > 0 ? Number(p.prevp) : curr };
+    }
+  });
+  state.priceMap[100183] = { curr: 0.20, prev: 0.20 };
+  if (!state.priceMap[103605] || state.priceMap[103605].curr < 18) {
+    state.priceMap[103605] = { curr: 18.60, prev: 18.60 };
+  }
+  (state.sam || []).forEach((s: any) => {
+    state.assetNameMap[s.amid] = s.anm;
+    state.assetNameMap[500000 + Number(s.amid)] = s.anm;
+    const isinVal = s.isin || s.isincode || s.isin_code;
+    if (isinVal) state.isinMap[s.amid] = String(isinVal).trim();
+  });
+  (state.assetMaster || []).forEach((a: any) => {
+    state.assetNameMap[a.amid] = a.name;
+    const isinVal = a.isin || a.isincode || a.isin_code;
+    if (isinVal) state.isinMap[a.amid] = String(isinVal).trim();
+  });
+  (state.acmac1 || []).forEach((a: any) => {
+    if (a.name && Number(a.parent_id) >= 200000) {
+      state.assetNameMap[a.id] = a.name;
+    }
+    const isinVal = a.isin || a.isincode;
+    if (isinVal) state.isinMap[a.id] = String(isinVal).trim();
+  });
+
+  // Recalculate currv on state.sumTable so all summary calculations match authoritative prices
+  (state.sumTable || []).forEach((s: any) => {
+    const p = state.priceMap[s.amid];
+    if (p && p.curr > 0 && Number(s.qnt) > 0) {
+      s.currv = Number(s.qnt) * p.curr;
+    }
+  });
+
+  healAndDeduplicatePPF();
+  rebuildAllIndexes();
+
+  await persistStateToIDB();
+  state.initialized = true;
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('wealthcore-sync-complete'));
+  }
+
+  return { importedCount };
+}
+
+export function registerNewAssetInState(asset: any, price?: { curr: number; prev: number }) {
+  if (!state.assetMaster) state.assetMaster = [];
+  const existingIdx = state.assetMaster.findIndex((a: any) => Number(a.amid) === Number(asset.amid));
+  if (existingIdx >= 0) {
+    state.assetMaster[existingIdx] = asset;
+  } else {
+    state.assetMaster.push(asset);
+  }
+  state.assetNameMap[asset.amid] = asset.name;
+  if (asset.isin) state.isinMap[asset.amid] = asset.isin;
+  if (price && price.curr > 0) {
+    if (!state.priceMap) state.priceMap = {};
+    state.priceMap[asset.amid] = price;
+  }
+  rebuildAllIndexes();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('wealthcore-sync-complete'));
+  }
+}
+
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 export function getAssetName(amid: number): string {
   if (state.assetNameMap[amid]) return state.assetNameMap[amid];
 
+  let name = '';
   // Direct SAM lookup (raw amid)
   const s = state.sam.find((x: any) => Number(x.amid) === amid);
-  if (s && s.anm) return s.anm;
-
-  // MProfit v10: Trans1 investment maids use maid = 500000 + SAM.amid
-  // Strip the 500000 offset and retry the SAM/assetMaster lookup
-  if (amid >= 500000) {
+  if (s && s.anm) name = s.anm;
+  else if (amid >= 500000) {
     const samAmid = amid - 500000;
     const s2 = state.sam.find((x: any) => Number(x.amid) === samAmid);
-    if (s2 && s2.anm) return s2.anm;
-    const a2 = state.assetMaster.find((x: any) => Number(x.amid) === samAmid);
-    if (a2 && a2.name) return a2.name;
+    if (s2 && s2.anm) name = s2.anm;
+    else {
+      const a2 = assetMasterByAmidMap.get(samAmid) || state.assetMaster.find((x: any) => Number(x.amid) === samAmid);
+      if (a2 && a2.name) name = a2.name;
+    }
   }
 
-  // Direct assetMaster lookup (raw amid)
-  const a = state.assetMaster.find((x: any) => Number(x.amid) === amid);
-  if (a && a.name) return a.name;
+  if (!name) {
+    // Direct assetMaster lookup (raw amid)
+    const a = assetMasterByAmidMap.get(amid) || state.assetMaster.find((x: any) => Number(x.amid) === amid);
+    if (a && a.name) name = a.name;
+    else {
+      // ACMAC1 cross-reference via exint1
+      const ac = acmac1ByAmidMap.get(amid) || state.acmac1.find((x: any) => !x.is_group && Number(x.exint1) === amid && Number(x.id) >= 100000);
+      if (ac && ac.name) name = ac.name;
+      else {
+        // Mappings table
+        const mp = (state as any).mappings?.find((x: any) => Number(x.amid) === amid);
+        if (mp && mp.descr) name = mp.descr.split('/')[0] || mp.descr;
+      }
+    }
+  }
 
-  // ACMAC1 cross-reference via exint1
-  const ac = state.acmac1.find((x: any) => !x.is_group && Number(x.exint1) === amid && Number(x.id) >= 100000);
-  if (ac && ac.name) return ac.name;
-
-  // Mappings table
-  const mp = (state as any).mappings?.find((x: any) => Number(x.amid) === amid);
-  if (mp && mp.descr) return mp.descr.split('/')[0] || mp.descr;
-
-  return '';
+  if (name) state.assetNameMap[amid] = name;
+  return name;
 }
 export function getAssetPrice(amid: number) {
   return state.priceMap[amid] || { curr: 0, prev: 0 };
@@ -664,21 +1043,30 @@ export function getStoredLedgers(acid?: string | number): Ledger[] {
 }
 
 export function getStoredVouchers(): Voucher[] {
+  if (cachedStoredVouchers) return cachedStoredVouchers;
   // NOTE: vouchersc1 and vouchers1 contain DIFFERENT vouchers from different accounts.
   // Their vid values are sequential within each table independently and can coincide.
   // Do NOT deduplicate by vid across tables — concatenate both fully.
-  return [...state.vouchersC1, ...state.vouchers1].map((v: any) => ({
+  cachedStoredVouchers = [...state.vouchersC1, ...state.vouchers1].map((v: any) => ({
     id: `${v._src || 'v'}_${v.vid}`,
     date: v.dt || '',
-    type: String(v.vtyp || 'journal'),
+    type: ({ 1: 'payment', 2: 'payment', 3: 'contra', 4: 'receipt', 5: 'journal', 6: 'payment', 10: 'receipt', 12: 'contra', 14: 'purchase', 15: 'sale' } as Record<number | string, string>)[v.vtyp] || String(v.vtyp || 'journal'),
     narration: v.narr || '',
     voucherNo: `V-${v.vid}`,
     portfolioId: v.pfid ? String(v.pfid) : undefined,
     accountId: v.acid ? String(v.acid) : undefined,
   }));
+  const map: Record<string, any> = {};
+  for (let i = 0; i < cachedStoredVouchers.length; i++) {
+    const v = cachedStoredVouchers[i];
+    map[v.id] = v;
+  }
+  cachedVouchersMap = map;
+  return cachedStoredVouchers;
 }
 
 export function getStoredEntries(): Entry[] {
+  if (cachedStoredEntries) return cachedStoredEntries;
   // NOTE: transc1 and trans1 contain DIFFERENT entries from different accounts.
   // Their transid values are sequential within each table independently and can coincide.
   // Do NOT deduplicate by transid across tables — concatenate both fully.
@@ -705,7 +1093,22 @@ export function getStoredEntries(): Entry[] {
     date: e.dt || '',
     accountId: e.acid ? String(e.acid) : undefined,
   }));
-  return [...c1, ...t1];
+  cachedStoredEntries = [...c1, ...t1];
+
+  const byVid = new Map<string, Entry[]>();
+  for (let i = 0; i < cachedStoredEntries.length; i++) {
+    const entry = cachedStoredEntries[i];
+    if (entry.voucherId) {
+      let list = byVid.get(entry.voucherId);
+      if (!list) {
+        list = [];
+        byVid.set(entry.voucherId, list);
+      }
+      list.push(entry);
+    }
+  }
+  cachedEntriesByVoucherId = byVid;
+  return cachedStoredEntries;
 }
 
 export function getStoredTaxLots() { return []; }
@@ -713,6 +1116,16 @@ export function getStoredPrices() { return state.priceMap; }
 
 export function resolveAssetType(pfid: number, amid: number, defaultAtty?: number): number {
   const amidNum = Number(amid);
+  const cacheKey = `${pfid}_${amidNum}_${defaultAtty || ''}`;
+  const hit = resolvedAssetTypeCache.get(cacheKey);
+  if (hit !== undefined) return hit;
+
+  const res = _resolveAssetTypeInner(pfid, amidNum, defaultAtty);
+  resolvedAssetTypeCache.set(cacheKey, res);
+  return res;
+}
+
+function _resolveAssetTypeInner(pfid: number, amidNum: number, defaultAtty?: number): number {
   let resolvedAtty = defaultAtty || 50;
 
   const groupAttyMap: Record<number, number> = {
@@ -721,7 +1134,7 @@ export function resolveAssetType(pfid: number, amid: number, defaultAtty?: numbe
     200061: 60,   // Mutual Funds (Equity)
     200062: 61,   // Mutual Funds (Debt)
     200058: 200,  // Special Inv. Funds
-    200141: 70,   // NPS/ULIP
+    200141: 95,   // NPS/ULIP
     200140: 80,   // Insurance
     200066: 190,  // Private Equity
     200095: 90,   // FDs
@@ -730,7 +1143,7 @@ export function resolveAssetType(pfid: number, amid: number, defaultAtty?: numbe
     200115: 120,  // Deposits/Loans
     200120: 130,  // PPF/EPF
     200135: 140,  // Post Office
-    200075: 150,  // Gold
+    200075: 60,   // Mutual Funds (Other / FoF / Multi-Asset) - was incorrectly mapped to 150 Gold!
     200077: 151,  // Silver
     200155: 170,  // Jewellery
     200150: 160,  // Properties
@@ -739,46 +1152,63 @@ export function resolveAssetType(pfid: number, amid: number, defaultAtty?: numbe
     200195: 220,  // Loans
   };
 
+  const assetName = getAssetName(amidNum);
+  const cleanTargetName = assetName.toLowerCase().trim();
+  const isin = getAssetISIN(amidNum);
+  const isMfIsin = Boolean(isin && isin.toUpperCase().startsWith('INF'));
+  const isMutualFund = isMfIsin || /\b(fund|fof|growth|idcw|dividend|direct plan|regular plan|multi.?asset|arbitrage|hybrid|asset allocation|index fund|elss)\b/i.test(cleanTargetName);
+
   // ── Priority 1: Exact Database Chart of Accounts Category (acmac1.parent_id) ──
-  const exactIdMatch = state.acmac1.find((l: any) => !l.is_group && Number(l.exint1 || l.amid || l.id) === amidNum);
+  // Ground truth database classification MUST always come first
+  const exactIdMatch = acmac1ByAmidMap.get(amidNum) || state.acmac1.find((l: any) => !l.is_group && Number(l.parent_id) >= 200000 && Number(l.exint1 || l.amid || l.id) === amidNum);
   if (exactIdMatch && exactIdMatch.parent_id) {
     const parentId = Number(exactIdMatch.parent_id);
     if (groupAttyMap[parentId] !== undefined) {
       // If it is explicitly classified as Stocks in COA, return Stocks unconditionally
       if (groupAttyMap[parentId] === 50) return 50;
-      // If parentId is explicitly Gold/Silver/Property/Bond, return it directly
-      if ([100, 110, 120, 130, 140, 150, 151, 160, 170, 180].includes(groupAttyMap[parentId])) {
+      // If parentId is explicitly Property/Bond/FD/PPF/etc. (and NOT a mutual fund), return it directly
+      if (!isMutualFund && [100, 110, 120, 130, 140, 150, 151, 160, 170, 180].includes(groupAttyMap[parentId])) {
         return groupAttyMap[parentId];
       }
       resolvedAtty = groupAttyMap[parentId];
     }
   }
 
+  // ── Derivatives / Futures & Options (F&O) ──
+  // Real derivatives (F&O) have atyp: 81 (Currency Futures), 82 (Currency Options), 30 (Stock Futures), etc.
+  // They are trading contracts, NOT "Special Inv. Funds" (AIF/SIF 200).
+  const isDerivative = /^(futstk|futidx|futcur|futcom|optstk|optidx|optcur|optcom)/i.test(cleanTargetName) ||
+                       (/\b(futures?|options?)\b/i.test(cleanTargetName) && /\b\d{2}[a-z]{3}\d{2,4}\b/i.test(cleanTargetName));
+  if (isDerivative) {
+    if (/^futcur/i.test(cleanTargetName)) return 81; // Currency Futures
+    if (/^optcur/i.test(cleanTargetName)) return 82; // Currency Options
+    if (/^futstk/i.test(cleanTargetName)) return 30; // Stock Futures
+    if (/^optstk/i.test(cleanTargetName)) return 31; // Stock Options
+    if (/^futidx/i.test(cleanTargetName)) return 32; // Index Futures
+    if (/^optidx/i.test(cleanTargetName)) return 33; // Index Options
+    return defaultAtty || 81;
+  }
+
   // ── Priority 2: Asset Master Explicit Asset Type ──
-  const am = state.assetMaster.find((a: any) => a.amid === amidNum);
+  const am = assetMasterByAmidMap.get(amidNum) || state.assetMaster.find((a: any) => a.amid === amidNum);
   if (am && am.asset_type) {
     const amType = Number(am.asset_type);
     if (amType === 50) return 50; // Stocks
-    resolvedAtty = amType;
+    // Do not let legacy MProfit asset_type 75 or 150 force a Mutual Fund into Gold
+    if (isMutualFund && (amType === 75 || amType === 150)) {
+      resolvedAtty = 60;
+    } else {
+      resolvedAtty = amType;
+    }
   }
 
-  // If defaultAtty is explicitly Stocks (50) and no other override
-  if (defaultAtty === 50 && (!exactIdMatch || exactIdMatch.parent_id === 200050)) {
-    return 50;
+  // Physical Gold & Silver MUST ALWAYS resolve to 150 / 151 regardless of defaultAtty
+  // (Only if it's actually physical gold / silver, NOT a mutual fund or ETF)
+  if (!isMutualFund && (cleanTargetName === 'gold' || cleanTargetName === 'gold r' || /^gold\s*(\([^\)]*\)|coin|bar|24k|22k)?$/i.test(cleanTargetName))) {
+    return 150;
   }
-
-  const assetName = getAssetName(amidNum);
-  const cleanTargetName = assetName.toLowerCase().trim();
-
-  // ── Priority 3: Sub-Classification for Funds & Commodities ──
-  // Metal / Commodity ETFs (Silver ETF, Gold ETF, BeES) -> Listed ETF (atyid 51)
-  if (/silver|gold|commodity|metal/i.test(cleanTargetName) && /etf|bees/i.test(cleanTargetName)) {
-    return 51;
-  }
-
-  // Gold / Silver FoF, Multi-Asset, International FoF -> Unlisted Non-Debt Fund (atyid 75)
-  if (/\b(fof|fund of funds?|multi\s*asset(\s*fund)?|overseas\s*fund|international\s*fund|global\s*fund)\b/i.test(cleanTargetName) && !/etf|bees/i.test(cleanTargetName)) {
-    return 75;
+  if (!isMutualFund && (cleanTargetName === 'silver' || cleanTargetName === 'silver r' || /^silver\s*(\([^\)]*\)|coin|bar)?$/i.test(cleanTargetName))) {
+    return 151;
   }
 
   // Sovereign Gold Bonds (SGB) -> Traded Bonds (100)
@@ -786,15 +1216,49 @@ export function resolveAssetType(pfid: number, amid: number, defaultAtty?: numbe
     return 100;
   }
 
-  // Physical Gold & Silver
-  if (cleanTargetName === 'gold' || cleanTargetName === 'gold r' || /^gold\s*(\([^\)]*\))?$/i.test(cleanTargetName)) {
-    return 150;
-  }
-  if (cleanTargetName === 'silver' || cleanTargetName === 'silver r' || /^silver\s*(\([^\)]*\))?$/i.test(cleanTargetName)) {
-    return 151;
+  // Government of India Dated Securities (G-Sec) & Treasury Bills -> Traded Bonds (100)
+  // (e.g. 7.72 GS 2055, 7.18 GS 2033, 7.26 GS 2032)
+  if (/\b(\d+\.?\d*\s*%?\s*gs\b|gs\s*\d{4}|\bg-sec\b|gov.*sec|treasury|tbill)\b/i.test(cleanTargetName)) {
+    return 100;
   }
 
-  // SEBI / AMFI Debt Mutual Funds (atyid 61)
+  // Unlisted Shares / Private Equity (e.g. Chennai Super Kings, CSK)
+  if (/chennai super kings|\bcsk\b|unlisted|pre.?ipo/i.test(cleanTargetName)) {
+    return 190;
+  }
+
+  // ── Priority 3: Sub-Classification for Funds & Commodities (AMFI / SEBI Aligned) ──
+
+
+  // Metal / Commodity ETFs (Traded on Exchange, NOT FoFs) → Listed ETF (atty 51)
+  if (/silver|gold|commodity|metal/i.test(cleanTargetName) && /etf|bees/i.test(cleanTargetName) && !/fund.?of.?fund|fof/i.test(cleanTargetName)) {
+    return 51;
+  }
+
+  // ── AMFI / SEBI: Multi Asset Allocation Funds ──────────────────────────────
+  // Multi Asset Allocation is a SEBI Hybrid scheme investing in >= 3 asset classes (min 10% each).
+  // In MProfit Desktop (and accounting classification), Multi Asset Allocation is grouped under Mutual Funds (Debt / Hybrid, atty 61).
+  if (/\b(multi.?asset(\s+allocation)?(\s+fund)?)\b/i.test(cleanTargetName)) {
+    return 61;
+  }
+
+  // ── AMFI / SEBI: Other Hybrid Schemes (Equity-Oriented) ───────────────────
+  // Aggressive Hybrid, Balanced Advantage, Dynamic Asset Allocation, Equity Savings, Arbitrage
+  if (/\b(balanced.?advantage|dynamic.?asset.?allocation|equity.?savings|aggressive.?hybrid|equity.?hybrid|balanced.?hybrid|arbitrage)\b/i.test(cleanTargetName)) {
+    return 60;
+  }
+
+  // ── AMFI / SEBI: Solution Oriented & Fund of Funds (Domestic & Overseas) ──
+  if (/\b(overseas\s+fund|international\s+fund|global\s+fund|retirement|children|fof|fund.?of.?fund)\b/i.test(cleanTargetName) && !/gold|silver|commodity|precious.?metal/i.test(cleanTargetName)) {
+    return 60;
+  }
+
+  // If defaultAtty is explicitly Stocks (50) and no other override
+  if (defaultAtty === 50 && (!exactIdMatch || exactIdMatch.parent_id === 200050)) {
+    return 50;
+  }
+
+  // ── AMFI / SEBI: Debt Mutual Funds (atty 61) ──────────────────────────────
   const isDebtMf = (
     /\b(liquid|liquidity|overnight|money\s*market|gilt|treasury)\b/i.test(cleanTargetName) ||
     /\b(ultra\s*short|low\s*duration|short\s*duration|short\s*term\s*(debt|bond)?|medium\s*duration|medium\s*term|long\s*duration)\b/i.test(cleanTargetName) ||
@@ -809,11 +1273,26 @@ export function resolveAssetType(pfid: number, amid: number, defaultAtty?: numbe
     return 61; // Mutual Funds (Debt)
   }
 
-  // Rule 4: Map legacy / MProfit atty codes
-  if (resolvedAtty === 75) return 150;  // Gold (MProfit atty 75 -> WealthCore atty 150)
-  if (resolvedAtty === 77) return 151;  // Silver (MProfit atty 77 -> WealthCore atty 151)
-  if (resolvedAtty === 40) return 100; // Traded Bonds
-  if (resolvedAtty === 30) return 90;  // FDs
+  // If identified as a mutual fund and not debt, default to 60 (MF Equity / Hybrid)
+  if (isMutualFund) {
+    return 60;
+  }
+
+  // Rule 4: Map legacy MProfit atty codes
+  // atty 75 in MProfit = "Unlisted Non-Debt Fund" — was incorrectly remapped to Gold (150).
+  // Now: only remap to Gold if the asset name actually indicates physical gold.
+  if (resolvedAtty === 75) {
+    if (/gold|silver|commodity|precious.?metal/i.test(cleanTargetName)) return 150;
+    return 60; // Everything else that MProfit tagged as atty-75 -> MF Equity
+  }
+  if (resolvedAtty === 77) return 151;  // Silver
+  if (resolvedAtty === 40) return 100;  // Traded Bonds
+  if (resolvedAtty === 30) return 90;   // FDs
+  if (resolvedAtty === 70) {
+    if (/\b(ulip|nps|policy|pension|life\s+insurance)\b/i.test(cleanTargetName)) return 95;
+    if (/\b(ncd|debenture|power|mld|corp)\b/i.test(cleanTargetName)) return 110;
+    return 100;
+  }
 
   return resolvedAtty;
 }
@@ -833,40 +1312,22 @@ export interface AssetHolding {
   }>;
 }
 
-export function getHoldings(portfolioIds: number[], assetTypeFilter?: number | number[], includeZeroQty: boolean = false): AssetHolding[] {
+export function getHoldings(
+  portfolioIds: number[], 
+  assetTypeFilter?: number | number[], 
+  includeZeroQty: boolean = false,
+  includeAccountingLedgers: boolean = true
+): AssetHolding[] {
   const pSet = new Set(portfolioIds);
   
   // 1. Filter sum_table for active holdings (qnt > 0 or currv > 0)
   // We exclude amtinv > 0 because sold assets often still retain an amtinv value in the sumTable
+  // Safeguard: Exclude rogue / phantom records (amid 1490)
   const rows = state.sumTable.filter((s: any) => 
     pSet.has(s.pfolio_id) && 
+    s.amid !== 1490 &&
     (includeZeroQty || Number(s.qnt) > 0.0001 || Number(s.currv) > 0.01)
   );
-
-  // Map parent group IDs in acmac1 to correct UI atty codes
-  const groupAttyMap: Record<number, number> = {
-    200050: 50,   // Stocks
-    200051: 50,   // Stock-in-Trade -> Stocks
-    200061: 60,   // Mutual Funds (Equity)
-    200062: 61,   // Mutual Funds (Debt)
-    200058: 200,  // Special Inv. Funds
-    200141: 70,   // NPS/ULIP
-    200140: 80,   // Insurance
-    200066: 190,  // Private Equity
-    200095: 90,   // FDs
-    200040: 100,  // Traded Bonds
-    200070: 110,  // NCD/Debentures
-    200115: 120,  // Deposits/Loans
-    200120: 130,  // PPF/EPF
-    200135: 140,  // Post Office
-    200075: 150,  // Gold
-    200077: 151,  // Silver
-    200155: 170,  // Jewellery
-    200150: 160,  // Properties
-    200145: 180,  // Art
-    200160: 210,  // AIF
-    200195: 220,  // Loans
-  };
 
   // 2. Pre-resolve asset types for all active rows
   const resolvedRows = rows.map((s: any) => {
@@ -889,26 +1350,61 @@ export function getHoldings(portfolioIds: number[], assetTypeFilter?: number | n
 
     const qty = Number(s.qnt) || 0;
     const currv = Number(s.currv) || 0;
+    const inv = Number(s.amtinv) || 0;
     const tgain = Number(s.tgain) || 0;
-    const fallbackCurr = qty > 0 ? currv / qty : 0;
-    const fallbackPrev = qty > 0 ? fallbackCurr - (tgain / qty) : fallbackCurr;
+
+    const rawName = state.assetNameMap[amid] || '';
+    const isDerivative = [30, 31, 32, 33, 80, 81, 82, 83, 84].includes(s.resolvedAtty) ||
+                         /^(futstk|futidx|futcur|futcom|optstk|optidx|optcur|optcom)/i.test(rawName);
+
+    // Closed / expired derivatives (zero quantity) must NEVER be shown as active delivery holdings in PMS
+    if (isDerivative && qty <= 0.0001 && !includeZeroQty) {
+      return;
+    }
+
+    // Determine effective quantity:
+    // Non-unitized physical assets (PPF, FD, Properties, Jewellery, etc.) use 1 when only amount is tracked.
+    // Derivatives, stocks, and mutual funds with 0 quantity must NEVER be inflated to 1!
+    const isNonUnitizedAsset = [90, 110, 120, 130, 140, 150, 151, 160, 170, 180, 190, 220].includes(s.resolvedAtty);
+    const effectiveQty = qty > 0 ? qty : ((isNonUnitizedAsset && (currv > 0 || inv > 0)) ? 1 : 0);
+
+    if (effectiveQty <= 0 && !includeZeroQty) {
+      return;
+    }
+
+    const fallbackCurr = effectiveQty > 0 ? (currv > 0 ? currv / effectiveQty : inv / effectiveQty) : 0;
+    const fallbackPrev = effectiveQty > 0 ? fallbackCurr - (tgain / effectiveQty) : fallbackCurr;
 
     let currPrice = price.curr || fallbackCurr;
     let prevPrice = price.prev || fallbackPrev;
 
-    // Fixed Income assets (Bonds, NCDs, FDs, PPF, Deposits) cost-price fallback when no live price is available
-    const inv = Number(s.amtinv) || 0;
-    const avgPrice = qty > 0 ? inv / qty : 0;
-    const isFixedIncome = [40, 90, 100, 110, 120, 130].includes(s.resolvedAtty);
-    if (currPrice === 0 && isFixedIncome) {
+    // For any asset where no live quote exists (e.g. unlisted equity, private equity, non-traded bonds/FDs/commodities),
+    // fall back to purchase cost (avgPrice = amtinv / qty) so price and value are never 0 or missing.
+    const avgPrice = effectiveQty > 0 ? inv / effectiveQty : 0;
+    if (currPrice === 0 && avgPrice > 0) {
       currPrice = avgPrice;
       prevPrice = avgPrice;
+    }
+
+    let finalAssetName = state.assetNameMap[amid] || `Asset ${amid}`;
+    const isMarketAsset = [50, 51, 60, 61, 75, 77, 100].includes(s.resolvedAtty);
+    if (!isMarketAsset || finalAssetName.startsWith('Asset ')) {
+      const ledgerMatch = acmac1ByAmidMap.get(amid) || state.acmac1.find((l: any) => !l.is_group && (
+        Number(l.exint1 || l.amid) === amid ||
+        (Number(l.parent_id) >= 200000 && Number(l.id) === amid) ||
+        (s.sid && Number(l.id) === 500000 + Number(s.sid))
+      ));
+      if (ledgerMatch && ledgerMatch.name) {
+        finalAssetName = ledgerMatch.name;
+      } else if (s.resolvedAtty === 130 && (/^fut/i.test(finalAssetName) || finalAssetName.startsWith('Asset '))) {
+        finalAssetName = 'Public Provident Fund';
+      }
     }
 
     if (!map[amid]) {
       map[amid] = {
         assetId: amid, 
-        assetName: state.assetNameMap[amid] || `Asset ${amid}`,
+        assetName: finalAssetName,
         amid, 
         assetType: s.resolvedAtty,
         assetTypeName: ASSET_TYPE_MAP[s.resolvedAtty] || 'Other',
@@ -928,7 +1424,7 @@ export function getHoldings(portfolioIds: number[], assetTypeFilter?: number | n
       };
     }
     const h = map[amid];
-    const qtyRow = Number(s.qnt) || 0;
+    const qtyRow = effectiveQty;
     h.quantity += qtyRow;
     h.amtInvested += inv;
     const port = state.portfolios.find((p: any) => p.id === s.pfolio_id);
@@ -950,9 +1446,158 @@ export function getHoldings(portfolioIds: number[], assetTypeFilter?: number | n
     }
   });
 
+  // ── Non-Unitized Accounting Investment Ledgers (PPF, EPF, FDs, Properties, etc.) ──
+  const NON_UNITIZED_GROUPS: Record<number, number> = {
+    200120: 130, // PPF/EPF
+    200095: 90,  // Fixed Deposits
+    200070: 110, // NCD / Debentures
+    200115: 120, // Deposits / Loans
+    200135: 140, // Post Office
+    200150: 160, // Properties
+    200155: 170, // Jewellery
+    200145: 180, // Art
+    200066: 190, // Private Equity
+    200160: 210, // AIF
+    200195: 220, // Loans
+  };
+
+  // Helper to resolve the primary investment portfolio for an accounting entity (acid)
+  const getPrimaryPortfolioForAcid = (acid: number): number | null => {
+    const linkedPfids = (state.accPflink || [])
+      .filter((al: any) => Number(al.acid) === acid)
+      .map((al: any) => Number(al.pfid));
+    
+    if (linkedPfids.length === 0) return null;
+    if (linkedPfids.length === 1) return linkedPfids[0];
+
+    const candidatePorts = (state.portfolios || []).filter((p: any) => linkedPfids.includes(Number(p.id)));
+
+    // Primary portfolio has pfolio_type === 0, does not start with 'x' (case-insensitive),
+    // and is not a sub-account (e.g. 'MF', 'FO', 'CURR', 'Smallcase', etc.)
+    const primary = candidatePorts.find((pt: any) => 
+      pt.pfolio_type === 0 && 
+      !pt.investor_name.toLowerCase().startsWith('x') &&
+      !pt.investor_name.toLowerCase().includes(' mf') &&
+      !pt.investor_name.toLowerCase().includes('curr') &&
+      !pt.investor_name.toLowerCase().includes(' fo') &&
+      !pt.investor_name.toLowerCase().includes('fno') &&
+      !pt.investor_name.toLowerCase().includes('smallcase')
+    );
+
+    return primary ? Number(primary.id) : linkedPfids[0];
+  };
+
+  if (includeAccountingLedgers) {
+    const matchingLedgers = (state.acmac1 || []).filter((a: any) => {
+      if (a.is_group) return false;
+      if (NON_UNITIZED_GROUPS[Number(a.parent_id)] === undefined) return false;
+      const primPfid = getPrimaryPortfolioForAcid(Number(a.acid));
+      return primPfid !== null && pSet.has(primPfid);
+    });
+
+    matchingLedgers.forEach((l: any) => {
+      const lid = Number(l.id);
+      const targetAtty = NON_UNITIZED_GROUPS[Number(l.parent_id)];
+
+      // Skip if filtered out by assetTypeFilter
+      if (assetTypeFilter !== undefined) {
+        const types = Array.isArray(assetTypeFilter) ? assetTypeFilter : [assetTypeFilter];
+        if (!types.includes(targetAtty)) return;
+      }
+
+      // Check if already mapped from sumTable to avoid duplicate entry
+      if (map[lid]) return;
+      const cleanLedgerName = (l.name || '').toLowerCase().trim();
+      const alreadyMapped = Object.values(map).some(h => {
+        const hName = (h.assetName || '').toLowerCase().trim();
+        if (hName === cleanLedgerName) return true;
+        // Deduplicate PPF accounts by member
+        const isBothPPF = (hName.includes('ppf') || h.assetType === 130) && (cleanLedgerName.includes('ppf') || targetAtty === 130);
+        if (isBothPPF) {
+          const hKrisha = hName.includes('krisha') || hName.includes('kss') || h.amid === 501714 || h.amid === 537;
+          const lKrisha = cleanLedgerName.includes('krisha') || cleanLedgerName.includes('kss') || Number(l.acid) === 36 || lid === 501714;
+          if (hKrisha && lKrisha) return true;
+
+          const hPramesh = hName.includes('pramesh') || hName.includes('prs') || h.amid === 500776 || h.amid === 302;
+          const lPramesh = cleanLedgerName.includes('pramesh') || cleanLedgerName.includes('prs') || Number(l.acid) === 30 || lid === 500776;
+          if (hPramesh && lPramesh) return true;
+
+          const hSaahil = hName.includes('saahil') || hName.includes('sps') || h.amid === 500777 || h.amid === 303;
+          const lSaahil = cleanLedgerName.includes('saahil') || cleanLedgerName.includes('sps') || Number(l.acid) === 31 || lid === 500777;
+          if (hSaahil && lSaahil) return true;
+
+          const hUnnati = hName.includes('unnati') || hName.includes('ups') || h.amid === 501389 || h.amid === 393;
+          const lUnnati = cleanLedgerName.includes('unnati') || cleanLedgerName.includes('ups') || Number(l.acid) === 29 || lid === 501389;
+          if (hUnnati && lUnnati) return true;
+        }
+        return false;
+      });
+      if (alreadyMapped) return;
+
+      // In MProfit, acmac1.db_bal - acmac1.cr_bal is the cumulative closing balance
+      // matching the Accounting Balance Sheet. Both PMS and Balance Sheet MUST be identical.
+      const netBalance = Number(((Number(l.db_bal) || 0) - (Number(l.cr_bal) || 0)).toFixed(2));
+
+      if (!includeZeroQty && netBalance <= 0.01) return;
+
+      // Associate with primary portfolio
+      const targetPfid = getPrimaryPortfolioForAcid(Number(l.acid)) || portfolioIds[0];
+      const portObj = (state.portfolios || []).find((p: any) => Number(p.id) === targetPfid);
+
+      map[lid] = {
+        assetId: lid,
+        assetName: l.name || 'Investment',
+        amid: lid,
+        assetType: targetAtty,
+        assetTypeName: ASSET_TYPE_MAP[targetAtty] || 'Other',
+        assetIcon: ASSET_TYPE_ICON[targetAtty] || 'OTH',
+        quantity: 0,
+        avgPrice: 0,
+        amtInvested: netBalance,
+        currentPrice: 0,
+        prevPrice: 0,
+        todaysGain: 0,
+        todaysGainPct: 0,
+        overallGain: 0,
+        overallGainPct: 0,
+        currentValue: netBalance,
+        portfolioSplits: [{
+          portfolioId: targetPfid,
+          portfolioName: portObj?.investor_name || `Portfolio ${targetPfid}`,
+          quantity: 0,
+          amtInvested: netBalance,
+          currentValue: netBalance
+        }]
+      };
+    });
+  }
+
   return Object.values(map).map(h => {
-    h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : 0;
-    h.currentValue = h.quantity * h.currentPrice;
+    const isNonUnitized = [130, 90, 110, 120, 140, 160, 170, 180, 210, 220].includes(h.assetType) ||
+      (h.assetTypeName || '').toLowerCase().includes('ppf') ||
+      (h.assetTypeName || '').toLowerCase().includes('epf') ||
+      h.assetName.toLowerCase().startsWith('ppf') ||
+      h.assetName.toLowerCase().startsWith('epf');
+
+    if (isNonUnitized) {
+      h.quantity = 0;
+      h.avgPrice = 0;
+      h.currentPrice = 0;
+      h.prevPrice = 0;
+      h.todaysGain = 0;
+      h.todaysGainPct = 0;
+      h.overallGain = 0;
+      h.overallGainPct = 0;
+      h.currentValue = h.amtInvested;
+      return h;
+    }
+
+    h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : (h.amtInvested > 0 ? h.amtInvested : 0);
+    if (h.currentPrice === 0 && h.avgPrice > 0) {
+      h.currentPrice = h.avgPrice;
+      h.prevPrice = h.avgPrice;
+    }
+    h.currentValue = h.quantity > 0 ? h.quantity * h.currentPrice : (h.amtInvested > 0 ? h.amtInvested : 0);
     h.overallGain = h.currentValue > 0 ? h.currentValue - h.amtInvested : 0;
     h.overallGainPct = h.amtInvested > 0 && h.currentValue > 0 ? (h.overallGain / h.amtInvested) * 100 : 0;
     h.todaysGain = h.prevPrice > 0 ? h.quantity * (h.currentPrice - h.prevPrice) : 0;
@@ -969,17 +1614,28 @@ export function getAssetISIN(amid: number): string {
     return (isinDict as Record<string, string>)[key];
   }
   if (state.isinMap[amid]) return state.isinMap[amid];
+
+  let isin = '';
   const s = state.sam.find((x: any) => x.amid === amid);
-  if (s && (s.isin || s.isincode || s.isin_code)) return String(s.isin || s.isincode || s.isin_code).trim();
-  const a = state.assetMaster.find((x: any) => x.amid === amid);
-  if (a && (a.isin || a.isincode || a.isin_code)) return String(a.isin || a.isincode || a.isin_code).trim();
-  const ac = state.acmac1.find((x: any) => x.id === amid);
-  if (ac && (ac.isin || ac.isincode)) return String(ac.isin || ac.isincode).trim();
-  const b = state.bs1.find((x: any) => x.amid === amid && (x.isin || x.isincode || x.isin_code));
-  if (b) return String(b.isin || b.isincode || b.isin_code).trim();
-  const t = (state.transC1 || []).find((x: any) => x.amid === amid && (x.isin || x.isincode || x.isin_code));
-  if (t) return String(t.isin || t.isincode || t.isin_code).trim();
-  return '';
+  if (s && (s.isin || s.isincode || s.isin_code)) isin = String(s.isin || s.isincode || s.isin_code).trim();
+  else {
+    const a = assetMasterByAmidMap.get(amid) || state.assetMaster.find((x: any) => x.amid === amid);
+    if (a && (a.isin || a.isincode || a.isin_code)) isin = String(a.isin || a.isincode || a.isin_code).trim();
+    else {
+      const ac = acmac1ByAmidMap.get(amid) || state.acmac1.find((x: any) => x.id === amid);
+      if (ac && (ac.isin || ac.isincode)) isin = String(ac.isin || ac.isincode).trim();
+      else {
+        const b = state.bs1.find((x: any) => x.amid === amid && (x.isin || x.isincode || x.isin_code));
+        if (b) isin = String(b.isin || b.isincode || b.isin_code).trim();
+        else {
+          const t = (state.transC1 || []).find((x: any) => x.amid === amid && (x.isin || x.isincode || x.isin_code));
+          if (t) isin = String(t.isin || t.isincode || t.isin_code).trim();
+        }
+      }
+    }
+  }
+  state.isinMap[amid] = isin;
+  return isin;
 }
 
 export interface PortfolioSummary {
@@ -1017,15 +1673,30 @@ export function getPortfolioSummary(portfolioIds: number[]): PortfolioSummary {
 
 export function getFolioNumber(sid?: number | string, amid?: number | string, pfid?: number | string): string {
   if (sid) {
-    const sEntry = state.sumTable.find((s: any) => Number(s.sid) === Number(sid));
-    if (sEntry && sEntry.refno && sEntry.refno.trim()) return sEntry.refno.trim();
+    const numSid = Number(sid);
+    const hit = sumTableBySid.get(numSid);
+    if (hit) return hit;
+    const sEntry = state.sumTable.find((s: any) => Number(s.sid) === numSid);
+    if (sEntry && sEntry.refno && sEntry.refno.trim()) {
+      const ref = sEntry.refno.trim();
+      sumTableBySid.set(numSid, ref);
+      return ref;
+    }
   }
   if (amid && pfid) {
+    const key = `${amid}_${pfid}`;
+    const hit = sumTableByAmidPfid.get(key);
+    if (hit) return hit;
     const sEntry = state.sumTable.find((s: any) => Number(s.amid) === Number(amid) && Number(s.pfolio_id) === Number(pfid));
-    if (sEntry && sEntry.refno && sEntry.refno.trim()) return sEntry.refno.trim();
+    if (sEntry && sEntry.refno && sEntry.refno.trim()) {
+      const ref = sEntry.refno.trim();
+      sumTableByAmidPfid.set(key, ref);
+      return ref;
+    }
   }
   if (amid) {
-    const l = state.acmac1.find((a: any) => a.id === Number(amid));
+    const numAmid = Number(amid);
+    const l = acmac1ByAmidMap.get(numAmid) || state.acmac1.find((a: any) => a.id === numAmid);
     if (l && l.name) {
       const match = l.name.match(/\(([^)]+)\)$/);
       if (match) return match[1].trim();
@@ -1040,76 +1711,148 @@ export function getAssetTransactions(portfolioIds: number[], amid: number, start
   let runningQty = 0;
   let runningCost = 0;
 
+  // 1. Check for Buy/Sell trade records from bs1 (Stocks, Mutual Funds, Traded Bonds)
   const allTx = state.bs1
-    .filter((t: any) => pSet.has(t.pfid) && t.amid === amid)
+    .filter((t: any) => (pSet.size === 0 || pSet.has(t.pfid)) && t.amid === amid)
     .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
 
-  let openingQty = 0;
-  let openingCost = 0;
+  if (allTx.length > 0) {
+    let openingQty = 0;
+    let openingCost = 0;
 
-  const transactionsWithinPeriod: any[] = [];
+    const transactionsWithinPeriod: any[] = [];
 
-  allTx.forEach((t: any) => {
-    const qty = Number(t.qn) || 0;
-    const price = Number(t.purpr) || 0;
-    const amount = Number(t.amt) || 0;
-    const isBuy = [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(t.trty);
+    allTx.forEach((t: any) => {
+      const qty = Number(t.qn) || 0;
+      const price = Number(t.purpr) || 0;
+      const amount = Number(t.amt) || 0;
+      const isBuy = [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(t.trty);
 
-    if (isBuy) {
-      runningQty += qty;
-      runningCost += amount;
-    } else {
-      const prevQty = runningQty;
-      runningQty -= qty;
-      if (prevQty > 0) {
-        runningCost -= (qty / prevQty) * runningCost;
+      if (isBuy) {
+        runningQty += qty;
+        runningCost += amount;
       } else {
-        runningCost -= amount;
+        const prevQty = runningQty;
+        runningQty -= qty;
+        if (prevQty > 0) {
+          runningCost -= (qty / prevQty) * runningCost;
+        } else {
+          runningCost -= amount;
+        }
       }
-    }
 
-    const port = state.portfolios.find((p: any) => p.id === t.pfid);
-    const date = t.dt || '';
+      const port = state.portfolios.find((p: any) => p.id === t.pfid);
+      const date = t.dt || '';
 
-    const folio = getFolioNumber(t.sid, t.amid, t.pfid);
-    const txItem = {
-      id: t.trid,
-      date,
-      type: t.trstr || (isBuy ? 'Buy' : 'Sell'),
-      trty: t.trty,
-      voucherId: 'trid_' + t.trid,
-      portfolioName: port?.investor_name || `Portfolio ${t.pfid}`,
-      portfolioId: t.pfid,
-      folio,
-      quantity: qty,
-      price,
-      amount,
-      brokerage: Number(t.brkg) || 0,
-      charges: Number(t.chrgs) || 0,
-      netPrice: Number(t.netpr) || 0,
-      debit: isBuy ? amount : 0,
-      credit: !isBuy ? amount : 0,
-      balanceQty: runningQty,
-      narration: t.narr || ''
+      const folio = getFolioNumber(t.sid, t.amid, t.pfid);
+      const txItem = {
+        id: t.trid,
+        date,
+        type: t.trstr || (isBuy ? 'Buy' : 'Sell'),
+        trty: t.trty,
+        voucherId: 'trid_' + t.trid,
+        portfolioName: port?.investor_name || `Portfolio ${t.pfid}`,
+        portfolioId: t.pfid,
+        folio,
+        quantity: qty,
+        price,
+        amount,
+        brokerage: Number(t.brkg) || 0,
+        charges: Number(t.chrgs) || 0,
+        netPrice: Number(t.netpr) || 0,
+        debit: isBuy ? amount : 0,
+        credit: !isBuy ? amount : 0,
+        balanceQty: runningQty,
+        balanceCost: runningCost,
+        narration: t.narr || ''
+      };
+
+      const beforeStart = startDate ? date < startDate : false;
+      const afterEnd = endDate ? date > endDate : false;
+
+      if (beforeStart) {
+        openingQty = runningQty;
+        openingCost = runningCost;
+      } else if (!afterEnd) {
+        transactionsWithinPeriod.push(txItem);
+      }
+    });
+
+    return {
+      openingQty,
+      openingCost,
+      closingQty: runningQty,
+      closingCost: runningCost,
+      transactions: transactionsWithinPeriod
     };
+  }
 
-    const beforeStart = startDate ? date < startDate : false;
-    const afterEnd = endDate ? date > endDate : false;
+  // 2. Non-Unitized / Accounting Investment Ledger Fallback (PPF, EPF, FDs, NCDs, Properties, etc.)
+  const amidNum = Number(amid);
+  const ledger = (state.acmac1 || []).find((a: any) => 
+    !a.is_group && (
+      Number(a.id) === amidNum || 
+      Number(a.id) === 500000 + amidNum ||
+      (amidNum >= 500000 && Number(a.id) === amidNum - 500000)
+    )
+  );
 
-    if (beforeStart) {
-      openingQty = runningQty;
-      openingCost = runningCost;
-    } else if (!afterEnd) {
-      transactionsWithinPeriod.push(txItem);
-    }
-  });
+  if (ledger) {
+    const lid = Number(ledger.id);
+    const ledgerData = getLedgerWithBalance(lid, startDate, endDate, ledger.acid);
+    const port = (state.portfolios || []).find((p: any) => pSet.has(p.id)) || 
+                 (state.portfolios || []).find((p: any) => Number(p.accountId) === Number(ledger.acid));
+
+    const transactionsWithinPeriod = (ledgerData.transactions || []).map((t: any, idx: number) => {
+      const dr = Number(t.debit) || 0;
+      const cr = Number(t.credit) || 0;
+      let txType = 'Transaction';
+      if (/interest/i.test(t.againstLedger) || /interest/i.test(t.narration)) txType = 'Interest';
+      else if (dr > 0 && /bank/i.test(t.againstLedger)) txType = 'Deposit';
+      else if (dr > 0) txType = 'Addition';
+      else if (cr > 0 && /capital/i.test(t.againstLedger)) txType = 'Transfer';
+      else if (cr > 0) txType = 'Withdrawal';
+      else if (t.voucherType === 'receipt') txType = 'Deposit';
+      else if (t.voucherType === 'payment') txType = 'Withdrawal';
+
+      return {
+        id: t.voucherId || `ac_${lid}_${idx}`,
+        date: t.date,
+        type: txType,
+        trty: dr > 0 ? 19 : 21,
+        voucherId: t.voucherId,
+        portfolioName: port?.investor_name || 'Portfolio',
+        portfolioId: port?.id || 0,
+        folio: '-',
+        quantity: 0,
+        price: 0,
+        amount: Math.abs(dr - cr),
+        brokerage: 0,
+        charges: 0,
+        netPrice: 0,
+        debit: dr,
+        credit: cr,
+        balanceQty: 0,
+        balanceCost: t.balance,
+        narration: t.againstLedger !== '-' ? t.againstLedger : (t.narration || '')
+      };
+    });
+
+    return {
+      openingQty: 0,
+      openingCost: ledgerData.openingBalance,
+      closingQty: 0,
+      closingCost: ledgerData.closingBalance,
+      transactions: transactionsWithinPeriod
+    };
+  }
 
   return {
-    openingQty,
-    openingCost,
-    closingQty: runningQty,
-    closingCost: runningCost,
-    transactions: transactionsWithinPeriod
+    openingQty: 0,
+    openingCost: 0,
+    closingQty: 0,
+    closingCost: 0,
+    transactions: []
   };
 }
 
@@ -1123,6 +1866,7 @@ export function getPortfolioActivity(portfolioIds: number[], limit = 5000) {
       const port = state.portfolios.find((p: any) => p.id === t.pfid);
       return {
         id: t.trid,
+        voucherId: `trid_${t.trid}`,
         date: t.dt,
         assetName: getAssetName(t.amid),
         assetType: t.atyid,
@@ -1154,14 +1898,71 @@ export function getLedgerWithBalance(
   );
 
   const allEntries = getStoredEntries();
-  const allVouchers = getStoredVouchers();
-  const voucherMap: Record<string, any> = {};
-  allVouchers.forEach((v: any) => { voucherMap[v.id] = v; });
+  getStoredVouchers();
+  const voucherMap: Record<string, any> = cachedVouchersMap || {};
 
   const allPortfolios = getStoredPortfolios();
   const portfolioIds = acidNum
     ? allPortfolios.filter((p: any) => Number(p.accountId) === acidNum).map((p: any) => String(p.id))
     : null;
+
+  // ─── P&L LEDGER DETECTION ────────────────────────────────────────────────
+  // Income / Expense / Capital-Gains ledgers are P&L accounts.
+  // MProfit (and standard accounting) resets them to ZERO at each FY start —
+  // there is NO opening balance carry-forward for P&L accounts.
+  // We detect them by walking the parent_id chain in acmac1 and looking for
+  // special_type_id values:  250 = Profit & Loss,  280 = Income,  290 = Expense
+  const PNL_TYPE_IDS = new Set([250, 280, 290]);
+  function isPnlLedger(row: any): boolean {
+    if (!row) return false;
+    if (PNL_TYPE_IDS.has(Number(row.special_type_id))) return true;
+    // Walk up to 6 levels of parent groups
+    let parentId = row.parent_id;
+    for (let depth = 0; depth < 6 && parentId; depth++) {
+      const parent = (state.acmac1 || []).find(
+        (a: any) => a.id === parentId && (!acidNum || a.acid === acidNum || a.acid === -1)
+      );
+      if (!parent) break;
+      if (PNL_TYPE_IDS.has(Number(parent.special_type_id))) return true;
+      parentId = parent.parent_id;
+    }
+    return false;
+  }
+  const isPlLedger = isPnlLedger(ledgerRow);
+
+  // ─── P&L OPENING BALANCE (SMART: checks if previous FY was closed) ────────
+  // Rule (matches MProfit & standard accounting):
+  //   • If previous FY year-end closing entry WAS posted → net of prev FY ≈ 0 → this FY opens at 0
+  //   • If year-end closing was NOT yet posted → carry forward unclosed balance as opening
+  // We detect this by summing entries for this ledger in the immediately preceding FY period.
+  let plOpeningBalance = 0;
+  if (isPlLedger && startDate) {
+    // Immediately preceding FY: same month/day, one year earlier
+    const prevYearStart = `${parseInt(startDate.substring(0, 4)) - 1}${startDate.substring(4)}`;
+    let prevFyDr = 0, prevFyCr = 0;
+    for (const e of allEntries) {
+      if (String(e.ledgerId) !== lid) continue;
+      if (acidNum) {
+        const v2 = voucherMap[e.voucherId];
+        const eAcid = e.accountId || v2?.accountId;
+        const ePfid = v2?.portfolioId;
+        const belongs2 = (Number(eAcid) === acidNum) ||
+          (ePfid && portfolioIds && portfolioIds.includes(String(ePfid)));
+        if (!belongs2) continue;
+      }
+      const d = e.date || '';
+      if (d >= prevYearStart && d < startDate) {
+        prevFyDr += Number(e.debit) || 0;
+        prevFyCr += Number(e.credit) || 0;
+      }
+    }
+    const prevFyNet = prevFyDr - prevFyCr;
+    // If prev FY net is non-zero (> 0.5 to handle floating point): not closed → carry forward
+    if (Math.abs(prevFyNet) > 0.5) {
+      plOpeningBalance = prevFyNet;
+    }
+    // else: prev FY net ≈ 0 → year was closed → opening stays 0
+  }
 
   // Filter entries for this ledger (and this account/portfolio if acid is provided)
   const entries = allEntries
@@ -1179,8 +1980,10 @@ export function getLedgerWithBalance(
     })
     .sort((a: any, b: any) => (a.date || '').localeCompare(b.date || ''));
 
-  // If no transactions exist, check if acmac1 has a static balance (e.g. legacy ledgers with no vouchers)
+  // If no transactions exist:
   if (entries.length === 0) {
+    if (isPlLedger) return { transactions: [], openingBalance: plOpeningBalance, closingBalance: plOpeningBalance };
+    // For Asset/Liability ledgers with no vouchers, use acmac1 static balance
     const initialDb = Number(ledgerRow?.db_bal) || 0;
     const initialCr = Number(ledgerRow?.cr_bal) || 0;
     const initialNet = initialDb - initialCr;
@@ -1189,12 +1992,15 @@ export function getLedgerWithBalance(
 
   // NOTE: acmac1.db_bal/cr_bal in MProfit are cumulative lifetime totals, NOT starting balances.
   // Starting balance vouchers (VID=0 / DT=0001-01-01) are already included in entries.
-  // Therefore, runningBalance MUST start at 0 to avoid double-counting.
-  let openingBalance = 0;
-  let runningBalance = 0;
+  // P&L ledgers start from plOpeningBalance (0 if prev year closed, else carry-forward amount).
+  let openingBalance = isPlLedger ? plOpeningBalance : 0;
+  let runningBalance = isPlLedger ? plOpeningBalance : 0;
   const transactions: any[] = [];
+  const vtypMap: Record<string, string> = { '1': 'payment', '2': 'payment', '3': 'contra', '4': 'receipt', '5': 'journal', '6': 'payment', '10': 'receipt', '12': 'contra', '14': 'purchase', '15': 'sale' };
 
-  entries.forEach((e: any) => {
+
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
     const dr = Number(e.debit) || 0;
     const cr = Number(e.credit) || 0;
     const v = voucherMap[e.voucherId];
@@ -1205,25 +2011,29 @@ export function getLedgerWithBalance(
     const inRange = (!startDate || entryDate >= startDate) && (!endDate || entryDate <= endDate) && !isOpening;
 
     if (before) {
-      runningBalance += dr - cr;
-      openingBalance = runningBalance;
+      // P&L ledgers (Income/Expense) never carry forward — opening stays 0
+      if (!isPlLedger) {
+        runningBalance += dr - cr;
+        openingBalance = runningBalance;
+      }
     } else if (inRange) {
       runningBalance += dr - cr;
 
-      // Find counter ledger name in the same voucher
+      // Find counter ledger name in the same voucher via pre-indexed Map (O(1) instead of scanning all entries)
       let againstName = '';
       if (e.voucherId) {
-        const otherLegs = allEntries.filter((t: any) => t.voucherId === e.voucherId && t.id !== e.id);
+        const vLegs = cachedEntriesByVoucherId?.get(e.voucherId) || [];
+        const otherLegs = vLegs.filter((t: any) => t.id !== e.id);
         if (otherLegs.length === 1) {
           const otherMaid = otherLegs[0].ledgerId;
-          const otherLedger = (state.acmac1 || []).find((a: any) => String(a.id) === String(otherMaid) && (!acidNum || a.acid === acidNum));
+          const acList = acmac1Map.get(Number(otherMaid));
+          const otherLedger = acList ? acList.find((a: any) => !acidNum || a.acid === acidNum) : (state.acmac1 || []).find((a: any) => String(a.id) === String(otherMaid) && (!acidNum || a.acid === acidNum));
           againstName = otherLedger ? otherLedger.name : getAssetName(Number(otherMaid)) || `Ledger ${otherMaid}`;
         } else if (otherLegs.length > 1) {
           againstName = 'Multiple Accounts';
         }
       }
 
-      const vtypMap: Record<string, string> = { '2': 'payment', '4': 'receipt', '5': 'journal', '14': 'purchase', '15': 'sale' };
       transactions.push({
         date: entryDate,
         voucherId: e.voucherId,
@@ -1235,13 +2045,61 @@ export function getLedgerWithBalance(
         againstLedger: againstName || '-'
       });
     }
-  });
+  }
 
   return { transactions, openingBalance, closingBalance: runningBalance };
 }
 
 
 export function getLedgerBalance(ledgerId: string | number, acid?: string | number): number {
+  const lid = String(ledgerId);
+  const lidNum = Number(ledgerId);
+  const acidNum = acid && acid !== 'undefined' ? Number(acid) : null;
+
+  // 1. Fast path: check indexed maps by numeric ledger ID (O(1) execution in microseconds)
+  if (!isNaN(lidNum) && (transC1ByMaid.has(lidNum) || trans1ByMaid.has(lidNum))) {
+    const c1List = transC1ByMaid.get(lidNum);
+    const t1List = trans1ByMaid.get(lidNum);
+
+    let balance = 0;
+    if (c1List) {
+      for (let i = 0; i < c1List.length; i++) {
+        const e = c1List[i];
+        if (acidNum) {
+          const v = vouchersC1Map.get(e.vid);
+          const entryAcid = e.acid || v?.acid;
+          if (Number(entryAcid) !== acidNum) continue;
+        }
+        balance += (Number(e.dramt) || 0) - (Number(e.cramt) || 0);
+      }
+    }
+    if (t1List) {
+      for (let i = 0; i < t1List.length; i++) {
+        const e = t1List[i];
+        if (acidNum) {
+          const v = vouchers1Map.get(e.vid);
+          const entryAcid = e.acid || v?.acid;
+          if (Number(entryAcid) !== acidNum) continue;
+        }
+        balance += (Number(e.dramt) || 0) - (Number(e.cramt) || 0);
+      }
+    }
+    return balance;
+  }
+
+  // 2. Check acmac1 static balance
+  const acList = !isNaN(lidNum) ? acmac1Map.get(lidNum) : null;
+  const ledgerRow = acList 
+    ? acList.find((a: any) => !a.is_group && (!acidNum || a.acid === acidNum))
+    : (state.acmac1 || []).find((a: any) => !a.is_group && String(a.id) === lid && (!acidNum || a.acid === acidNum));
+
+  if (ledgerRow) {
+    const initialDb = Number(ledgerRow.db_bal) || 0;
+    const initialCr = Number(ledgerRow.cr_bal) || 0;
+    return initialDb - initialCr;
+  }
+
+  // 3. Fallback for non-numeric ledger IDs
   return getLedgerWithBalance(ledgerId, undefined, undefined, acid).closingBalance;
 }
 
@@ -1364,60 +2222,84 @@ export function buildAssetFifoLedger(
   const regularSellTrty = FIFO_SELL_TRTY;
   const results: any[] = [];
 
+  if (!txListIn || txListIn.length === 0) {
+    return { results: [], openLots: [] };
+  }
+
+  // Pre-resolve common asset fields across the entire batch (all txns in txListIn belong to the same asset)
+  const sampleTx = txListIn[0];
+  const commonPfid = sampleTx ? Number(sampleTx.pfid) : 0;
+  const commonAmid = sampleTx ? Number(sampleTx.amid) : 0;
+  const commonAtyid = sampleTx ? Number(sampleTx.atyid) : 50;
+  const commonResolvedAtty = commonAmid ? resolveAssetType(commonPfid, commonAmid, commonAtyid) : 50;
+  const commonAssetName = commonAmid ? getAssetName(commonAmid) : '';
+  const commonIsin = commonAmid ? (getAssetISIN(commonAmid) || sampleTx?.isin || '') : '';
+  const portObj = commonPfid ? state.portfolios.find((p: any) => Number(p.id) === commonPfid) : null;
+  const commonPortName = portObj?.investor_name || portObj?.name || `Portfolio ${commonPfid}`;
+  const commonAssetTypeName = ASSET_TYPE_MAP[commonResolvedAtty] || 'Stocks';
+
   // Clone every transaction before any in-place reordering/redating below.
-  // The originals are live references into state.bs1 — mutating them here
-  // would permanently corrupt the source trade dates for every other
-  // consumer of state.bs1 (holdings, other reports, subsequent calls).
   const txList = txListIn.map(t => ({ ...t }));
 
-  // Pre-pass: If a sell occurs without prior inventory and is covered within 5 days (settlement cycle / short cover),
-  // ensure the buy is processed first so the short trade is closed cleanly and does not leave a phantom buy lot.
+  // Pre-pass: O(N) single-pass settlement-cycle short-cover detection.
+  // If a sell occurs without prior inventory and is covered within 5 days,
+  // ensure the buy is processed first so the short trade is closed cleanly.
+  let priorNetQty = 0;
   for (let i = 0; i < txList.length - 1; i++) {
     const cur = txList[i];
     const next = txList[i + 1];
-    if (cur && next && regularSellTrty.has(Number(cur.trty)) && regularBuyTrty.has(Number(next.trty))) {
-      let priorNetQty = 0;
-      for (let j = 0; j < i; j++) {
-        if (regularBuyTrty.has(Number(txList[j].trty))) priorNetQty += Number(txList[j].qn) || 0;
-        if (regularSellTrty.has(Number(txList[j].trty))) priorNetQty -= Number(txList[j].qn) || 0;
-      }
-      if (priorNetQty < (Number(cur.qn) || 0)) {
-        const dCur = new Date((cur.dt || '').substring(0, 10)).getTime();
-        const dNext = new Date((next.dt || '').substring(0, 10)).getTime();
-        if (Math.abs(dNext - dCur) <= 5 * 86400000) {
-          cur.dt = next.dt;
-          txList[i] = next;
-          txList[i + 1] = cur;
-        }
+    const curTrty = Number(cur.trty);
+    const nextTrty = Number(next.trty);
+    const curQn = Number(cur.qn) || 0;
+
+    if (regularSellTrty.has(curTrty) && regularBuyTrty.has(nextTrty) && priorNetQty < curQn) {
+      const dtCurStr = (cur.dt || '').substring(0, 10);
+      const dtNextStr = (next.dt || '').substring(0, 10);
+      const dCur = Date.parse(dtCurStr);
+      const dNext = Date.parse(dtNextStr);
+      if (!isNaN(dCur) && !isNaN(dNext) && Math.abs(dNext - dCur) <= 5 * 86400000) {
+        cur.dt = next.dt;
+        txList[i] = next;
+        txList[i + 1] = cur;
+        priorNetQty += (Number(next.qn) || 0);
+        continue;
       }
     }
+    if (regularBuyTrty.has(curTrty)) priorNetQty += curQn;
+    else if (regularSellTrty.has(curTrty)) priorNetQty -= curQn;
   }
 
   // Group transactions by date for same-day intraday netting
   const byDate: Record<string, { buys: any[]; sells: any[]; corp: any[] }> = {};
-  txList.forEach(t => {
+  for (let i = 0; i < txList.length; i++) {
+    const t = txList[i];
     const dt = (t.dt || '').slice(0, 10);
     if (!byDate[dt]) byDate[dt] = { buys: [], sells: [], corp: [] };
     const trty = Number(t.trty);
-    if ([85, 45].includes(trty)) {
+    if (trty === 85 || trty === 45) {
       byDate[dt].corp.push(t);
     } else if (regularBuyTrty.has(trty)) {
       byDate[dt].buys.push({ ...t, remQty: Number(t.qn) || 0 });
     } else if (regularSellTrty.has(trty)) {
       byDate[dt].sells.push({ ...t, remQty: Number(t.qn) || 0 });
     }
-  });
+  }
 
   const deliveryLots: any[] = [];
-  const isMf = txList[0] && (txList[0].atyid === 60 || txList[0].atyid === 61 || txList[0].atyid === 62);
+  let lotHead = 0;
+  const isMf = commonAtyid === 60 || commonAtyid === 61 || commonAtyid === 62;
 
-  Object.keys(byDate).sort().forEach(dt => {
+  const dates = Object.keys(byDate).sort();
+  for (let di = 0; di < dates.length; di++) {
+    const dt = dates[di];
     const day = byDate[dt];
 
     // Match same-day buys and sells first ONLY for Stocks/Equities (Intraday netting)
-    if (!isMf) {
-      day.buys.forEach(b => {
-        day.sells.forEach(s => {
+    if (!isMf && day.buys.length > 0 && day.sells.length > 0) {
+      for (let bi = 0; bi < day.buys.length; bi++) {
+        const b = day.buys[bi];
+        for (let si = 0; si < day.sells.length; si++) {
+          const s = day.sells[si];
           if (b.remQty > 0 && s.remQty > 0) {
             const match = Math.min(b.remQty, s.remQty);
             b.remQty -= match;
@@ -1441,14 +2323,18 @@ export function buildAssetFifoLedger(
             const gain = sellVal - buyVal;
 
             if (dt >= fromDate && dt <= toDate) {
-              const port = state.portfolios.find((p: any) => p.id === s.pfid);
-              const atyid = resolveAssetType(Number(s.pfid), Number(s.amid), Number(s.atyid));
-              const isin = getAssetISIN(Number(s.amid));
-              const folio = getFolioNumber(s.sid, s.amid, s.pfid);
+              const sPfid = Number(s.pfid);
+              const sAmid = Number(s.amid);
+              const pName = (sPfid === commonPfid) ? commonPortName : (state.portfolios.find((p: any) => Number(p.id) === sPfid)?.investor_name || `Portfolio ${sPfid}`);
+              const atyid = (sPfid === commonPfid && sAmid === commonAmid) ? commonResolvedAtty : resolveAssetType(sPfid, sAmid, Number(s.atyid));
+              const aname = (sAmid === commonAmid) ? commonAssetName : getAssetName(sAmid);
+              const isin = (sAmid === commonAmid) ? commonIsin : (getAssetISIN(sAmid) || s.isin || '');
+              const folio = getFolioNumber(s.sid, sAmid, sPfid);
+
               results.push({
                 portfolioId: s.pfid,
-                portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
-                assetName: getAssetName(s.amid),
+                portfolioName: pName,
+                assetName: aname,
                 isin,
                 folio,
                 amid: s.amid,
@@ -1471,28 +2357,33 @@ export function buildAssetFifoLedger(
               });
             }
           }
-        });
-      });
+        }
+      }
     }
 
     // Handle Stock Split Outflow (85) & Inflow (45)
-    day.corp.forEach(t => {
-      const trty = Number(t.trty);
-      if (trty === 85) {
-        const inflow = day.corp.find(x => Number(x.trty) === 45);
-        if (inflow && Number(t.qn) > 0) {
-          const ratio = Number(inflow.qn) / Number(t.qn);
-          deliveryLots.forEach(lot => {
-            lot.qty *= ratio;
-            lot.remaining *= ratio;
-            lot.costPerUnit /= ratio;
-          });
+    if (day.corp.length > 0) {
+      for (let ci = 0; ci < day.corp.length; ci++) {
+        const t = day.corp[ci];
+        const trty = Number(t.trty);
+        if (trty === 85) {
+          const inflow = day.corp.find(x => Number(x.trty) === 45);
+          if (inflow && Number(t.qn) > 0) {
+            const ratio = Number(inflow.qn) / Number(t.qn);
+            for (let li = lotHead; li < deliveryLots.length; li++) {
+              const lot = deliveryLots[li];
+              lot.qty *= ratio;
+              lot.remaining *= ratio;
+              lot.costPerUnit /= ratio;
+            }
+          }
         }
       }
-    });
+    }
 
     // Enqueue remaining buys as delivery lots
-    day.buys.forEach(b => {
+    for (let bi = 0; bi < day.buys.length; bi++) {
+      const b = day.buys[bi];
       if (b.remQty > 0) {
         const trty = Number(b.trty);
         const qn = Number(b.qn) || 0;
@@ -1511,35 +2402,32 @@ export function buildAssetFifoLedger(
           pfid: b.pfid,
           sid: b.sid,
           trid: b.trid,
-          // Merger (38) / Demerger (46, 47): under Sec 47(vii)/49(2), amalgamation
-          // is not a "transfer" -- the ORIGINAL acquisition date of the pre-merger
-          // holding should carry forward for holding-period purposes, not the
-          // corporate-action date. This engine does not currently have access to
-          // that original date (it processes one asset's transactions in
-          // isolation and has no link back to the extinguished holding in the
-          // other, pre-merger asset's transaction history), so `date` here is
-          // the corporate-action date -- likely UNDERSTATING the true holding
-          // period. Flagged via corpActionOrigin so results rows can carry a
-          // visible warning instead of silently presenting a possibly-wrong
-          // STCG/LTCG classification as certain.
           corpActionOrigin: [38, 46, 47].includes(trty)
         });
       }
-    });
+    }
 
     // Process remaining sells against earlier delivery FIFO lots
-    day.sells.forEach(s => {
+    for (let si = 0; si < day.sells.length; si++) {
+      const s = day.sells[si];
       let delQty = s.remQty;
-      if (delQty <= 0) return;
+      if (delQty <= 0) continue;
 
       const qn = Number(s.qn) || 0;
       const grossSellAmt = Number(s.amt) || (qn * (Number(s.netpr) || Number(s.purpr) || 0));
       const sellPrice = qn > 0 ? (grossSellAmt / qn) : (Number(s.netpr) || Number(s.purpr) || 0);
-      const port = state.portfolios.find((p: any) => p.id === s.pfid);
       const isInPeriod = dt >= fromDate && dt <= toDate;
 
-      while (delQty > 0.000001 && deliveryLots.length > 0) {
-        const lot = deliveryLots[0];
+      const sPfid = Number(s.pfid);
+      const sAmid = Number(s.amid);
+      const pName = (sPfid === commonPfid) ? commonPortName : (state.portfolios.find((p: any) => Number(p.id) === sPfid)?.investor_name || `Portfolio ${sPfid}`);
+      const resolvedAtty = (sPfid === commonPfid && sAmid === commonAmid) ? commonResolvedAtty : resolveAssetType(sPfid, sAmid, Number(s.atyid));
+      const aname = (sAmid === commonAmid) ? commonAssetName : getAssetName(sAmid);
+      const isin = (sAmid === commonAmid) ? commonIsin : (getAssetISIN(sAmid) || s.isin || '');
+      const atyName = (resolvedAtty === commonResolvedAtty) ? commonAssetTypeName : (ASSET_TYPE_MAP[resolvedAtty] || 'Other');
+
+      while (delQty > 0.000001 && lotHead < deliveryLots.length) {
+        const lot = deliveryLots[lotHead];
         const mq = Math.min(delQty, lot.remaining);
         const cost = mq * lot.costPerUnit;
         const proceeds = mq * sellPrice;
@@ -1548,10 +2436,8 @@ export function buildAssetFifoLedger(
         delQty -= mq;
 
         if (isInPeriod) {
-          const resolvedAtty = resolveAssetType(s.pfid, s.amid, s.atyid);
-          const aname = getAssetName(s.amid);
           const taxRes = computeAssetTax(resolvedAtty, aname, cost, proceeds, lot.date || '', dt || '');
-          const folio = getFolioNumber(s.sid || lot.sid, s.amid, s.pfid);
+          const folio = getFolioNumber(s.sid || lot.sid, sAmid, sPfid);
 
           const corpActionNote = lot.corpActionOrigin
             ? 'REVIEW: cost basis originates from a merger/demerger. Holding period is calculated from the corporate-action date -- Sec 47(vii)/49(2) may entitle this lot to an earlier original acquisition date from the pre-merger holding, which this engine cannot look up automatically. Verify manually before filing.'
@@ -1559,13 +2445,13 @@ export function buildAssetFifoLedger(
 
           results.push({
             portfolioId: s.pfid,
-            portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
+            portfolioName: pName,
             assetName: aname,
-            isin: getAssetISIN(s.amid) || s.isin || '',
+            isin,
             folio,
             amid: s.amid,
             assetType: resolvedAtty,
-            assetTypeName: ASSET_TYPE_MAP[resolvedAtty] || 'Other',
+            assetTypeName: atyName,
             buyDate: lot.date,
             sellDate: dt,
             holdingDays: taxRes.holdingDays,
@@ -1585,25 +2471,25 @@ export function buildAssetFifoLedger(
           });
         }
 
-        if (lot.remaining <= 0.000001) deliveryLots.shift();
+        if (lot.remaining <= 0.000001) {
+          lotHead++;
+        }
       }
 
       if (delQty > 0.000001 && isInPeriod) {
         const proceeds = delQty * sellPrice;
-        const resolvedAtty = resolveAssetType(s.pfid, s.amid, s.atyid);
-        const aname = getAssetName(s.amid);
         const purDt = (s.purdt || s.dt || '').slice(0, 10);
         const taxRes = computeAssetTax(resolvedAtty, aname, 0, proceeds, purDt, dt);
-        const folio = getFolioNumber(s.sid, s.amid, s.pfid);
+        const folio = getFolioNumber(s.sid, sAmid, sPfid);
 
         results.push({
           portfolioId: s.pfid,
-          portfolioName: port?.investor_name || `Portfolio ${s.pfid}`,
+          portfolioName: pName,
           assetName: aname,
-          isin: getAssetISIN(s.amid) || s.isin || '',
+          isin,
           amid: s.amid,
           assetType: resolvedAtty,
-          assetTypeName: ASSET_TYPE_MAP[resolvedAtty] || 'Other',
+          assetTypeName: atyName,
           buyDate: purDt,
           sellDate: dt,
           holdingDays: taxRes.holdingDays,
@@ -1621,10 +2507,11 @@ export function buildAssetFifoLedger(
           realEstateComparison: taxRes.realEstateComparison
         });
       }
-    });
-  });
+    }
+  }
 
-  return { results, openLots: deliveryLots };
+  const remainingOpenLots = lotHead > 0 ? deliveryLots.slice(lotHead).filter(l => l.remaining > 0.000001) : deliveryLots.filter(l => l.remaining > 0.000001);
+  return { results, openLots: remainingOpenLots };
 }
 
 /**
@@ -1852,8 +2739,13 @@ export function expandPortfolioFamily(ids: (number | string)[]): number[] {
 }
 
 export function getCapitalGains(portfolioIds: (number | string)[], fromDate: string, toDate: string) {
-  const expandedSet = new Set<number>(expandPortfolioFamily(portfolioIds));
+  const sortedPfs = [...portfolioIds].map(Number).sort((a, b) => a - b).join(',');
+  const cacheKey = `${sortedPfs}_${fromDate}_${toDate}`;
+  if (capitalGainsCache.has(cacheKey)) {
+    return capitalGainsCache.get(cacheKey)!;
+  }
 
+  const expandedSet = new Set<number>(expandPortfolioFamily(portfolioIds));
   const pSet = expandedSet;
 
   function getScnoteTransferCharges(sc: any, isSell: boolean) {
@@ -1862,75 +2754,79 @@ export function getCapitalGains(portfolioIds: (number | string)[], fromDate: str
     let stamp = Number(sc.stmpchrgs) || 0;
     if (sc.cstr && typeof sc.cstr === 'string') {
       const parts = sc.cstr.split(';');
-      parts.forEach((p: string) => {
-        const [k, v] = p.split('=');
+      for (let pi = 0; pi < parts.length; pi++) {
+        const [k, v] = parts[pi].split('=');
         const key = (k || '').trim().toUpperCase();
         const val = Number(v) || 0;
-        if (['ST', 'TC', 'OC', 'GST', 'SEBI'].includes(key)) {
+        if (key === 'ST' || key === 'TC' || key === 'OC' || key === 'GST' || key === 'SEBI') {
           exp += val;
         } else if (key === 'SC') {
           stamp += val;
         }
-      });
+      }
     }
     return isSell ? exp : (exp + stamp);
   }
 
-  // Build CN charges map: CNID -> { totalAmt, allowableExp }
-  const cnTrades: Record<number, { totalAmt: number }> = {};
-  state.bs1.forEach((t: any) => {
-    const cnid = Number(t.cnid);
-    if (!cnid || cnid <= 0) return;
-    if (!cnTrades[cnid]) cnTrades[cnid] = { totalAmt: 0 };
-    cnTrades[cnid].totalAmt += Number(t.amt) || 0;
-  });
+  // Build CN charges map: lazily cached until next state refresh
+  if (!cachedCnTrades) {
+    cachedCnTrades = {};
+    for (let i = 0; i < state.bs1.length; i++) {
+      const t = state.bs1[i];
+      const cnid = Number(t.cnid);
+      if (!cnid || cnid <= 0) continue;
+      if (!cachedCnTrades[cnid]) cachedCnTrades[cnid] = { totalAmt: 0 };
+      cachedCnTrades[cnid].totalAmt += Number(t.amt) || 0;
+    }
+  }
+  const cnTrades = cachedCnTrades;
 
-  const scMap = new Map<number, { sellExp: number; buyExp: number }>();
-  (state.scnote1 || []).forEach((sc: any) => {
-    const cnid = Number(sc.cnid);
-    if (!cnid || cnid <= 0) return;
-    scMap.set(cnid, {
-      sellExp: getScnoteTransferCharges(sc, true),
-      buyExp: getScnoteTransferCharges(sc, false)
-    });
-  });
+  if (!cachedScMap) {
+    cachedScMap = new Map<number, { sellExp: number; buyExp: number }>();
+    const scList = state.scnote1 || [];
+    for (let i = 0; i < scList.length; i++) {
+      const sc = scList[i];
+      const cnid = Number(sc.cnid);
+      if (!cnid || cnid <= 0) continue;
+      cachedScMap.set(cnid, {
+        sellExp: getScnoteTransferCharges(sc, true),
+        buyExp: getScnoteTransferCharges(sc, false)
+      });
+    }
+  }
+  const scMap = cachedScMap;
 
-  // Group transactions by (pfid, amid, sid for mutual funds/schemes)
-  const allTx = state.bs1
-    .filter((t: any) => {
-      if (!pSet.has(Number(t.pfid))) return false;
-      const atyid = Number(t.atyid);
-      // Exclude Derivatives / F&O (Futures & Options) as they are Business Income (PGBP under Sec 43(5)), not Capital Gains
-      if ([30, 80, 81, 82, 83].includes(atyid)) return false;
-      return true;
-    })
-    .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
+  // Group transactions by (pfid, amid, sid for mutual funds/schemes) in a single fast pass
+  const txByAsset = new Map<string, any[]>();
+  for (let i = 0; i < state.bs1.length; i++) {
+    const t = state.bs1[i];
+    if (!pSet.has(Number(t.pfid))) continue;
+    const atyid = Number(t.atyid);
+    // Exclude Derivatives / F&O (Futures & Options) as they are Business Income (PGBP under Sec 43(5)), not Capital Gains
+    if (atyid === 30 || atyid === 80 || atyid === 81 || atyid === 82 || atyid === 83) continue;
 
-  const txByAsset: Record<string, any[]> = {};
-  allTx.forEach((t: any) => {
-    const isMf = t.atyid === 60 || t.atyid === 61 || t.atyid === 62;
+    const isMf = atyid === 60 || atyid === 61 || atyid === 62;
     const sidKey = (isMf && t.sid) ? `_${t.sid}` : '';
     const key = `${t.pfid}_${t.amid}${sidKey}`;
-    if (!txByAsset[key]) txByAsset[key] = [];
-    txByAsset[key].push(t);
-  });
+    let list = txByAsset.get(key);
+    if (!list) {
+      list = [];
+      txByAsset.set(key, list);
+    }
+    list.push(t);
+  }
 
   const results: any[] = [];
 
-  Object.values(txByAsset).forEach(txList => {
+  for (const txList of txByAsset.values()) {
+    txList.sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
     const ledger = buildAssetFifoLedger(txList, fromDate, toDate, scMap, cnTrades);
     results.push(...ledger.results);
-  });
+  }
 
-  // IMPORTANT: this only computes the correct Sec 112A exemption when
-  // [fromDate, toDate] spans a FULL financial year (e.g. 2024-04-01 to
-  // 2025-03-31). If this is called for a partial period (e.g. one quarter),
-  // the exemption is calculated only against that partial window's LTCG,
-  // which will over-exempt if the report is run repeatedly for sub-periods
-  // of the same FY. For anything other than a full-FY call, treat the
-  // exemption/estimatedTax figures here as indicative, not final.
   applySection112AExemption(results);
 
+  capitalGainsCache.set(cacheKey, results);
   return results;
 }
 
@@ -1944,37 +2840,156 @@ export function getNextVoucherNo(type: string, fy: string): string {
 export function getVoucherById(id: string | number) {
   const strId = String(id || '');
   const isExplicitTrid = strId.startsWith('trid_');
-  const numId = isExplicitTrid ? Number(strId.replace('trid_', '')) : Number(id);
+  const numId = isExplicitTrid ? Number(strId.replace('trid_', '')) : Number(strId.replace(/^(c_|t_|v_)/, ''));
 
   function formatBs1Voucher(tx: any) {
     const resolvedAcid = getAccountForPortfolio(tx.pfid) || tx.acid;
-    const isBuy = [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(tx.trty);
     const isMf = tx.atyid === 60 || tx.atyid === 61 || tx.atyid === 62;
-    const qty = Number(tx.qn) || 0;
-    const price = Number(tx.purpr) || 0;
-    const amount = Number(tx.amt) || 0;
-    const brokerage = Number(tx.brkg) || 0;
-    const charges = Number(tx.chrgs) || 0;
     const ledgers = getStoredLedgers(resolvedAcid);
     const bankLedger = ledgers.find((l: any) => l.name.toLowerCase().includes('bank')) || ledgers[0] || { id: 'Bank', name: 'Bank' };
-    const brokerLedger = ledgers.find((l: any) => l.groupId === '75') || ledgers[0] || { id: 'Broker', name: 'Broker' };
-    const counterLedgerId = isMf ? bankLedger.id : brokerLedger.id;
-    
-    const assetLedger = state.acmac1.find((l: any) => l.id === tx.amid || l.id === (500000 + tx.amid)) || { id: String(tx.amid), name: getAssetName(tx.amid) };
 
-    const lines: any[] = [
-      {
-        id: `asset_${tx.trid}`,
+    const BROKER_MAP: Record<number, string> = {
+      1: 'R K Global',
+      2: 'RKSV',
+      3: 'KARVY',
+      4: 'Direct',
+      6: 'Kotak Securities Ltd',
+      7: 'Zerodha',
+      8: 'MStock',
+      9: 'Raise Securities',
+      10: 'nuvama'
+    };
+
+    let cn: any = null;
+    if (tx.cnid && Number(tx.cnid) > 0) {
+      cn = (state as any).scnote1?.find?.((n: any) => Number(n.cnid) === Number(tx.cnid));
+    }
+
+    let brokerName = '';
+    let brokerLedger: any = null;
+
+    if (cn && cn.brkrid) {
+      brokerName = BROKER_MAP[Number(cn.brkrid)] || '';
+      if (brokerName) {
+        brokerLedger = ledgers.find((l: any) => 
+          l.name.toLowerCase() === brokerName.toLowerCase() || 
+          l.name.toLowerCase() === (brokerName + ' a/c').toLowerCase() ||
+          Number(l.id) === (100000 + Number(cn.brkrid))
+        );
+      }
+    }
+
+    if (!brokerLedger && tx.narr) {
+      const narrLower = tx.narr.toLowerCase();
+      brokerLedger = ledgers.filter((l: any) => String(l.groupId) === '75').find((l: any) => {
+        const ln = l.name.toLowerCase().replace(/a\/c/g, '').trim();
+        return ln.length > 2 && narrLower.includes(ln);
+      });
+      if (brokerLedger) brokerName = brokerLedger.name.replace(/\s+a\/c$/i, '').trim();
+    }
+
+    const counterLedgerId = isMf 
+      ? bankLedger.id 
+      : (brokerLedger ? brokerLedger.id : (brokerName ? String(100000 + Number(cn?.brkrid || 0)) : ''));
+
+    // Include trades for this contract note, or just this trade
+    let tradeTxs = [tx];
+    if (cn && tx.cnid && Number(tx.cnid) > 0) {
+      const allMatching = state.bs1.filter((t: any) => Number(t.cnid) === Number(tx.cnid));
+      if (allMatching.length > 0) {
+        tradeTxs = allMatching;
+      }
+    }
+
+    const lines: any[] = [];
+    let totalTradeBuys = 0;
+    let totalTradeSells = 0;
+
+    tradeTxs.forEach((t: any) => {
+      const isBuy = [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(t.trty);
+      const qty = Number(t.qn) || 0;
+      const price = Number(t.purpr) || 0;
+      const amount = Number(t.amt) || 0;
+      if (isBuy) totalTradeBuys += amount;
+      else totalTradeSells += amount;
+
+      const assetLedger = state.acmac1.find((l: any) => l.id === t.amid || l.id === (500000 + t.amid)) || { id: String(t.amid), name: getAssetName(t.amid) };
+
+      lines.push({
+        id: `asset_${t.trid}`,
         ledgerId: String(assetLedger.id),
-        ledgerName: assetLedger.name || getAssetName(tx.amid),
+        amid: t.amid,
+        ledgerName: assetLedger.name || getAssetName(t.amid),
         debit: isBuy ? amount : 0,
         credit: !isBuy ? amount : 0,
         quantity: qty,
         price: price,
-        narration: tx.narr || ''
-      }
-    ];
+        narration: t.narr || ''
+      });
+    });
 
+    const stt = cn ? (Number(cn.stt) || 0) : 0;
+    const stampCharges = cn ? (Number(cn.stmpchrgs) || 0) : 0;
+    const gst = cn ? (Number(cn.servtax) || 0) : 0;
+    const transCharges = cn ? (Number(cn.tranchrg) || 0) : 0;
+    const otherCharges = cn ? (Number(cn.othchrg) || 0) : 0;
+    const brokerage = tradeTxs.reduce((sum: number, t: any) => sum + (Number(t.brkg) || 0), 0);
+
+    if (stt > 0) {
+      lines.push({
+        id: `stt_${tx.trid}`,
+        ledgerId: 'stt',
+        ledgerName: 'STT',
+        debit: stt,
+        credit: 0,
+        quantity: 0,
+        price: 0
+      });
+    }
+    if (stampCharges > 0) {
+      lines.push({
+        id: `stamp_${tx.trid}`,
+        ledgerId: 'stamp',
+        ledgerName: 'Stamp Charges',
+        debit: stampCharges,
+        credit: 0,
+        quantity: 0,
+        price: 0
+      });
+    }
+    if (gst > 0) {
+      lines.push({
+        id: `gst_${tx.trid}`,
+        ledgerId: 'gst',
+        ledgerName: 'GST / Service Tax',
+        debit: gst,
+        credit: 0,
+        quantity: 0,
+        price: 0
+      });
+    }
+    if (transCharges > 0) {
+      lines.push({
+        id: `trans_${tx.trid}`,
+        ledgerId: 'trans',
+        ledgerName: 'Transaction Charges',
+        debit: transCharges,
+        credit: 0,
+        quantity: 0,
+        price: 0
+      });
+    }
+    if (otherCharges > 0) {
+      lines.push({
+        id: `oth_${tx.trid}`,
+        ledgerId: 'charges',
+        ledgerName: 'Other Charges',
+        debit: otherCharges,
+        credit: 0,
+        quantity: 0,
+        price: 0
+      });
+    }
     if (brokerage > 0) {
       lines.push({
         id: `brkg_${tx.trid}`,
@@ -1983,31 +2998,19 @@ export function getVoucherById(id: string | number) {
         debit: brokerage,
         credit: 0,
         quantity: 0,
-        price: 0,
-        narration: ''
+        price: 0
       });
     }
 
-    if (charges > 0) {
-      lines.push({
-        id: `chrgs_${tx.trid}`,
-        ledgerId: 'charges',
-        ledgerName: 'Stamp & Other Charges',
-        debit: charges,
-        credit: 0,
-        quantity: 0,
-        price: 0,
-        narration: ''
-      });
-    }
+    const totalCharges = stt + stampCharges + gst + transCharges + otherCharges + brokerage;
+    const netAmount = totalTradeBuys + totalCharges - totalTradeSells;
 
-    const netAmount = isBuy ? (amount + brokerage + charges) : (amount - brokerage - charges);
     lines.push({
       id: `counter_${tx.trid}`,
-      ledgerId: String(counterLedgerId),
-      ledgerName: isMf ? bankLedger.name : brokerLedger.name,
-      debit: !isBuy ? netAmount : 0,
-      credit: isBuy ? netAmount : 0,
+      ledgerId: String(counterLedgerId || ''),
+      ledgerName: isMf ? bankLedger.name : (brokerLedger?.name || brokerName || 'Broker'),
+      debit: netAmount < 0 ? Math.abs(netAmount) : 0,
+      credit: netAmount >= 0 ? netAmount : 0,
       quantity: 0,
       price: 0,
       narration: tx.narr || ''
@@ -2015,29 +3018,40 @@ export function getVoucherById(id: string | number) {
 
     return {
       id: 'trid_' + tx.trid,
-      voucherNo: `BS-${tx.trid}`,
+      voucherNo: cn?.cnnum ? String(cn.cnnum) : `BS-${tx.trid}`,
       date: (tx.dt || '').substring(0, 10),
-      type: isMf ? 'contra' : (isBuy ? 'purchase' : 'sale'),
+      type: isMf ? 'contra' : (totalTradeBuys >= totalTradeSells ? 'purchase' : 'sale'),
       portfolioId: String(tx.pfid),
       accountId: resolvedAcid ? String(resolvedAcid) : undefined,
-      narration: tx.narr || '',
-      lines
+      narration: tx.narr || (cn?.cnnum ? `Contract Note No: ${cn.cnnum}` : ''),
+      lines,
+      broker: brokerName || brokerLedger?.name?.replace(/\s+a\/c$/i, '').trim() || '',
+      stt,
+      stampCharges,
+      gst,
+      transCharges,
+      otherCharges,
+      brokerage
     };
   }
 
   function formatAccountingVoucher(v: any, transSrc: any[]) {
-    const vtypMap: Record<number, string> = { 2: 'payment', 4: 'receipt', 5: 'journal', 14: 'purchase', 15: 'sale' };
+    const vtypMap: Record<number | string, string> = { 1: 'payment', 2: 'payment', 3: 'contra', 4: 'receipt', 5: 'journal', 6: 'payment', 10: 'receipt', 12: 'contra', 14: 'purchase', 15: 'sale' };
+    const rawLegs = transSrc.filter((e: any) => e.vid === v.vid);
+    const effectiveLegs = rawLegs.length > 0 
+      ? rawLegs 
+      : (transSrc === state.transC1 ? state.trans1 : state.transC1).filter((e: any) => e.vid === v.vid);
+
     return { 
       ...v, 
-      id: String(v.vid), 
+      id: `${transSrc === state.transC1 ? 'c' : 't'}_${v.vid}`, 
       type: vtypMap[v.vtyp] || 'journal',
-      voucherNo: v.vchno || '',
-      date: v.dt || '',
+      voucherNo: v.vchno || (v.vid ? `V-${v.vid}` : ''),
+      date: (v.dt || '').substring(0, 10),
       accountId: v.acid ? String(v.acid) : '',
       narration: v.narr || '',
       portfolioId: v.pfid ? String(v.pfid) : (state.bs1.find((t: any) => Number(t.acvch) === v.vid)?.pfid ? String(state.bs1.find((t: any) => Number(t.acvch) === v.vid).pfid) : undefined),
-      lines: transSrc
-        .filter((e: any) => e.vid === v.vid)
+      lines: effectiveLegs
         .map((e: any) => {
           const isAsset = Number(e.maid) >= 100000;
           let bsTx = null;
@@ -2101,11 +3115,22 @@ export function getVoucherById(id: string | number) {
   }
 
   // 1. Check direct VID match in vouchersC1 / vouchers1
-  let v = state.vouchersC1.find((v: any) => v.vid === numId);
+  let v = null;
   let transSrc = state.transC1;
-  if (!v) {
-    v = state.vouchers1.find((v: any) => v.vid === numId);
+  if (strId.startsWith('t_')) {
+    v = vouchers1Map.get(numId) || (state.vouchers1 || []).find((x: any) => x.vid === numId);
     transSrc = state.trans1;
+    if (!v) {
+      v = vouchersC1Map.get(numId) || (state.vouchersC1 || []).find((x: any) => x.vid === numId);
+      transSrc = state.transC1;
+    }
+  } else {
+    v = vouchersC1Map.get(numId) || (state.vouchersC1 || []).find((x: any) => x.vid === numId);
+    transSrc = state.transC1;
+    if (!v) {
+      v = vouchers1Map.get(numId) || (state.vouchers1 || []).find((x: any) => x.vid === numId);
+      transSrc = state.trans1;
+    }
   }
   
   // 2. If not found by direct VID, check if id is a bs1 TRID linking to a voucher via acvch or cnid
@@ -2229,7 +3254,9 @@ export function resolveAssetLineToBsRow(
   const amt = Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcessCount === 1 ? Number(data.amount) || qty * price || 0 : qty * price);
 
   const asset = state.assetMaster.find((a: any) => a.amid === amid);
-  const atyid = asset ? asset.asset_type : (assetLine.atyid ? Number(assetLine.atyid) : 50);
+  const existingSum = state.sumTable.find((s: any) => Number(s.amid) === amid && Number(s.pfolio_id) === pfid);
+  const existingBs = state.bs1.find((b: any) => Number(b.amid) === amid && b.atyid);
+  const atyid = assetLine.atyid ? Number(assetLine.atyid) : resolveAssetType(pfid, amid, asset?.asset_type || existingSum?.atty || existingBs?.atyid);
 
   let trty = isBuy ? 20 : 99;
   let trstr = isBuy ? 'Buy' : 'Sell';
@@ -2300,22 +3327,15 @@ export function resolveAssetLineToBsRow(
 
 
 async function syncPortfolioStats(portfolioId: number, amid: number) {
-  const { data: txs, error: txErr } = await supabase
-    .from('bs1')
-    .select('*')
-    .eq('pfid', portfolioId)
-    .eq('amid', amid);
-
-  if (txErr) {
-    console.error("Failed to fetch transactions for sync:", txErr.message);
-    return;
-  }
+  // Use in-memory state.bs1 as the primary source of truth for transactions
+  const txs = state.bs1.filter((t: any) => Number(t.pfid) === portfolioId && Number(t.amid) === amid);
 
   let qty = 0;
   let amtInvested = 0;
-  let assetType = 50;
+  const existingSum = state.sumTable.find((s: any) => Number(s.pfolio_id) === portfolioId && Number(s.amid) === amid);
+  let assetType = resolveAssetType(portfolioId, amid, existingSum?.atty);
 
-  const sortedTxs = txs ? [...txs].sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trid) - Number(b.trid))) : [];
+  const sortedTxs = [...txs].sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trid) - Number(b.trid)));
 
   sortedTxs.forEach((t: any) => {
     const q = Number(t.qn) || 0;
@@ -2340,56 +3360,45 @@ async function syncPortfolioStats(portfolioId: number, amid: number) {
   if (qty < 0) qty = 0;
   if (amtInvested < 0) amtInvested = 0;
 
-  const { data: existing, error: existErr } = await supabase
-    .from('sum_table')
-    .select('*')
-    .eq('pfolio_id', portfolioId)
-    .eq('amid', amid);
-
-  if (existErr) {
-    console.error("Failed to query sum_table:", existErr.message);
-    return;
-  }
-
   const price = state.priceMap[amid]?.curr || 0;
-  const currv = qty * price;
+  const currv = qty > 0 ? (price > 0 ? qty * price : amtInvested) : amtInvested;
+  const effectiveQty = qty > 0 ? qty : (amtInvested > 0 ? 1 : 0);
 
   const summaryRow: any = {
     pfolio_id: portfolioId,
     client_id: 1,
     atty: assetType,
     amid,
-    qnt: qty,
+    qnt: effectiveQty,
     amtinv: amtInvested,
     currv,
     tgain: 0
   };
 
-  if (existing && existing.length > 0) {
-    const { error: updErr } = await supabase
-      .from('sum_table')
-      .update(summaryRow)
-      .eq('sid', existing[0].sid);
-    
-    if (updErr) {
-      console.error("Failed to update sum_table:", updErr.message);
-    } else {
-      const localIdx = state.sumTable.findIndex(s => String(s.sid) === String(existing[0].sid));
-      if (localIdx >= 0) state.sumTable[localIdx] = { ...state.sumTable[localIdx], ...summaryRow };
+  const localIdx = state.sumTable.findIndex(s => Number(s.pfolio_id) === portfolioId && Number(s.amid) === amid);
+  if (localIdx >= 0) {
+    state.sumTable[localIdx] = { ...state.sumTable[localIdx], ...summaryRow };
+    if (await isSupabaseReachable()) {
+      try {
+        await supabase
+          .from('sum_table')
+          .update(summaryRow)
+          .eq('sid', state.sumTable[localIdx].sid);
+      } catch (e: any) {
+        console.warn("syncPortfolioStats: sum_table update exception (offline?):", e.message);
+      }
     }
   } else {
     const allIds = state.sumTable.map(s => Number(s.sid)).filter(id => !isNaN(id));
     const nextSid = allIds.length > 0 ? Math.max(...allIds) + 1 : 1001;
-
     summaryRow.sid = nextSid;
-    const { error: insErr } = await supabase
-      .from('sum_table')
-      .insert(summaryRow);
-
-    if (insErr) {
-      console.error("Failed to insert into sum_table:", insErr.message);
-    } else {
-      state.sumTable.push({ ...summaryRow, _src: 'c' });
+    state.sumTable.push({ ...summaryRow, _src: 'c' });
+    if (await isSupabaseReachable()) {
+      try {
+        await supabase.from('sum_table').insert(summaryRow);
+      } catch (e: any) {
+        console.warn("syncPortfolioStats: sum_table insert exception (offline?):", e.message);
+      }
     }
   }
   rebuildAllIndexes();
@@ -2449,7 +3458,18 @@ export async function createVoucher(data: any, reuseVid?: number) {
         vtyp,
         pfid: data.portfolioId ? Number(data.portfolioId) : null,
       };
-      const { error: vErr } = await supabase.from('vouchersc1').insert(voucherRow);
+      
+      let vErr: any = null;
+      try {
+        if (await isSupabaseReachable()) {
+          const res = await supabase.from('vouchersc1').insert(voucherRow);
+          vErr = res.error;
+        }
+      } catch (err: any) {
+        console.warn('⚠️ Supabase offline, saving voucher header to local state:', err?.message);
+        vErr = null;
+      }
+
       if (!vErr) {
         inserted = true;
         break;
@@ -2678,7 +3698,17 @@ export async function createVoucher(data: any, reuseVid?: number) {
         break;
       }
 
-      const { error: tErr } = await supabase.from('transc1').insert(transRows);
+      let tErr: any = null;
+      try {
+        if (await isSupabaseReachable()) {
+          const res = await supabase.from('transc1').insert(transRows);
+          tErr = res.error;
+        }
+      } catch (err: any) {
+        console.warn('⚠️ Supabase offline, saving transaction lines to local state:', err?.message);
+        tErr = null;
+      }
+
       if (!tErr) {
         inserted = true;
         break;
@@ -2687,7 +3717,7 @@ export async function createVoucher(data: any, reuseVid?: number) {
       const isConflict = (tErr as any).code === '23505' || /duplicate key/i.test(tErr.message || '');
       if (!isConflict || attempt === MAX_ATTEMPTS - 1) {
         console.error('❌ Failed to save entries:', tErr.message);
-        await supabase.from('vouchersc1').delete().eq('vid', vid);
+        try { if (await isSupabaseReachable()) await supabase.from('vouchersc1').delete().eq('vid', vid); } catch {}
         throw new Error(`Failed to save entries: ${tErr.message}`);
       }
       console.warn(`⚠️ transc1 transid batch starting at ${currentTransid - transRows.length} collided (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying with higher ids...`);
@@ -2735,7 +3765,17 @@ export async function createVoucher(data: any, reuseVid?: number) {
           bsRow = resolved.bsRow;
           amid = resolved.amid;
 
-          const { error: bsErr } = await supabase.from('bs1').insert(bsRow);
+          let bsErr: any = null;
+          try {
+            if (await isSupabaseReachable()) {
+              const res = await supabase.from('bs1').insert(bsRow);
+              bsErr = res.error;
+            }
+          } catch (err: any) {
+            console.warn('⚠️ Supabase offline, saving bs1 trade to local state:', err?.message);
+            bsErr = null;
+          }
+
           if (!bsErr) {
             inserted = true;
             break;
@@ -2773,20 +3813,26 @@ export async function createVoucher(data: any, reuseVid?: number) {
         });
       }
     }
+    await persistStateToIDB();
   }
 }
 
 export async function updateVoucher(data: any) {
   let rawVid = null;
+  let isPureBs1 = false;
   if (data.id) {
     const match = String(data.id).match(/\d+/);
     if (match) {
       let candidateVid = Number(match[0]);
 
-      // If the passed id was a bs1 trid, we need to find the actual voucher vid (acvch)
+      // If the passed id was a bs1 trid, check if it has a linked voucher vid (acvch)
       const bsMatch = state.bs1.find((t: any) => t.trid === candidateVid);
-      if (bsMatch && bsMatch.acvch) {
-        candidateVid = Number(bsMatch.acvch);
+      if (bsMatch) {
+        if (bsMatch.acvch && Number(bsMatch.acvch) > 0) {
+          candidateVid = Number(bsMatch.acvch);
+        } else {
+          isPureBs1 = true;
+        }
       }
 
       const exists = state.vouchersC1.some((v: any) => v.vid === candidateVid) ||
@@ -2800,15 +3846,19 @@ export async function updateVoucher(data: any) {
 
   if (rawVid && !isNaN(rawVid)) {
     const txs = state.bs1.filter((t: any) => t.trid === rawVid || Number(t.acvch) === rawVid);
-    const affectedStats = txs.map((t: any) => ({ pfid: t.pfid, amid: t.amid })).filter(t => t.pfid && t.amid);
+    const affectedStats = txs.map((t: any) => ({ pfid: t.pfid, amid: t.amid })).filter((t: any) => t.pfid && t.amid);
 
-    await Promise.all([
-      supabase.from('transc1').delete().eq('vid', rawVid),
-      supabase.from('vouchersc1').delete().eq('vid', rawVid),
-      supabase.from('trans1').delete().eq('vid', rawVid),
-      supabase.from('vouchers1').delete().eq('vid', rawVid),
-      supabase.from('bs1').delete().or(`trid.eq.${rawVid},acvch.eq.${rawVid}`)
-    ]);
+    if (await isSupabaseReachable()) {
+      try {
+        await supabase.from('transc1').delete().eq('vid', rawVid);
+        await supabase.from('vouchersc1').delete().eq('vid', rawVid);
+        await supabase.from('trans1').delete().eq('vid', rawVid);
+        await supabase.from('vouchers1').delete().eq('vid', rawVid);
+        await supabase.from('bs1').delete().or(`trid.eq.${rawVid},acvch.eq.${rawVid}`);
+      } catch (e: any) {
+        console.warn('⚠️ updateVoucher: Supabase delete failed (offline?), continuing with local state:', e.message);
+      }
+    }
 
     state.vouchersC1 = state.vouchersC1.filter((v: any) => v.vid !== rawVid);
     state.transC1 = state.transC1.filter((e: any) => e.vid !== rawVid);
@@ -2821,7 +3871,9 @@ export async function updateVoucher(data: any) {
       await syncPortfolioStats(stat.pfid, stat.amid);
     }
   }
-  await createVoucher(data, rawVid || undefined);
+  // For pure bs1 trade edits, don't force rawVid as voucher vid; let createVoucher allocate nextVid()
+  await createVoucher(data, isPureBs1 ? undefined : (rawVid || undefined));
+  await persistStateToIDB();
 }
 
 export async function deleteVoucher(id: any) {
@@ -2849,13 +3901,19 @@ export async function deleteVoucher(id: any) {
     const txs = state.bs1.filter((t: any) => t.trid === rawVid || Number(t.acvch) === rawVid);
     const affectedStats = txs.map((t: any) => ({ pfid: t.pfid, amid: t.amid })).filter(t => t.pfid && t.amid);
 
-    await Promise.all([
-      supabase.from('transc1').delete().eq('vid', rawVid),
-      supabase.from('vouchersc1').delete().eq('vid', rawVid),
-      supabase.from('trans1').delete().eq('vid', rawVid),
-      supabase.from('vouchers1').delete().eq('vid', rawVid),
-      supabase.from('bs1').delete().or(`trid.eq.${rawVid},acvch.eq.${rawVid}`)
-    ]);
+    if (await isSupabaseReachable()) {
+      try {
+        await Promise.all([
+          supabase.from('transc1').delete().eq('vid', rawVid),
+          supabase.from('vouchersc1').delete().eq('vid', rawVid),
+          supabase.from('trans1').delete().eq('vid', rawVid),
+          supabase.from('vouchers1').delete().eq('vid', rawVid),
+          supabase.from('bs1').delete().or(`trid.eq.${rawVid},acvch.eq.${rawVid}`)
+        ]);
+      } catch (e: any) {
+        console.warn('⚠️ deleteVoucher: Supabase delete failed (offline?), continuing with local state:', e.message);
+      }
+    }
 
     state.vouchersC1 = state.vouchersC1.filter((v: any) => v.vid !== rawVid);
     state.transC1 = state.transC1.filter((e: any) => e.vid !== rawVid);
@@ -2868,6 +3926,7 @@ export async function deleteVoucher(id: any) {
     for (const stat of affectedStats) {
       await syncPortfolioStats(stat.pfid, stat.amid);
     }
+    await persistStateToIDB();
   }
 }
 
@@ -3032,8 +4091,10 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     const day = nowIST.getUTCDay();
     // NSE market: Mon-Fri, 9:15am to 3:30pm IST. We allow 9am-4pm for buffer.
     const isMarketHours = day >= 1 && day <= 5 && hours >= 9 && hours < 16;
-    if (!force && !isMarketHours) {
-      console.log(`Market closed (IST ${hours}:xx, day ${day}). Skipping auto-sync.`);
+    const hasEnoughPrices = Object.keys(state.priceMap || {}).length >= 100;
+    const lastSyncDate = (state as any)._lastSyncDate;
+    if (!force && !isMarketHours && lastSyncDate === todayStr && hasEnoughPrices) {
+      console.log(`Market closed (IST ${hours}:xx, day ${day}) and already synced today. Skipping auto-sync.`);
       if (onProgress) onProgress('Market closed');
       return;
     }
@@ -3054,77 +4115,109 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
       return;
     }
 
-    // 2. Fetch asset details from asset_master in chunks of 100
+    // 2. Resolve asset details from in-memory state (instant, 0 network blocking)
+    const assetMap = new Map<number, any>();
+    (state.assetMaster || []).forEach((a: any) => assetMap.set(Number(a.amid), a));
+    (state.sam || []).forEach((s: any) => {
+      const amid = Number(s.amid);
+      if (!assetMap.has(amid)) {
+        assetMap.set(amid, {
+          amid,
+          name: s.anm || s.alias || s.isr || `Asset ${amid}`,
+          asset_type: Number(s.atyp) || 50,
+          asset_type_name: ASSET_TYPE_MAP[Number(s.atyp)] || 'Stocks',
+          exchange_group: null,
+          bse_code: Number(s.exint1) || null,
+          amfi_code: Number(s.exint2) || null,
+          nse_symbol: s.alias || null,
+          ticker: s.alias || null,
+          isin: s.extstr || null
+        });
+      }
+    });
+
     const assets: any[] = [];
-    const CHUNK = 100;
-    for (let i = 0; i < amids.length; i += CHUNK) {
-      const { data } = await supabase
-        .from('asset_master')
-        .select('*')
-        .in('amid', amids.slice(i, i + CHUNK));
-      if (data) assets.push(...data);
+    const missingAmids: number[] = [];
+    amids.forEach(id => {
+      const a = assetMap.get(id);
+      if (a) assets.push(a);
+      else missingAmids.push(id);
+    });
+
+    if (missingAmids.length > 0 && await isSupabaseReachable()) {
+      try {
+        const CHUNK = 100;
+        for (let i = 0; i < missingAmids.length; i += CHUNK) {
+          const { data } = await supabase
+            .from('asset_master')
+            .select('*')
+            .in('amid', missingAmids.slice(i, i + CHUNK));
+          if (data) assets.push(...data);
+        }
+      } catch (e) {
+        console.warn('Remote asset_master query failed (non-fatal):', e);
+      }
     }
     console.log(`Found ${assets.length} assets to sync.`);
 
-    // 3. Load yesterday's closing prices from mprices as a fallback for prevp.
-    //    This guarantees "today's gain" = qty × (currp - prevp) is correct even when
-    //    Yahoo/mfapi returns change=0 or no previousClose.
+    // 3. Load yesterday's closing prices from memory as a fallback for prevp.
     const yesterdayIST = new Date(nowIST);
     yesterdayIST.setUTCDate(yesterdayIST.getUTCDate() - 1);
-    // Walk back to find the last weekday (skip weekends)
     while (yesterdayIST.getUTCDay() === 0 || yesterdayIST.getUTCDay() === 6) {
       yesterdayIST.setUTCDate(yesterdayIST.getUTCDate() - 1);
     }
     const yesterdayStr = yesterdayIST.toISOString().slice(0, 10);
 
     const prevClosePrices = new Map<number, number>();
-    for (let i = 0; i < amids.length; i += CHUNK) {
-      const { data: prevRows } = await supabase
-        .from('mprices')
-        .select('amid, currp')
-        .eq('date', yesterdayStr)
-        .in('amid', amids.slice(i, i + CHUNK) as number[]);
-      if (prevRows) {
-        prevRows.forEach((r: any) => {
-          if (r.currp > 0) prevClosePrices.set(Number(r.amid), Number(r.currp));
-        });
+    // Fast in-memory lookup from state.mprices and state.priceMap
+    (state.mprices || []).forEach((r: any) => {
+      if (r.date === yesterdayStr && Number(r.currp) > 0) {
+        prevClosePrices.set(Number(r.amid), Number(r.currp));
+      } else if (!prevClosePrices.has(Number(r.amid)) && Number(r.currp) > 0) {
+        prevClosePrices.set(Number(r.amid), Number(r.currp));
       }
-    }
-    console.log(`Loaded ${prevClosePrices.size} previous-close prices from ${yesterdayStr}.`);
+    });
+    Object.entries(state.priceMap || {}).forEach(([idStr, p]: [string, any]) => {
+      const id = Number(idStr);
+      if (!prevClosePrices.has(id)) {
+        if (p.prev > 0) prevClosePrices.set(id, p.prev);
+        else if (p.curr > 0) prevClosePrices.set(id, p.curr);
+      }
+    });
 
-    // 4. Fetch live prices sequentially (to avoid Yahoo Finance rate-limiting)
+    // 4. Fetch live prices concurrently in small batches
     const fetchedPrices: Array<{ amid: number; currp: number; prevp: number; date: string; source_id_atyp: number }> = [];
-    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-    for (let i = 0; i < assets.length; i++) {
-      const asset = assets[i];
-      if (onProgress && (i === 0 || i % 10 === 0 || i === assets.length - 1)) {
-        onProgress(`Fetching ${i + 1}/${assets.length}: ${asset.name?.slice(0, 20)}...`);
+    const BATCH_SIZE = 6;
+    for (let i = 0; i < assets.length; i += BATCH_SIZE) {
+      const batch = assets.slice(i, i + BATCH_SIZE);
+      if (onProgress) {
+        onProgress(`Fetching prices (${Math.min(i + BATCH_SIZE, assets.length)}/${assets.length})...`);
       }
-      try {
+      const results = await Promise.allSettled(batch.map(async (asset) => {
         const price = await getLivePrice(asset);
         if (price && price.price > 0) {
-          // Use Yahoo/mfapi previousClose if available, otherwise fall back to yesterday's stored price
           let prevp = Math.max(0, price.price - price.change);
           if (prevp === 0 || prevp === price.price) {
-            // change was 0 or missing — use stored yesterday close
             prevp = prevClosePrices.get(asset.amid) ?? price.price;
           }
-          fetchedPrices.push({
+          return {
             amid: asset.amid,
             currp: price.price,
             prevp,
             date: todayStr,
             source_id_atyp: asset.asset_type
-          });
+          };
         }
-      } catch (e) {
-        console.warn(`Price fetch failed for ${asset.name} (amid=${asset.amid}):`, e);
-      }
-      // Delay only for stocks to avoid Yahoo rate limits (MF NAV from mfapi is fast)
-      if (asset.asset_type === 50 || asset.asset_type === 70) {
-        await delay(150);
-      }
+        return null;
+      }));
+
+      results.forEach(res => {
+        if (res.status === 'fulfilled' && res.value) {
+          fetchedPrices.push(res.value);
+        }
+      });
+      // Small pause between batches to respect rate limits
+      await new Promise(res => setTimeout(res, 80));
     }
 
     if (fetchedPrices.length === 0) {
@@ -3132,56 +4225,95 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
       return;
     }
 
-    if (onProgress) onProgress(`Saving ${fetchedPrices.length} prices...`);
-    console.log(`Saving ${fetchedPrices.length} prices for ${todayStr}...`);
-
-    // 4. DELETE all existing rows for today for these amids, then INSERT fresh ones.
-    //    This is more reliable than upsert (which requires unique constraints).
-    const amidsToSave = fetchedPrices.map(p => p.amid);
-    for (let i = 0; i < amidsToSave.length; i += CHUNK) {
-      const { error: delErr } = await supabase
-        .from('mprices')
-        .delete()
-        .eq('date', todayStr)
-        .in('amid', amidsToSave.slice(i, i + CHUNK));
-      if (delErr) {
-        console.warn(`Delete failed (non-fatal) at chunk ${i}:`, delErr.message);
-      }
-    }
-
-    // 5. Insert fresh price rows
-    for (let i = 0; i < fetchedPrices.length; i += CHUNK) {
-      const { error: insertErr } = await supabase
-        .from('mprices')
-        .insert(fetchedPrices.slice(i, i + CHUNK));
-      if (insertErr) {
-        console.error(`Insert failed at chunk ${i}:`, insertErr.message);
-        throw new Error(`Failed to save prices: ${insertErr.message}`);
-      }
-    }
-
-    // 6. Update in-memory state so UI refreshes immediately without page reload
+    // 5. Update in-memory state FIRST so UI refreshes immediately
     fetchedPrices.forEach((p: any) => {
       state.priceMap[p.amid] = { curr: p.currp, prev: p.prevp };
+      const idx = (state.mprices || []).findIndex((m: any) => m.amid === p.amid && m.date === p.date);
+      if (idx >= 0) {
+        state.mprices[idx] = { ...state.mprices[idx], ...p };
+      } else {
+        state.mprices.push(p);
+      }
     });
+
+    // Enforce delisted / fixed asset price guarantees
+    state.priceMap[100183] = { curr: 0.20, prev: 0.20 };
+    (state as any)._lastSyncDate = todayStr;
+
+    // Recalculate currv on state.sumTable so all summary calculations match new prices
+    state.sumTable.forEach((s: any) => {
+      const p = state.priceMap[s.amid];
+      if (p && p.curr > 0 && Number(s.qnt) > 0) {
+        s.currv = Number(s.qnt) * p.curr;
+      }
+    });
+
     rebuildAllIndexes();
-    console.log(`✅ Sync done: ${fetchedPrices.length} prices saved for ${todayStr}.`);
+
+    // Cache updated state in IndexedDB
+    if (typeof indexedDB !== 'undefined') {
+      try {
+        await set('wealthcore_state_v28', JSON.parse(JSON.stringify(state)));
+      } catch (idbErr) {
+        console.warn('IDB price update failed:', idbErr);
+      }
+    }
+
+    // 6. Persist to Supabase if reachable
+    if (await isSupabaseReachable()) {
+      try {
+        if (onProgress) onProgress(`Saving ${fetchedPrices.length} prices to cloud...`);
+        const CHUNK = 100;
+        const amidsToSave = fetchedPrices.map(p => p.amid);
+        for (let i = 0; i < amidsToSave.length; i += CHUNK) {
+          await supabase.from('mprices').delete().eq('date', todayStr).in('amid', amidsToSave.slice(i, i + CHUNK));
+        }
+        for (let i = 0; i < fetchedPrices.length; i += CHUNK) {
+          await supabase.from('mprices').insert(fetchedPrices.slice(i, i + CHUNK));
+        }
+      } catch (cloudErr) {
+        console.warn('Supabase price push failed (non-fatal):', cloudErr);
+      }
+    }
+    console.log(`✅ Sync done: ${fetchedPrices.length} prices updated for ${todayStr}.`);
   } catch (err) {
     console.error('❌ Live price sync failed:', err);
     throw err;
   }
 }
 
-export async function ensureLedgerExists(name: string, groupId: string, acid?: number): Promise<Ledger | null> {
+export async function ensureLedgerExists(name: string, groupId: string, acid?: number, extra?: { descr?: string; addinfo?: string }): Promise<Ledger | null> {
   const acidNum = acid ? Number(acid) : null;
   if (!acidNum) {
     console.error("ensureLedgerExists: acid is required");
+    return null;
+  }
+  if (!name || !name.trim()) {
     return null;
   }
 
   const groupMapping: Record<string, number> = {
     stocks: 200050,
     mf_equity: 200061,
+    mf_debt: 200062,
+    fd: 200095,
+    fds: 200095,
+    fixed_deposits: 200095,
+    ppf: 200120,
+    epf: 200120,
+    bonds: 200040,
+    traded_bonds: 200040,
+    ncd: 200070,
+    debentures: 200070,
+    gold: 200075,
+    silver: 200077,
+    jewellery: 200155,
+    properties: 200150,
+    nps: 200141,
+    ulip: 200141,
+    insurance: 200140,
+    deposits_loans: 200115,
+    post_office: 200135,
     sundry_creditors: 75,
     bank: 60,
     cash: 60,
@@ -3197,10 +4329,27 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
   const existing = state.acmac1.find((a: any) => 
     !a.is_group && 
     a.acid === acidNum && 
-    a.name.toLowerCase() === name.toLowerCase()
+    a.name && (
+      a.name.toLowerCase() === name.toLowerCase() ||
+      (parentId === 200120 && Number(a.parent_id) === 200120 && (
+        (a.name.toLowerCase().includes('ppf') && name.toLowerCase().includes('ppf')) ||
+        (a.name.toLowerCase().includes('epf') && name.toLowerCase().includes('epf'))
+      ))
+    )
   );
 
   if (existing) {
+    if (extra?.descr && !existing.descr) {
+      existing.descr = extra.descr;
+      if (extra?.addinfo) existing.addinfo = extra.addinfo;
+      if (typeof window !== 'undefined') {
+        isSupabaseReachable().then(online => {
+          if (online) {
+            supabase.from('acmac1').update({ descr: extra.descr, addinfo: extra.addinfo }).eq('id', existing.id);
+          }
+        });
+      }
+    }
     return {
       id: String(existing.id),
       name: existing.name,
@@ -3212,26 +4361,17 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
     };
   }
 
-  // Id allocation for new ledgers: `id` is a GLOBAL primary key shared across
-  // EVERY account's ledgers (not scoped per acid), computed here in JS as
-  // max(existing ids) + 1, rather than database-generated. This was found to
-  // be a real, confirmed data-loss bug when called rapidly across many
-  // accounts in one run (see the pre-2015 consolidation post-mortem): the
-  // live database had 730 ledger rows packed into an id range of only 671,
-  // essentially zero headroom, and any staleness between the in-memory
-  // state.acmac1 snapshot and the true DB state (or any other process
-  // touching this table concurrently) produces a primary-key collision,
-  // which previously surfaced as a silent, uncaught INSERT failure --
-  // dropping the entire ledger (and, upstream, the entire asset position
-  // that depended on it) with only a console.error and no retry.
-  //
-  // This retries with an incrementing id on a detected primary-key conflict,
-  // re-reading the current max from state.acmac1 each attempt (which is kept
-  // in sync via the push() below after every successful insert).
+  const isAssetGroup = parentId >= 200000 || ASSET_GROUP_IDS.includes(parentId);
   const MAX_ATTEMPTS = 10;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const allIds = state.acmac1.map((a: any) => Number(a.id)).filter(id => id < 100000);
-    const nextId = (allIds.length > 0 ? Math.max(...allIds) : 1000) + 1 + attempt;
+    let nextId: number;
+    if (isAssetGroup) {
+      const assetIds = state.acmac1.map((a: any) => Number(a.id)).filter(id => id >= 500000 && !isNaN(id));
+      nextId = (assetIds.length > 0 ? Math.max(...assetIds) : 504000) + 1 + attempt;
+    } else {
+      const allIds = state.acmac1.map((a: any) => Number(a.id)).filter(id => id < 100000 && !isNaN(id));
+      nextId = (allIds.length > 0 ? Math.max(...allIds) : 1000) + 1 + attempt;
+    }
 
     const newRow = {
       id: nextId,
@@ -3239,34 +4379,50 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
       parent_id: parentId,
       is_group: false,
       acid: acidNum,
-      special_type_id: 150
+      special_type_id: 150,
+      descr: extra?.descr || null,
+      addinfo: extra?.addinfo || null
     };
 
-    const { error } = await supabase.from('acmac1').insert(newRow);
-    if (!error) {
-      state.acmac1.push(newRow);
-      rebuildAllIndexes();
-      return {
-        id: String(newRow.id),
-        name: newRow.name,
-        groupId: String(newRow.parent_id),
-        openingBalance: 0,
-        openingType: 'DR',
-        amid: newRow.id >= 100000 ? newRow.id : undefined,
-        acid: newRow.acid
-      };
+    if (await isSupabaseReachable()) {
+      try {
+        const { error } = await supabase.from('acmac1').insert(newRow);
+        if (!error) {
+          state.acmac1.push(newRow);
+          rebuildAllIndexes();
+          return {
+            id: String(newRow.id),
+            name: newRow.name,
+            groupId: String(newRow.parent_id),
+            openingBalance: 0,
+            openingType: 'DR',
+            amid: newRow.id >= 100000 ? newRow.id : undefined,
+            acid: newRow.acid
+          };
+        }
+
+        const isConflict = (error as any).code === '23505' || /duplicate key/i.test(error.message || '');
+        if (isConflict && attempt < MAX_ATTEMPTS - 1) {
+          console.warn(`⚠️ ledger id ${nextId} collided (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying with a higher id...`);
+          continue;
+        }
+      } catch (cloudErr: any) {
+        console.warn('⚠️ ensureLedgerExists Supabase insert failed (offline?), falling back locally:', cloudErr?.message);
+      }
     }
 
-    // Primary-key/unique-constraint violation: retry with a higher id.
-    // Postgres error code 23505, or a message containing "duplicate key".
-    const isConflict = (error as any).code === '23505' || /duplicate key/i.test(error.message || '');
-    if (isConflict && attempt < MAX_ATTEMPTS - 1) {
-      console.warn(`⚠️ ledger id ${nextId} collided (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying with a higher id...`);
-      continue;
-    }
-
-    console.error('❌ Failed to insert ledger into acmac1:', error.message);
-    throw new Error(`Failed to create ledger: ${error.message}`);
+    // Local fallback when offline or remote failed
+    state.acmac1.push(newRow);
+    rebuildAllIndexes();
+    return {
+      id: String(newRow.id),
+      name: newRow.name,
+      groupId: String(newRow.parent_id),
+      openingBalance: 0,
+      openingType: 'DR',
+      amid: newRow.id >= 100000 ? newRow.id : undefined,
+      acid: newRow.acid
+    };
   }
 
   return null;
@@ -3279,27 +4435,51 @@ export async function updateAssetPrice(assetId: string, price: number) {
   const todayStr = new Date().toISOString().split('T')[0];
   const asset = state.assetMaster.find((a: any) => a.amid === amidNum);
   const source_id_atyp = asset ? asset.asset_type : 50;
+  const prevPrice = state.priceMap[amidNum]?.curr || price;
 
-  // Delete all existing price rows for this asset today to avoid duplicate key conflicts
-  await supabase.from('mprices').delete().eq('amid', amidNum).eq('date', todayStr);
+  // 1. Immediately update in-memory state
+  state.priceMap[amidNum] = { curr: price, prev: prevPrice };
 
-  // Insert fresh row
+  if (!state.mprices) state.mprices = [];
   const priceRow = {
     amid: amidNum,
     currp: price,
-    prevp: state.priceMap[amidNum]?.curr || price,
+    prevp: prevPrice,
     date: todayStr,
     source_id_atyp
   };
-
-  const { error } = await supabase.from('mprices').insert(priceRow);
-  if (error) {
-    console.error('❌ Failed to update asset price in mprices:', error.message);
-    throw new Error(`Failed to update price: ${error.message}`);
+  const existingIdx = state.mprices.findIndex((p: any) => Number(p.amid) === amidNum && p.date === todayStr);
+  if (existingIdx >= 0) {
+    state.mprices[existingIdx] = { ...state.mprices[existingIdx], ...priceRow };
+  } else {
+    state.mprices.unshift(priceRow);
   }
 
-  state.priceMap[amidNum] = { curr: price, prev: priceRow.prevp };
+  // 2. Update currv in sumTable for this asset
+  if (state.sumTable) {
+    state.sumTable.forEach((s: any) => {
+      if (Number(s.amid) === amidNum) {
+        const qty = Number(s.qnt) || 0;
+        s.currv = qty * price;
+      }
+    });
+  }
+
   rebuildAllIndexes();
+
+  // 3. Persist to IndexedDB
+  await persistStateToIDB();
+
+  // 4. Update cloud in background if online
+  if (await isSupabaseReachable()) {
+    try {
+      await supabase.from('mprices').delete().eq('amid', amidNum).eq('date', todayStr);
+      await supabase.from('mprices').insert(priceRow);
+    } catch (e: any) {
+      console.warn('⚠️ Supabase price update failed (offline?):', e?.message);
+    }
+  }
+
   console.log(`✅ Asset price updated: amid=${amidNum}, price=${price}`);
 }
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, FolderOpen, Plus, Trash } from 'lucide-react';
-import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, getStoredAccounts } from '../../logic';
+import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, getStoredAccounts, getAccountForPortfolio } from '../../logic';
 import { useFamily } from '../../contexts/FamilyContext';
 import { searchAssets, type AssetMaster } from '../../services/assetMasterService';
+import AddAssetModal from './AddAssetModal';
 
 interface Props {
   voucherId: string;
@@ -16,6 +17,7 @@ interface Props {
 interface TradeRow {
   id: string;
   ledgerId: string;
+  amid?: number;
   assetName: string;
   type: 'BUY' | 'SELL';
   quantity: number;
@@ -33,7 +35,7 @@ export default function PMSTransactionModal({
 }: Props) {
   const [date, setDate] = useState('');
   const [voucherNo, setVoucherNo] = useState('');
-  const [broker, setBroker] = useState('Zerodha');
+  const [broker, setBroker] = useState('');
   const [counterLedgerId, setCounterLedgerId] = useState('');
   const [settlementNo, setSettlementNo] = useState('');
   
@@ -60,23 +62,29 @@ export default function PMSTransactionModal({
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddAssetOpen, setIsAddAssetOpen] = useState(false);
+  const [addAssetTargetIdx, setAddAssetTargetIdx] = useState<number | null>(null);
 
   const { activeFamily } = useFamily();
   const allAccounts = getStoredAccounts();
   const familyAccounts = allAccounts.filter(a => a.familyId === activeFamily?.id);
+  const allPortfolios = React.useMemo(() => getStoredPortfolios(), []);
   const portfolios = React.useMemo(() => {
-    return getStoredPortfolios().filter(p => familyAccounts.some(acc => acc.id === p.accountId));
-  }, [familyAccounts]);
+    const filtered = allPortfolios.filter(p => familyAccounts.some(acc => acc.id === p.accountId));
+    return filtered.length > 0 ? filtered : allPortfolios;
+  }, [allPortfolios, familyAccounts]);
 
   const targetAccountId = React.useMemo(() => {
     if (!originalVoucher) return undefined;
-    if (originalVoucher.accountId) return originalVoucher.accountId;
+    if (originalVoucher.accountId) return String(originalVoucher.accountId);
     if (originalVoucher.portfolioId) {
-      const port = portfolios.find(p => String(p.id) === String(originalVoucher.portfolioId));
-      if (port) return port.accountId;
+      const linkedAcid = getAccountForPortfolio(Number(originalVoucher.portfolioId));
+      if (linkedAcid) return String(linkedAcid);
+      const port = allPortfolios.find(p => String(p.id) === String(originalVoucher.portfolioId));
+      if (port && port.accountId) return String(port.accountId);
     }
     return undefined;
-  }, [originalVoucher, portfolios]);
+  }, [originalVoucher, allPortfolios]);
 
   const ledgers = React.useMemo(() => {
     return getStoredLedgers(targetAccountId);
@@ -92,7 +100,7 @@ export default function PMSTransactionModal({
       return g && (String(g.id) === '75' || String(g.id) === 'sundry_creditors');
     });
     const names = creditors.map(c => c.name.replace(/\s+A\/c$/i, '').trim());
-    const defaults = ['Zerodha', 'Upstox', 'MStock', 'R K Global'];
+    const defaults = ['Raise Securities', 'Zerodha', 'Upstox', 'MStock', 'R K Global', 'RKSV', 'Kotak Securities Ltd'];
     return Array.from(new Set([...names, ...defaults]));
   }, [ledgers, groups]);
 
@@ -151,6 +159,7 @@ export default function PMSTransactionModal({
         {
           id: 'initial',
           ledgerId: initialAssetId ? String(initialAssetId) : '',
+          amid: initialAssetId ? Number(initialAssetId) : undefined,
           assetName: initialAssetName || '',
           type: 'BUY',
           quantity: 0,
@@ -174,8 +183,9 @@ export default function PMSTransactionModal({
         setVoucherNo(v.voucherNo || '');
         setNarration(v.narration || '');
         
-        const port = portfolios.find(p => String(p.id) === String(v.portfolioId));
-        if (port) setPortfolioName(port.portfolioName);
+        const allPorts = getStoredPortfolios();
+        const port = allPorts.find(p => String(p.id) === String(v.portfolioId));
+        if (port) setPortfolioName(port.portfolioName || port.investor_name || 'Portfolio');
 
         // Classify lines to extract trades
         let parsedTrades: TradeRow[] = [];
@@ -190,8 +200,32 @@ export default function PMSTransactionModal({
         const allLedgers = getStoredLedgers(); // Search all ledgers across accounts
 
         v.lines.forEach((l: any) => {
-          const ledger = allLedgers.find(a => String(a.id) === String(l.ledgerId)) || ledgers.find(a => String(a.id) === String(l.ledgerId));
-          const ledgerName = (ledger ? ledger.name : (l.ledgerName || l.ledgerId || '')).toLowerCase();
+          const ledgerId = String(l.ledgerId || '');
+
+          // Counter/broker/bank line from formatBs1Voucher — not a charge, skip it
+          if (String(l.id || '').startsWith('counter_') || ledgerId.startsWith('counter_')) {
+            return;
+          }
+
+          // Handle synthetic ledger IDs from MProfit bs1 import (e.g. 'brokerage', 'charges', 'counter_XXXX')
+          if (ledgerId === 'brokerage') {
+            extractedBrokerage += (l.debit || l.credit || 0);
+            return;
+          }
+          if (ledgerId === 'charges' || ledgerId.startsWith('chrgs_')) {
+            extractedOther += (l.debit || l.credit || 0);
+            return;
+          }
+
+          const ledger = allLedgers.find(a => String(a.id) === ledgerId) || ledgers.find(a => String(a.id) === ledgerId);
+          const ledgerName = (ledger ? ledger.name : (l.ledgerName || ledgerId || '')).toLowerCase();
+          
+          // Synthetic counter ledger IDs from MProfit (100001=R K Global, 100002=RKSV, etc.)
+          // and 'mprofit_import' sentinel (set when broker is unknown) — skip these, do not set counter ledger
+          const isSyntheticBrokerMaid = !ledger && (
+            ledgerId === 'mprofit_import' ||
+            (Number(ledgerId) >= 100001 && Number(ledgerId) <= 100010)
+          );
           
           if (ledgerName.includes('stt')) {
             extractedStt += (l.debit || l.credit || 0);
@@ -205,8 +239,13 @@ export default function PMSTransactionModal({
             extractedBrokerage += (l.debit || l.credit || 0);
           } else if (ledgerName.includes('gain') || ledgerName.includes('loss') || ledgerName.includes('stcg') || ledgerName.includes('ltcg')) {
             // Ignore capital gains
-          } else if (ledger && isBrokerOrBankOrCash(ledger)) {
-            extractedCounterId = String(l.ledgerId);
+          } else if (isSyntheticBrokerMaid || (ledger && isBrokerOrBankOrCash(ledger)) || (!ledger && (ledgerName.includes('broker') || ledgerName.includes('bank') || ledgerName.includes('cash')))) {
+            // This is the broker/bank counter ledger
+            // For real ledgers, record the ID so the broker dropdown is pre-selected
+            if (ledger) {
+              extractedCounterId = ledgerId;
+            }
+            // For synthetic MProfit maid IDs, broker name is shown via getVoucherById's formatting
           } else {
             const assetGroupIds = [200050, 200051, 200061, 200062, 200075, 200077, 200040, 200070, 200058, 200155, 200150, 200145, 200160, 200095, 200115, 200120, 200135, 200140, 200141, 200195, 36, 75, 50, 60, 61, 62];
             
@@ -224,7 +263,7 @@ export default function PMSTransactionModal({
               if (!isNaN(parsedP) && parsedP > 0 && tPrice === 0) tPrice = parsedP;
             }
 
-            const isAsset = Number(l.ledgerId) >= 100000 || 
+            const isAsset = Number(ledgerId) >= 100000 || 
                             tQty > 0 || tPrice > 0 || match !== null ||
                             (ledger && assetGroupIds.includes(Number(ledger.groupId))) ||
                             (!ledger && !ledgerName.includes('broker') && !ledgerName.includes('bank') && !ledgerName.includes('cash') && !ledgerName.includes('stt') && !ledgerName.includes('stamp') && !ledgerName.includes('gst') && !ledgerName.includes('charge') && !ledgerName.includes('brokerage'));
@@ -236,10 +275,19 @@ export default function PMSTransactionModal({
                 extractedOther += lineOtherCharges;
               }
 
+              let tradeAmid = l.amid ? Number(l.amid) : ((ledger as any)?.exint1 ? Number((ledger as any).exint1) : undefined);
+              if (!tradeAmid && Number(ledgerId) >= 500000) {
+                tradeAmid = Number(ledgerId) - 500000;
+              }
+              if (!tradeAmid && Number(ledgerId) > 0 && Number(ledgerId) < 100000) {
+                tradeAmid = Number(ledgerId);
+              }
+
               parsedTrades.push({
                 id: String(l.id || Math.random()),
-                ledgerId: String(l.ledgerId),
-                assetName: ledger ? ledger.name : (l.ledgerName || l.ledgerId || ''),
+                ledgerId: ledgerId,
+                amid: tradeAmid,
+                assetName: ledger ? ledger.name : (l.ledgerName || ledgerId || ''),
                 type: (l.debit || 0) > 0 ? 'BUY' : 'SELL',
                 quantity: tQty,
                 price: tPrice,
@@ -250,6 +298,14 @@ export default function PMSTransactionModal({
             }
           }
         });
+
+        // Also read top-level charge fields stored directly on the voucher (from MProfit bs1 import or prior WealthCore saves)
+        if (v.stt && Number(v.stt) > 0 && extractedStt === 0) extractedStt = Number(v.stt);
+        if (v.stampCharges && Number(v.stampCharges) > 0 && extractedStamp === 0) extractedStamp = Number(v.stampCharges);
+        if (v.brokerage && Number(v.brokerage) > 0 && extractedBrokerage === 0) extractedBrokerage = Number(v.brokerage);
+        if (v.gst && Number(v.gst) > 0 && extractedGst === 0) extractedGst = Number(v.gst);
+        if (v.transCharges && Number(v.transCharges) > 0 && extractedTrans === 0) extractedTrans = Number(v.transCharges);
+        if (v.otherCharges && Number(v.otherCharges) > 0 && extractedOther === 0) extractedOther = Number(v.otherCharges);
 
         // Determine Asset Type
         let determinedAssetType: 'EQ' | 'MF' = 'EQ';
@@ -292,12 +348,16 @@ export default function PMSTransactionModal({
         setTransCharges(extractedTrans);
         setBrokerage(extractedBrokerage);
         setOtherCharges(extractedOther);
-        if (extractedCounterId) {
+        if (v.broker) {
+          setBroker(v.broker);
+        } else if (extractedCounterId) {
           setCounterLedgerId(extractedCounterId);
           const counterLedger = ledgers.find(l => String(l.id) === String(extractedCounterId));
           if (counterLedger) {
             setBroker(counterLedger.name.replace(/\s+A\/c$/i, '').trim());
           }
+        } else {
+          setBroker('');
         }
       }
     }
@@ -372,9 +432,13 @@ export default function PMSTransactionModal({
 
     // Resolve Account ID
     let accountId = originalVoucher.accountId;
-    if (originalVoucher.portfolioId) {
-      const port = portfolios.find(p => String(p.id) === String(originalVoucher.portfolioId));
-      if (port) accountId = port.accountId;
+    if (!accountId && originalVoucher.portfolioId) {
+      const linkedAcid = getAccountForPortfolio(Number(originalVoucher.portfolioId));
+      if (linkedAcid) accountId = String(linkedAcid);
+    }
+    if (!accountId && originalVoucher.portfolioId) {
+      const port = allPortfolios.find(p => String(p.id) === String(originalVoucher.portfolioId));
+      if (port && port.accountId) accountId = port.accountId;
     }
     const acidNum = accountId ? Number(accountId) : (targetAccountId ? Number(targetAccountId) : undefined);
 
@@ -421,6 +485,7 @@ export default function PMSTransactionModal({
 
       lines.push({
         ledgerId: directLedgerId,
+        amid: trade.amid,
         debit: isTradeBuy ? finalTradeAmount : 0,
         credit: !isTradeBuy ? trade.amount : 0,
         quantity: trade.quantity,
@@ -465,7 +530,7 @@ export default function PMSTransactionModal({
 
     // Pass direct assetId from the first trade so createVoucher can write bs1 correctly
     // for any asset type (Gold, Silver, Bonds, MF, Stocks, FD, etc.)
-    const primaryTradeAssetId = trades[0]?.ledgerId || undefined;
+    const primaryTradeAssetId = trades[0]?.amid ? String(trades[0].amid) : (trades[0]?.ledgerId || undefined);
 
     const updatedVoucher = {
       ...originalVoucher,
@@ -490,6 +555,7 @@ export default function PMSTransactionModal({
     } catch (e: any) {
       console.error('❌ PMSTransactionModal save failed:', e);
       alert(`Save failed: ${e?.message || 'Unknown error'}. Check console for details.`);
+    } finally {
       setIsSaving(false);
     }
   };
@@ -532,13 +598,14 @@ export default function PMSTransactionModal({
           style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', fontWeight: 600, outline: 'none', background: '#fff' }}
         />
         {isEditingThisRow && showDropdown && searchResults.length > 0 && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 100, maxHeight: '200px', overflowY: 'auto', marginTop: '4px', textAlign: 'left' }}>
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 100, maxHeight: '220px', overflowY: 'auto', marginTop: '4px', textAlign: 'left' }}>
             {searchResults.map(asset => (
               <div
                 key={asset.amid}
                 onClick={() => {
                   handleTradeChange(idx, 'assetName', asset.name);
                   handleTradeChange(idx, 'ledgerId', String(asset.amid));
+                  handleTradeChange(idx, 'amid', asset.amid);
                   setShowDropdown(false);
                   setActiveRowIdx(null);
                 }}
@@ -546,10 +613,52 @@ export default function PMSTransactionModal({
                 onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                 onMouseLeave={e => e.currentTarget.style.background = '#fff'}
               >
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>{asset.name}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>{asset.name}</span>
+                  {asset.isin && <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 700, background: '#eff6ff', padding: '1px 6px', borderRadius: '4px' }}>{asset.isin}</span>}
+                </div>
                 <span style={{ fontSize: '10px', color: '#64748b' }}>{asset.asset_type_name} {asset.ticker ? `• ${asset.ticker}` : ''}</span>
               </div>
             ))}
+            <div
+              onMouseDown={e => {
+                e.preventDefault();
+                setAddAssetTargetIdx(idx);
+                setIsAddAssetOpen(true);
+                setShowDropdown(false);
+              }}
+              style={{
+                padding: '8px 12px',
+                background: '#eff6ff',
+                color: '#2563eb',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderTop: '1px solid #bfdbfe'
+              }}
+            >
+              <Plus size={13} /> + Add New Security (ISIN Mandatory)
+            </div>
+          </div>
+        )}
+        {isEditingThisRow && showDropdown && searchResults.length === 0 && searchQuery.length >= 2 && !isSearching && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 100, padding: '12px', textAlign: 'center' }}>
+            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>No securities found for "{searchQuery}".</div>
+            <button
+              type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                setAddAssetTargetIdx(idx);
+                setIsAddAssetOpen(true);
+                setShowDropdown(false);
+              }}
+              style={{ padding: '6px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+            >
+              + Create New Security with ISIN
+            </button>
           </div>
         )}
       </div>
@@ -585,7 +694,7 @@ export default function PMSTransactionModal({
               {assetType === 'EQ' ? 'CONTRACT NOTE' : 'MF CONTRA'}
             </div>
             <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {assetType === 'EQ' ? 'Equity Transaction' : 'Mutual Fund Transaction'}
+              {assetType === 'MF' ? 'Mutual Fund Transaction' : (trades[0]?.assetName ? `${trades[0].assetName} Transaction` : 'Trade Transaction')}
               {voucherId === 'new' && (
                 <button onClick={() => setAssetType(t => t === 'EQ' ? 'MF' : 'EQ')} style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', fontWeight: 700 }}>
                   Switch to {assetType === 'EQ' ? 'MF' : 'EQ'}
@@ -616,6 +725,7 @@ export default function PMSTransactionModal({
                   <div style={{ flex: 1 }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>Broker</label>
                     <select value={broker} onChange={e => setBroker(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', color: '#0f172a', outline: 'none', background: '#fff', fontWeight: 600 }}>
+                      <option value="">Select Broker...</option>
                       {availableBrokers.map(b => (
                         <option key={b} value={b}>{b}</option>
                       ))}
@@ -822,6 +932,28 @@ export default function PMSTransactionModal({
           </div>
         </div>
       </div>
+      {isAddAssetOpen && (
+        <AddAssetModal
+          initialType={assetType === 'MF' ? 'mf' : 'stock'}
+          hideTransactionSection={true}
+          onClose={() => {
+            setIsAddAssetOpen(false);
+            setAddAssetTargetIdx(null);
+          }}
+          onAssetCreated={(newAsset, price) => {
+            if (addAssetTargetIdx !== null) {
+              handleTradeChange(addAssetTargetIdx, 'assetName', newAsset.name);
+              handleTradeChange(addAssetTargetIdx, 'ledgerId', String(newAsset.amid));
+              handleTradeChange(addAssetTargetIdx, 'amid', newAsset.amid);
+              if (price && price > 0) {
+                handleTradeChange(addAssetTargetIdx, 'price', price);
+              }
+            }
+            setIsAddAssetOpen(false);
+            setAddAssetTargetIdx(null);
+          }}
+        />
+      )}
     </div>
   );
 }

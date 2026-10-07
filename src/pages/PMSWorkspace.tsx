@@ -5,6 +5,7 @@ import { useFY } from '../FYContext';
 import ReportsModal, { type ReportConfig } from "../components/ReportsModal";
 import ReportViewerModal from "../components/ReportViewerModal";
 import PMSDashboard from "../components/PMSDashboard";
+import AddAssetModal from "../components/pms/AddAssetModal";
 import { generatePortfolioSummary, generatePnLDetailed, generateTransactionReport, generateAssetAllocationReport, generateIncomeReport, generate80CReport } from "../services/reportsEngine";
 import { generateCapitalGainsDetailed, generateTaxPlanningReport } from "../services/capitalGainsEngine";
 import {
@@ -46,6 +47,7 @@ import PMSFDInvestmentModal from '../components/pms/PMSFDInvestmentModal';
 import PMSPPFModal from '../components/pms/PMSPPFModal';
 import PMSNCDBondModal from '../components/pms/PMSNCDBondModal';
 import PMSGoldSilverModal from '../components/pms/PMSGoldSilverModal';
+import PMSULIPModal from '../components/pms/PMSULIPModal';
 import CorporateActionNotificationBanner from '../components/pms/CorporateActionNotificationBanner';
 
 // Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
@@ -84,11 +86,12 @@ const CATEGORY_LABELS: Record<number, string> = {
   60:  'Mutual Funds (Equity)',
   61:  'Mutual Funds (Debt)',
   62:  'Mutual Funds (Other)',
-  70:  'NPS / ULiP',
+  70:  'NCD / Debentures',
   75:  'Mutual Funds (Other)',
   77:  'Silver',
   80:  'Insurance',
   90:  'Fixed Deposits',
+  95:  'NPS / ULiP',
   100: 'Traded Bonds',
   110: 'NCD / Debentures',
   120: 'Deposits / Loans',
@@ -109,11 +112,11 @@ const ATTY_MAP: Record<string, number[] | undefined> = {
   stocks:             [50, 51],
   mf_eq:              [60, 62, 66, 75],
   mf_debt:            [61],
-  nps:                [70, 95],
+  nps:                [95],
   insurance:          [80],
   fds:                [90, 30],
   bonds:              [100, 40],
-  ncd:                [110],
+  ncd:                [110, 70],
   deposits_loans:     [120],
   ppf:                [130],
   post:               [140],
@@ -145,7 +148,7 @@ class ModalErrorBoundary extends React.Component<{ onClose: () => void; children
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '500px', width: '90%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
             <h3 style={{ color: '#ef4444', margin: '0 0 12px', fontSize: '18px', fontWeight: 800 }}>Unable to Open Transaction</h3>
-            <p style={{ color: var(--bbg-text-muted), fontSize: '13px', lineHeight: 1.5 }}>
+            <p style={{ color: 'var(--bbg-text-muted)', fontSize: '13px', lineHeight: 1.5 }}>
               {this.state.error?.message || 'An error occurred while loading this transaction.'}
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
@@ -203,11 +206,12 @@ export default function PMSWorkspace() {
   const [incomeAsset, setIncomeAsset] = useState<{ id: string; name: string; portIds: string[] } | null>(null);
   const [priceAsset, setPriceAsset] = useState<{ id: string; name: string; currentPrice: number } | null>(null);
   const [specialModal, setSpecialModal] = useState<{
-    type: 'fd' | 'ppf' | 'bond' | 'ncd' | 'gold_buy' | 'gold_sell' | 'silver_buy' | 'silver_sell';
+    type: 'fd' | 'ppf' | 'bond' | 'ncd' | 'gold_buy' | 'gold_sell' | 'silver_buy' | 'silver_sell' | 'ulip' | 'ulip_renewal';
     voucherId?: string;
     assetId?: string;
     assetName?: string;
   } | null>(null);
+  const [addAssetModalType, setAddAssetModalType] = useState<'stock' | 'mf' | 'bond' | null>(null);
   
   // Reports State
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
@@ -336,7 +340,7 @@ export default function PMSWorkspace() {
   const groups = useMemo(() => getStoredInvestorGroups(), [tick, globalRefreshTrigger]);
 
   const allPossibleTabs = useMemo(() => {
-    const res: any[] = [{ id: 'all', label: 'All Gadgets', portfolioIds: portfolios.map(p => p.id) }];
+    const res: any[] = [{ id: 'all', label: 'All Gadgets', portfolioIds: portfolios.map(p => p.id), isGroup: true }];
     groups.forEach(g => res.push({ id: `group-${g.id}`, label: `${g.groupName}(G)`, portfolioIds: g.portfolioIds, isGroup: true }));
     portfolios.forEach(p => res.push({ id: `port-${p.id}`, label: p.portfolioName.trim(), portfolioIds: [p.id] }));
     return res;
@@ -344,6 +348,17 @@ export default function PMSWorkspace() {
 
   const tabs = useMemo(() => allPossibleTabs.filter(t => openTabIds.includes(t.id)), [allPossibleTabs, openTabIds]);
   const currentTab = useMemo(() => tabs.find(t => t.id === activeTab) || tabs[0] || null, [tabs, activeTab]);
+
+  const defaultPort = useMemo(() => {
+    if (currentTab && !currentTab.isGroup && currentTab.portfolioIds?.length === 1) {
+      return String(currentTab.portfolioIds[0]);
+    }
+    const primary = portfolios.find(p => {
+      const n = (p.portfolioName || p.investor_name || '').toLowerCase();
+      return n.includes('pramesh') && !n.includes('huf') && !n.includes('curr') && !n.includes('fo') && !n.includes('mf');
+    }) || portfolios[0];
+    return primary ? String(primary.id) : undefined;
+  }, [currentTab, portfolios]);
   
   const handleOpenContext = (id: string) => {
     if (!openTabIds.includes(id)) setOpenTabIds(prev => [...prev, id]);
@@ -360,10 +375,9 @@ export default function PMSWorkspace() {
 
   // Compute base holdings from MProfit data
   const holdings = useMemo(() => {
-    if (!currentTab) return [];
     const filterIds = activeAssetType === 'all' ? undefined : (ATTY_MAP[activeAssetType] || []);
-    return getHoldings(currentTab.portfolioIds.map(Number), filterIds, showZeroQty);
-  }, [currentTab, activeAssetType, customRange.end, tick, globalRefreshTrigger, showZeroQty]); // Re-compute when tick or globalRefreshTrigger changes
+    return getHoldings(currentTab.portfolioIds.map(Number), filterIds, showZeroQty, true);
+  }, [currentTab, activeAssetType, customRange.end, tick, globalRefreshTrigger, showZeroQty]);
 
   const [enrichedHoldings, setEnrichedHoldings] = useState<any[]>([]);
 
@@ -382,14 +396,28 @@ export default function PMSWorkspace() {
     }), { invested: 0, today: 0, overall: 0, value: 0 });
   }, [enrichedHoldings]);
 
-  const handleDrilldown = (assetId: string, assetName: string, portIds: string[], atty?: number) => setSelectedAssetForLedger({ id: assetId, name: assetName, portIds, atty });
+  const handleDrilldown = (assetId: string, assetName: string, portIds: string[], atty?: number) => {
+    setSelectedHolding(null);
+    setSelectedAssetForLedger({ id: assetId, name: assetName, portIds, atty });
+  };
+
+  const handleHoldingRowClick = (h: AssetHolding) => {
+    if ((h as any).isGroup) return;
+    const splits = h.portfolioSplits || [];
+    if (currentTab?.portfolioIds.length === 1 || splits.length === 1) {
+      const portId = splits[0] ? String(splits[0].portfolioId) : String(currentTab?.portfolioIds[0]);
+      handleDrilldown(String(h.assetId), h.assetName, [portId], h.assetType);
+    } else {
+      setSelectedHolding(h);
+    }
+  };
   const fmt = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const gainColor = (n: number) => n >= 0 ? '#16a34a' : '#dc2626';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: var(--bbg-bg), overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bbg-bg)', overflow: 'hidden' }}>
             {/* ── TOP BAR ── */}
-      <div style={{ height: '60px', background: var(--bbg-surface), borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 40px', justifyContent: 'space-between', flexShrink: 0, zIndex: 9999, position: 'relative' }}>
+      <div style={{ height: '60px', background: 'var(--bbg-surface)', borderBottom: '1px solid var(--bbg-border)', display: 'flex', alignItems: 'center', padding: '0 40px', justifyContent: 'space-between', flexShrink: 0, zIndex: 9999, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <button onClick={() => setIsSelectorOpen('port')} className="btn-primary" style={{ height: '34px', padding: '0 14px', fontSize: '12px', gap: '6px' }}>
@@ -398,7 +426,7 @@ export default function PMSWorkspace() {
             <button onClick={() => setIsSelectorOpen('group')} className="btn-primary" style={{ height: '34px', padding: '0 14px', fontSize: '12px', gap: '6px' }}>
               <LayoutGrid size={14} /> Open Group
             </button>
-            <div style={{ width: '1px', height: '22px', background: var(--bbg-border), margin: '0 4px', alignSelf: 'center' }} />
+            <div style={{ width: '1px', height: '22px', background: 'var(--bbg-border)', margin: '0 4px', alignSelf: 'center' }} />
             <button className="pms-topbar-btn" onClick={() => setIsReportsModalOpen(true)}><FileText size={14} /> Reports <ChevronDown size={12} /></button>
             <button className="pms-topbar-btn"><Plus size={14} /> Import</button>
             <button 
@@ -411,19 +439,17 @@ export default function PMSWorkspace() {
               {syncStatus || 'Sync'}
             </button>
 
-            <div style={{ width: '1px', height: '22px', background: var(--bbg-border), margin: '0 4px', alignSelf: 'center' }} />
+            <div style={{ width: '1px', height: '22px', background: 'var(--bbg-border)', margin: '0 4px', alignSelf: 'center' }} />
 
-            {/* THEME TOGGLE */}
-              <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} className="btn-secondary" style={{ height: '34px', padding: '0 12px', fontSize: '12px' }}>
-                {theme === 'dark' ? 'Light Theme' : 'Bloomberg Dark'}
-              </button>
+            
+              
               {/* VIEWS DROPDOWN */}
             <div style={{ position: 'relative', zIndex: 10000 }}>
               <button onClick={(e) => { e.stopPropagation(); setIsViewsMenuOpen(!isViewsMenuOpen); setIsActivityMenuOpen(false); }} className="btn-secondary" style={{ height: '34px', padding: '0 12px', gap: '6px', fontSize: '12px' }}>
                 Views <ChevronDown size={13} />
               </button>
               {isViewsMenuOpen && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: var(--bbg-surface), border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '220px', zIndex: 10000, padding: '4px' }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'var(--bbg-surface)', border: '1px solid var(--bbg-border)', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '220px', zIndex: 10000, padding: '4px' }}>
                   <button className="dropdown-item" onClick={() => setAreAllExpanded(!areAllExpanded)}>
                     {areAllExpanded ? 'Collapse All' : 'Expand All'}
                   </button>
@@ -431,7 +457,7 @@ export default function PMSWorkspace() {
                     {showZeroQty ? 'Hide 0 Qty Assets' : 'Show 0 Qty Assets'}
                   </button>
                   <button className="dropdown-item">Views of Summary Table</button>
-                  <div style={{ height: '1px', background: var(--bbg-border), margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: 'var(--bbg-border)', margin: '4px 0' }} />
                   <button className="dropdown-item" onClick={() => setSortBy('name')} style={{ fontWeight: sortBy === 'name' ? 700 : 500 }}>Sort By Name</button>
                   <button className="dropdown-item" onClick={() => setSortBy('value')} style={{ fontWeight: sortBy === 'value' ? 700 : 500 }}>Sort By Current Value</button>
                   <button className="dropdown-item" onClick={() => setSortBy('todaysGainPct')} style={{ fontWeight: sortBy === 'todaysGainPct' ? 700 : 500 }}>Sort By Today's Gain %</button>
@@ -448,7 +474,7 @@ export default function PMSWorkspace() {
                 <Activity size={14} /> Activity Menu <ChevronDown size={13} />
               </button>
               {isActivityMenuOpen && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: var(--bbg-surface), border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10000, padding: '4px' }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'var(--bbg-surface)', border: '1px solid var(--bbg-border)', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10000, padding: '4px' }}>
                   <button className="dropdown-item" onClick={() => { setIsActivityOpen(true); setIsActivityMenuOpen(false); }}>View Transactions</button>
                   <button className="dropdown-item" onClick={() => { setEditingVoucherId('new'); setIsActivityMenuOpen(false); }}>Add Transaction (Stocks / MF)</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd' }); setIsActivityMenuOpen(false); }}>+ Add Fixed Deposit (FD)</button>
@@ -457,7 +483,9 @@ export default function PMSWorkspace() {
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'bond' }); setIsActivityMenuOpen(false); }}>+ Add Traded Bond Buy</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_buy' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Purchase</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_sell' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Sale</button>
-                  <div style={{ height: '1px', background: var(--bbg-border), margin: '4px 0' }} />
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ulip' }); setIsActivityMenuOpen(false); }}>+ Add ULIP Policy</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ulip_renewal' }); setIsActivityMenuOpen(false); }}>+ Add ULIP Renewal Premium</button>
+                  <div style={{ height: '1px', background: 'var(--bbg-border)', margin: '4px 0' }} />
                   <div 
                     style={{ position: 'relative' }}
                     onMouseEnter={() => setIsOtherTxMenuOpen(true)}
@@ -467,7 +495,7 @@ export default function PMSWorkspace() {
                       Other Transactions <ChevronRight size={14} />
                     </button>
                     {isOtherTxMenuOpen && (
-                      <div style={{ position: 'absolute', top: 0, right: '100%', marginRight: '4px', background: var(--bbg-surface), border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10001, padding: '4px' }}>
+                      <div style={{ position: 'absolute', top: 0, right: '100%', marginRight: '4px', background: 'var(--bbg-surface)', border: '1px solid var(--bbg-border)', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10001, padding: '4px' }}>
                         <button className="dropdown-item">Add Bonus Received</button>
                         <button className="dropdown-item">Add Stock Split Details</button>
                         <button className="dropdown-item">Add Stock D'Merger Details</button>
@@ -479,7 +507,7 @@ export default function PMSWorkspace() {
                       </div>
                     )}
                   </div>
-                  <div style={{ height: '1px', background: var(--bbg-border), margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: 'var(--bbg-border)', margin: '4px 0' }} />
                   <button className="dropdown-item" onClick={() => {
                     if (selectedHolding) {
                       setIncomeAsset({
@@ -504,7 +532,7 @@ export default function PMSWorkspace() {
                   }}>Set Current Price</button>
                   <button className="dropdown-item">Update Prices of the portfolio</button>
                   <button className="dropdown-item">Edit/Delete asset for this portfolio</button>
-                  <div style={{ height: '1px', background: var(--bbg-border), margin: '4px 0' }} />
+                  <div style={{ height: '1px', background: 'var(--bbg-border)', margin: '4px 0' }} />
                   <button className="dropdown-item">Advance</button>
                   <button className="dropdown-item">Edit Selected Asset</button>
                 </div>
@@ -518,7 +546,7 @@ export default function PMSWorkspace() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#475569', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#64748b', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Activity size={14} color="#64748b" />
             As of: {formatDateDDMMMYYYY(customRange.end)}
           </div>
@@ -557,8 +585,8 @@ export default function PMSWorkspace() {
                   padding: '10px 18px',
                   fontSize: '13px',
                   fontWeight: isActiveTab ? 700 : 500,
-                  color: isActiveTab ? var(--bbg-text-main) : var(--bbg-text-muted),
-                  background: isActiveTab ? var(--bbg-surface) : var(--bbg-border),
+                  color: isActiveTab ? '#1e293b' : '#64748b',
+                  background: isActiveTab ? '#ffffff' : '#e2e8f0',
                   borderRadius: '10px 10px 0 0',
                   border: isActiveTab ? '1px solid #cbd5e1' : '1px solid transparent',
                   borderBottom: isActiveTab ? '3px solid #3b82f6' : '1px solid transparent',
@@ -569,7 +597,7 @@ export default function PMSWorkspace() {
                   whiteSpace: 'nowrap'
                 }}
               >
-                {tab.isGroup ? <LayoutGrid size={14} color={isActiveTab ? '#3b82f6' : var(--bbg-text-muted)} /> : <Users size={14} color={isActiveTab ? '#3b82f6' : var(--bbg-text-muted)} />}
+                {tab.isGroup ? <LayoutGrid size={14} color={isActiveTab ? '#3b82f6' : '#64748b'} /> : <Users size={14} color={isActiveTab ? '#3b82f6' : '#64748b'} />}
                 <span>{tab.label}</span>
                 {tab.id !== 'all' && (
                   <span 
@@ -586,7 +614,7 @@ export default function PMSWorkspace() {
                       marginLeft: '4px',
                       transition: 'all 0.2s'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = var(--bbg-border); e.currentTarget.style.color = var(--bbg-text-main); }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#cbd5e1'; e.currentTarget.style.color = '#1e293b'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}
                   >
                     <X size={11} />
@@ -599,116 +627,148 @@ export default function PMSWorkspace() {
 
         {/* ── MAIN CARD ── */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-          
-          {/* ── CARD HEADER (ASSET TYPES) ── */}
-          <div style={{ padding: '2px 12px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fcfcfd', minHeight: '28px' }}>
-            <div style={{ display: 'flex', gap: '2px', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}>
-              {ASSET_TYPE_TABS.map(type => (
-                <button 
-                  key={type} 
-                  onClick={() => setActiveAssetType(type)} 
-                  className={activeAssetType === type ? 'asset-type-btn-active' : 'asset-type-btn'}
-                >
-                  {ASSET_TAB_LABELS[type] || type}
-                </button>
-              ))}
+            
+            {/* ── CARD HEADER (ASSET TYPES) ── */}
+            <div style={{ padding: '2px 12px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fcfcfd', minHeight: '28px' }}>
+              <div style={{ display: 'flex', gap: '2px', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}>
+                {ASSET_TYPE_TABS.map(type => (
+                  <button 
+                    key={type} 
+                    onClick={() => setActiveAssetType(type)} 
+                    className={activeAssetType === type ? 'asset-type-btn-active' : 'asset-type-btn'}
+                  >
+                    {ASSET_TAB_LABELS[type] || type}
+                  </button>
+                ))}
+              </div>
+
+              {/* Quick Action Button for the active asset type */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, paddingLeft: '12px' }}>
+                {activeAssetType === 'stocks' && (
+                  <button
+                    onClick={() => setAddAssetModalType('stock')}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Stock (ISIN)
+                  </button>
+                )}
+                {(activeAssetType === 'mf_eq' || activeAssetType === 'mf_debt') && (
+                  <button
+                    onClick={() => setAddAssetModalType('mf')}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#d97706', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Mutual Fund (ISIN)
+                  </button>
+                )}
+                {activeAssetType === 'bonds' && (
+                  <button
+                    onClick={() => setAddAssetModalType('bond')}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1e40af', background: 'var(--bbg-active-bg)', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Traded Bond (ISIN)
+                  </button>
+                )}
+                {activeAssetType === 'nps' && (
+                  <>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'ulip' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#4338ca', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add ULIP Policy
+                    </button>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'ulip_renewal' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add Renewal Premium
+                    </button>
+                  </>
+                )}
+                {activeAssetType === 'fds' && (
+                  <button
+                    onClick={() => setSpecialModal({ type: 'fd' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1d4ed8', background: 'var(--bbg-active-bg)', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add FD
+                  </button>
+                )}
+                {activeAssetType === 'ppf' && (
+                  <button
+                    onClick={() => setSpecialModal({ type: 'ppf' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add PPF / EPF
+                  </button>
+                )}
+                {activeAssetType === 'ncd' && (
+                  <button
+                    onClick={() => setSpecialModal({ type: 'ncd' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add NCD
+                  </button>
+                )}
+                {activeAssetType === 'gold' && (
+                  <>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'gold_buy' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add Gold Purchase
+                    </button>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'gold_sell' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add Gold Sale
+                    </button>
+                  </>
+                )}
+                {activeAssetType === 'silver' && (
+                  <>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'silver_buy' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: 'var(--bbg-text-muted)', background: 'var(--bbg-hover-bg)', border: '1px solid var(--bbg-border)', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add Silver Purchase
+                    </button>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'silver_sell' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add Silver Sale
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* Quick Action Button for the active asset type */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, paddingLeft: '12px' }}>
-              {activeAssetType === 'fds' && (
-                <button
-                  onClick={() => setSpecialModal({ type: 'fd' })}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  <Plus size={13} /> Add FD
-                </button>
-              )}
-              {activeAssetType === 'ppf' && (
-                <button
-                  onClick={() => setSpecialModal({ type: 'ppf' })}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  <Plus size={13} /> Add PPF / EPF
-                </button>
-              )}
-              {activeAssetType === 'ncd' && (
-                <button
-                  onClick={() => setSpecialModal({ type: 'ncd' })}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  <Plus size={13} /> Add NCD
-                </button>
-              )}
-              {activeAssetType === 'bonds' && (
-                <button
-                  onClick={() => setSpecialModal({ type: 'bond' })}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1e40af', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  <Plus size={13} /> Add Bond
-                </button>
-              )}
-              {activeAssetType === 'gold' && (
-                <>
-                  <button
-                    onClick={() => setSpecialModal({ type: 'gold_buy' })}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add Gold Purchase
-                  </button>
-                  <button
-                    onClick={() => setSpecialModal({ type: 'gold_sell' })}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add Gold Sale
-                  </button>
-                </>
-              )}
-              {activeAssetType === 'silver' && (
-                <>
-                  <button
-                    onClick={() => setSpecialModal({ type: 'silver_buy' })}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#475569', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add Silver Purchase
-                  </button>
-                  <button
-                    onClick={() => setSpecialModal({ type: 'silver_sell' })}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add Silver Sale
-                  </button>
-                </>
-              )}
+            {/* ── GRID ── */}
+            <div style={{ minHeight: '500px', overflow: 'hidden' }}>
+              {activeAssetType === 'dashboard' && currentTab ? <PMSDashboard portfolioIds={currentTab.portfolioIds.map(Number)} /> : <HoldingsGrid 
+                data={holdings} 
+                onHoldingClick={handleHoldingRowClick} 
+                onSetPriceClick={(h) => setPriceAsset({ id: String(h.assetId), name: h.assetName, currentPrice: h.currentPrice })}
+                groupByCategory={activeAssetType === 'all'} 
+                categoryLabels={CATEGORY_LABELS} 
+                onDataChange={setEnrichedHoldings} 
+                areAllExpanded={areAllExpanded}
+                sortBy={sortBy}
+              />}
             </div>
-          </div>
 
-          {/* ── GRID ── */}
-          <div style={{ minHeight: '500px', overflow: 'hidden' }}>
-            {activeAssetType === 'dashboard' && currentTab ? <PMSDashboard portfolioIds={currentTab.portfolioIds.map(Number)} /> : <HoldingsGrid 
-              data={holdings} 
-              onHoldingClick={setSelectedHolding} 
-              onSetPriceClick={(h) => setPriceAsset({ id: String(h.assetId), name: h.assetName, currentPrice: h.currentPrice })}
-              groupByCategory={activeAssetType === 'all'} 
-              categoryLabels={CATEGORY_LABELS} 
-              onDataChange={setEnrichedHoldings} 
-              areAllExpanded={areAllExpanded}
-              sortBy={sortBy}
-            />}
-          </div>
-
-          {/* ── FOOTER ── */}
-          <div style={{ height: '40px', background: var(--bbg-bg), borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 20px', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: '20px', fontSize: '11px' }}>
-              <div>Invested: <span style={{ fontWeight: 700 }}>{fmt(totals.invested)}</span></div>
-              <div>Value: <span style={{ fontWeight: 800, color: '#2563eb' }}>{fmt(totals.value)}</span></div>
-            </div>
-            <div style={{ display: 'flex', gap: '20px', fontSize: '11px' }}>
-              <div>Today: <span style={{ fontWeight: 700, color: gainColor(totals.today) }}>{fmt(totals.today)}</span></div>
-              <div>Overall: <span style={{ fontWeight: 700, color: gainColor(totals.overall) }}>{fmt(totals.overall)}</span></div>
+            {/* ── FOOTER ── */}
+            <div style={{ height: '40px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', padding: '0 20px', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: '20px', fontSize: '11px' }}>
+                <div>Invested: <span style={{ fontWeight: 700 }}>{fmt(totals.invested)}</span></div>
+                <div>Value: <span style={{ fontWeight: 800, color: '#2563eb' }}>{fmt(totals.value)}</span></div>
+              </div>
+              <div style={{ display: 'flex', gap: '20px', fontSize: '11px' }}>
+                <div>Today: <span style={{ fontWeight: 700, color: gainColor(totals.today) }}>{fmt(totals.today)}</span></div>
+                <div>Overall: <span style={{ fontWeight: 700, color: gainColor(totals.overall) }}>{fmt(totals.overall)}</span></div>
+              </div>
             </div>
           </div>
-        </div>
       </div>
 
       {/* ── MODALS ── */}
@@ -727,15 +787,17 @@ export default function PMSWorkspace() {
         </div>
       )}
       {selectedAssetForLedger && Number(selectedAssetForLedger.id) >= 0 && (
-        <AssetLedgerModal 
-          open={!!selectedAssetForLedger} 
-          assetId={selectedAssetForLedger.id} 
-          assetName={selectedAssetForLedger.name} 
-          portfolioIds={selectedAssetForLedger.portIds}
-          atty={selectedAssetForLedger.atty}
-          onClose={() => setSelectedAssetForLedger(null)} 
-          onEditTransaction={setEditingVoucherId}
-        />
+        <ModalErrorBoundary onClose={() => setSelectedAssetForLedger(null)}>
+          <AssetLedgerModal 
+            open={!!selectedAssetForLedger} 
+            assetId={selectedAssetForLedger.id} 
+            assetName={selectedAssetForLedger.name} 
+            portfolioIds={selectedAssetForLedger.portIds}
+            atty={selectedAssetForLedger.atty}
+            onClose={() => setSelectedAssetForLedger(null)} 
+            onEditTransaction={setEditingVoucherId}
+          />
+        </ModalErrorBoundary>
       )}
       {editingVoucherId && (
         <ModalErrorBoundary onClose={() => setEditingVoucherId(null)}>
@@ -811,12 +873,27 @@ export default function PMSWorkspace() {
           }}
         />
       )}
+      {(specialModal?.type === 'ulip' || specialModal?.type === 'ulip_renewal') && (
+        <PMSULIPModal
+          assetId={specialModal.assetId}
+          assetName={specialModal.assetName}
+          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          voucherId={specialModal.voucherId}
+          initialMode={specialModal.type === 'ulip_renewal' ? 'renewal' : 'new_policy'}
+          onClose={() => setSpecialModal(null)}
+          onSaved={() => {
+            setSpecialModal(null);
+            setTick(t => t + 1);
+            triggerGlobalRefresh();
+          }}
+        />
+      )}
       {isSelectorOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }} onClick={() => { setIsSelectorOpen(null); setTempSelectedIds([]); }}>
           <div className="modal-box" style={{ padding: '24px', width: '400px' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Select {isSelectorOpen === 'port' ? 'Portfolios' : 'Investor Groups'}</h3>
-              <button onClick={() => { setIsSelectorOpen(null); setTempSelectedIds([]); }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
+              <button onClick={() => { setIsSelectorOpen(null); setTempSelectedIds([]); }} style={{ background: 'none', border: 'none', color: 'var(--bbg-text-muted)', cursor: 'pointer' }}><X size={20} /></button>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
@@ -830,8 +907,8 @@ export default function PMSWorkspace() {
                     key={item.id} 
                     style={{ 
                       display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', 
-                      background: isChecked ? '#eff6ff' : var(--bbg-bg), 
-                      border: isChecked ? '1px solid #3b82f6' : '1px solid #e2e8f0', 
+                      background: isChecked ? 'var(--bbg-active-bg)' : 'var(--bbg-bg)', 
+                      border: isChecked ? '1px solid #3b82f6' : '1px solid var(--bbg-border)', 
                       borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s'
                     }}
                   >
@@ -845,7 +922,7 @@ export default function PMSWorkspace() {
                       style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                     />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: isChecked ? '#2563eb' : var(--bbg-text-main) }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: isChecked ? '#2563eb' : 'var(--bbg-text-main)' }}>
                         {isSelectorOpen === 'port' ? item.portfolioName : item.groupName}
                       </div>
                       {isOpen && <div style={{ fontSize: '10px', color: '#10b981', fontWeight: 700 }}>ALREADY OPEN</div>}
@@ -915,6 +992,20 @@ export default function PMSWorkspace() {
         />
       )}
 
+      {/* Add Security Master Modal */}
+      {addAssetModalType && (
+        <AddAssetModal
+          initialType={addAssetModalType}
+          defaultPortfolioId={defaultPort}
+          onClose={() => setAddAssetModalType(null)}
+          onAssetCreated={(asset, price) => {
+            setAddAssetModalType(null);
+            setTick(t => t + 1);
+            triggerGlobalRefresh();
+          }}
+        />
+      )}
+
       {/* Reports Modals */}
       <ReportsModal 
         isOpen={isReportsModalOpen}
@@ -932,28 +1023,28 @@ export default function PMSWorkspace() {
       />
       
       <style>{`
-        .btn-active-tab { height: 32px; padding: 0 16px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3); background: linear-gradient(to bottom, #ffffff, #f8fafc); color: #2563eb; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.15); transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); transform: translateY(-1px); }
-        .btn-inactive-tab { height: 32px; padding: 0 16px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-active-tab { height: 32px; padding: 0 16px; border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.3); background: linear-gradient(to bottom, var(--bbg-bg), var(--bbg-surface)); color: #2563eb; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.15); transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); transform: translateY(-1px); }
+        .btn-inactive-tab { height: 32px; padding: 0 16px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--bbg-text-muted); font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-inactive-tab:hover { background: rgba(255, 255, 255, 0.8); color: #334155; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.05); }
-        .asset-type-btn { padding: 3px 10px; font-size: 11.5px; font-weight: 600; color: #475569; border: 1px solid #cbd5e1; background: #f1f5f9; cursor: pointer; border-radius: 6px; transition: all 0.15s ease; white-space: nowrap; height: 24px; display: inline-flex; align-items: center; }
-        .asset-type-btn:hover { color: #0f172a; background: #e2e8f0; border-color: #94a3b8; }
-        .asset-type-btn-active { padding: 3px 10px; font-size: 11.5px; font-weight: 700; color: #ffffff; border: 1px solid #1d4ed8; background: #2563eb; cursor: pointer; border-radius: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25); transition: all 0.15s ease; white-space: nowrap; height: 24px; display: inline-flex; align-items: center; }
+        .asset-type-btn { padding: 3px 10px; font-size: 11.5px; font-weight: 600; color: var(--bbg-text-muted); border: 1px solid var(--bbg-border); background: var(--bbg-hover-bg); cursor: pointer; border-radius: 6px; transition: all 0.15s ease; white-space: nowrap; height: 24px; display: inline-flex; align-items: center; }
+        .asset-type-btn:hover { color: var(--bbg-text-main); background: var(--bbg-border); border-color: var(--bbg-text-muted); }
+        .asset-type-btn-active { padding: 3px 10px; font-size: 11.5px; font-weight: 700; color: var(--bbg-bg); border: 1px solid #1d4ed8; background: #2563eb; cursor: pointer; border-radius: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25); transition: all 0.15s ease; white-space: nowrap; height: 24px; display: inline-flex; align-items: center; }
         
-        .tab-close-icon { width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #94a3b8; transition: all 0.2s; }
+        .tab-close-icon { width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--bbg-text-muted); transition: all 0.2s; }
         .tab-close-icon:hover { background: #fee2e2; color: #ef4444; }
 
         .btn-amber { display: inline-flex; align-items: center; gap: 6px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.12s; line-height: 1; }
         .btn-amber:hover { background: #fef08a; }
 
-        .table-row { border-bottom: 1px solid #f1f5f9; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); background: white; cursor: pointer; position: relative; }
+        .table-row { border-bottom: 1px solid var(--bbg-hover-bg); transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); background: white; cursor: pointer; position: relative; }
         .table-row:hover { background: #fafafa; transform: translateX(2px) scale(1.002); box-shadow: 0 4px 12px rgba(0,0,0,0.03); z-index: 10; border-left: 2px solid #4f46e5; }
-        .table-row-group { background: #f8fafc; font-weight: 700; border-bottom: 2px solid #e2e8f0; border-top: 1px solid #e2e8f0; }
+        .table-row-group { background: var(--bbg-surface); font-weight: 700; border-bottom: 2px solid var(--bbg-border); border-top: 1px solid var(--bbg-border); }
 
-        .pms-selector-item { padding: 14px; text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 700; color: #1e293b; transition: all 0.2s; }
-        .pms-selector-item:hover { background: #eff6ff; border-color: #3b82f6; color: #2563eb; transform: translateX(4px); }
+        .pms-selector-item { padding: 14px; text-align: left; background: var(--bbg-surface); border: 1px solid var(--bbg-border); border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 700; color: var(--bbg-text-main); transition: all 0.2s; }
+        .pms-selector-item:hover { background: var(--bbg-active-bg); border-color: #3b82f6; color: #2563eb; transform: translateX(4px); }
 
-        .dropdown-item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: #475569; border-radius: 6px; cursor: pointer; transition: background 0.1s; }
-        .dropdown-item:hover { background: #f1f5f9; color: #0f172a; }
+        .dropdown-item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: var(--bbg-text-muted); border-radius: 6px; cursor: pointer; transition: background 0.1s; }
+        .dropdown-item:hover { background: var(--bbg-hover-bg); color: var(--bbg-text-main); }
       `}</style>
     </div>
   );

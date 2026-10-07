@@ -31,44 +31,74 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Check active session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) {
-        if (session) {
-          setSession(session);
-        } else if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          // Auto-authenticate for local development
-          setSession({
-            user: { id: 'local-dev-user', email: 'admin@wealthcore.local' } as any,
-            access_token: 'local-dev-token',
-          } as any);
-        }
-        setLoading(false);
+    const setLocalDevFallback = () => {
+      if (!mounted) return;
+      if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        setSession({
+          user: { id: 'local-dev-user', email: 'admin@wealthcore.local' } as any,
+          access_token: 'local-dev-token',
+        } as any);
       }
-    });
+      setLoading(false);
+    };
+
+    // Safety timeout: Never leave user hanging on loading screen if Supabase is slow or down
+    const safetyTimer = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth session check timed out — using local session');
+        setLocalDevFallback();
+      }
+    }, 1000);
+
+    // Check active session on mount
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        clearTimeout(safetyTimer);
+        if (mounted) {
+          if (session) {
+            setSession(session);
+          } else {
+            setLocalDevFallback();
+            return;
+          }
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        clearTimeout(safetyTimer);
+        console.warn('supabase.auth.getSession failed (offline?):', err);
+        setLocalDevFallback();
+      });
 
     // Subscribe to auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) {
-        if (session) {
-          setSession(session);
-        } else if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          setSession({
-            user: { id: 'local-dev-user', email: 'admin@wealthcore.local' } as any,
-            access_token: 'local-dev-token',
-          } as any);
-        } else {
-          setSession(null);
+    let subscription: any = null;
+    try {
+      const res = supabase.auth.onAuthStateChange((_event, session) => {
+        if (mounted) {
+          if (session) {
+            setSession(session);
+          } else if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            setSession({
+              user: { id: 'local-dev-user', email: 'admin@wealthcore.local' } as any,
+              access_token: 'local-dev-token',
+            } as any);
+          } else {
+            setSession(null);
+          }
+          setLoading(false);
         }
-        setLoading(false);
-      }
-    });
+      });
+      subscription = res?.data?.subscription;
+    } catch (e) {
+      console.warn('onAuthStateChange subscription failed:', e);
+    }
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      clearTimeout(safetyTimer);
+      if (subscription?.unsubscribe) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
 

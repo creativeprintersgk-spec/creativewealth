@@ -8,7 +8,7 @@ import {
   getStoredLedgers,
   getStoredGroups,
   getNextVoucherNo,
-  getLedgerWithBalance,
+  getLedgerBalance,
   getStoredAccounts,
   type VoucherLine
 } from "./logic";
@@ -66,9 +66,9 @@ export default function VoucherModal({
   const [voucherLines, setVoucherLines] = useState<VoucherLine[]>([]);
 
   const { activeFamilyId } = useFamily();
-  const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId);
+  const accounts = useMemo(() => getStoredAccounts().filter(a => a.familyId === activeFamilyId), [activeFamilyId]);
 
-  const groups = getStoredGroups();
+  const groups = useMemo(() => getStoredGroups(), []);
 
   // Only load ledgers for the currently selected accountId person.
   // This prevents duplicate names (e.g. "Gift" appearing for every family member)
@@ -105,6 +105,7 @@ export default function VoucherModal({
     if (selectedLedger) {
       const found = mappedLedgers.find(l => String(l.id) === String(selectedLedger) || l.name === selectedLedger);
       if (found) return found.id;
+      return String(selectedLedger);
     }
     return "";
   });
@@ -148,7 +149,17 @@ export default function VoucherModal({
           let mainAccId = "";
           let counterLine: VoucherLine | undefined;
 
-          if (v.type === "payment") {
+          const cLine = nonZeroLines.find(l => l.credit > 0);
+          const dLine = nonZeroLines.find(l => l.debit > 0);
+          if (selectedLedger && dLine && (String(dLine.ledgerId) === String(selectedLedger) || dLine.ledgerName === selectedLedger)) {
+            setType("receipt");
+            mainAccId = dLine.ledgerId || "";
+            counterLine = cLine;
+          } else if (selectedLedger && cLine && (String(cLine.ledgerId) === String(selectedLedger) || cLine.ledgerName === selectedLedger)) {
+            setType("payment");
+            mainAccId = cLine.ledgerId || "";
+            counterLine = dLine;
+          } else if (v.type === "payment") {
             const creditLine = nonZeroLines.find(l => l.credit > 0);
             const debitLine = nonZeroLines.find(l => l.debit > 0);
             if (creditLine && creditLine.ledgerId) mainAccId = creditLine.ledgerId;
@@ -158,6 +169,10 @@ export default function VoucherModal({
             const creditLine = nonZeroLines.find(l => l.credit > 0);
             if (debitLine && debitLine.ledgerId) mainAccId = debitLine.ledgerId;
             counterLine = creditLine;
+          } else if (cLine && dLine) {
+            setType("receipt");
+            mainAccId = dLine.ledgerId || "";
+            counterLine = cLine;
           }
 
           if (mainAccId) {
@@ -243,15 +258,27 @@ export default function VoucherModal({
   // (calling getLedgerWithBalance on every row causes severe slowdown with 1000+ ledgers)
   const renderHint = (_ledgerName: string) => null;
 
-  const mainLedgerName = mappedLedgers.find(l => String(l.id) === String(mainAccount))?.name || "";
+  const mainMeta = useMemo(() => {
+    if (!mainAccount) return null;
+    return mappedLedgers.find(l => String(l.id) === String(mainAccount)) || null;
+  }, [mappedLedgers, mainAccount]);
+
+  const mainLedgerName = mainMeta?.name || String(mainAccount || "");
 
   // Live balance projection for simple mode
-  const mainMeta = mappedLedgers.find(l => String(l.id) === String(mainAccount));
-  const mainBalRaw = mainMeta ? getLedgerWithBalance(mainMeta.id) : null;
-  const mainBal = mainBalRaw && !Array.isArray(mainBalRaw) ? mainBalRaw.closingBalance : 0;
-  const counterMeta = mappedLedgers.find(l => l.name === simpleAccount);
-  const counterBalRaw = counterMeta ? getLedgerWithBalance(counterMeta.id) : null;
-  const counterBal = counterBalRaw && !Array.isArray(counterBalRaw) ? counterBalRaw.closingBalance : 0;
+
+  const mainBal = useMemo(() => {
+    return mainMeta ? getLedgerBalance(mainMeta.id, propAccountId || accountId) : 0;
+  }, [mainMeta, propAccountId, accountId]);
+
+  const counterMeta = useMemo(() => {
+    if (!simpleAccount) return null;
+    return mappedLedgers.find(l => l.name.toLowerCase() === simpleAccount.toLowerCase()) || null;
+  }, [mappedLedgers, simpleAccount]);
+  const counterBal = useMemo(() => {
+    return counterMeta ? getLedgerBalance(counterMeta.id, propAccountId || accountId) : 0;
+  }, [counterMeta, propAccountId, accountId]);
+
   const simpleAmt = parseFloat(simpleAmount) || 0;
   const mainAfter = type === "receipt" ? mainBal + simpleAmt : mainBal - simpleAmt;
   const counterAfter = type === "receipt" ? counterBal - simpleAmt : counterBal + simpleAmt;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign, TrendingDown } from 'lucide-react';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign, TrendingDown, TrendingUp, BarChart3 } from 'lucide-react';
 import { getIndices } from './services/priceService';
 import { getStoredFamilies } from './logic';
 import { useTestMode } from './contexts/TestModeContext';
@@ -81,6 +81,18 @@ export default function Sidebar() {
               onClick={() => navigate('/pms')}
             >
               <Wallet /> PMS Workspace
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/executive-overview') ? 'active' : ''}`}
+              onClick={() => navigate('/executive-overview')}
+            >
+              <BarChart3 /> Executive Overview
+            </button>
+            <button 
+              className={`sidebar-nav-item ${isActive('/portfolio-analysis') ? 'active' : ''}`}
+              onClick={() => navigate('/portfolio-analysis')}
+            >
+              <TrendingUp /> Portfolio Analysis
             </button>
           </div>
         </div>

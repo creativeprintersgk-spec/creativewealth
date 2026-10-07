@@ -5,11 +5,12 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { ReportConfig } from '../ReportsModal';
 import { type CapGainReportData } from '../../services/capitalGainsEngine';
-import { formatInvestorName, getAssetISIN, getStoredPortfolios } from '../../logic';
+import { formatInvestorName, getAssetISIN, getStoredPortfolios, formatDateDDMMMYYYY } from '../../logic';
 
 interface CapitalGainsRendererProps {
   isOpen: boolean;
   onClose: () => void;
+  onBack?: () => void;
   reportConfig: ReportConfig | null;
   reportData: CapGainReportData[] | null;
   onUpdateConfig?: (newConfig: ReportConfig) => void;
@@ -34,11 +35,25 @@ interface PageData {
 export default function CapitalGainsRenderer({
   isOpen,
   onClose,
+  onBack,
   reportConfig,
   reportData,
   onUpdateConfig
 }: CapitalGainsRendererProps) {
   const reportContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close on Escape key
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (onBack) onBack();
+        else onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onBack, onClose]);
 
   // Customization Modal State
   const [isCustomiseOpen, setIsCustomiseOpen] = useState(false);
@@ -94,10 +109,7 @@ export default function CapitalGainsRenderer({
   };
 
   const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return dateStr;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return formatDateDDMMMYYYY(dateStr);
   };
 
   const currentPort = allPortfolios.find(p => String(p.id) === selectedPortId);
@@ -1129,7 +1141,7 @@ export default function CapitalGainsRenderer({
             display: 'flex', borderBottom: '1px solid #cbd5e1', background: '#ffffff',
             color: '#475569', fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em'
           }}>
-            <button onClick={onClose} style={{ flex: 1, padding: '14px', background: 'transparent', border: 'none', borderRight: '1px solid #cbd5e1', cursor: 'pointer', color: '#475569' }}>BACK</button>
+            <button onClick={onBack || onClose} style={{ flex: 1, padding: '14px', background: 'transparent', border: 'none', borderRight: '1px solid #cbd5e1', cursor: 'pointer', color: '#475569' }}>BACK</button>
             <button onClick={() => setIsCustomiseOpen(true)} style={{ flex: 1, padding: '14px', background: 'transparent', border: 'none', borderRight: '1px solid #cbd5e1', cursor: 'pointer', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <SlidersHorizontal size={15} /> CUSTOMISE
             </button>

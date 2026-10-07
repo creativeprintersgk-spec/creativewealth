@@ -8,6 +8,8 @@ import { useTestMode } from "../contexts/TestModeContext";
 import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ensureLedgerExists, createVoucher, getStoredVouchers, syncLivePrices, getAssetName, computeLedgerOpeningBalanceGaps, buildAssetFifoLedger, depleteFifoLots, FIFO_BUY_TRTY, FIFO_SELL_TRTY, isSupabaseReachable, importStagedTablesLocally, persistStateToIDB } from "../logic";
 import isinDictionary from "../services/isinDictionary.json";
 import { MfCasTab } from "./MfCasTab";
+import { EcasTab } from "./EcasTab";
+import { parseFnoSymbol } from "../utils/fnoUtils";
 
 import standardMprofitGroups from "../standard_mprofit_groups.json";
 
@@ -2670,6 +2672,12 @@ function ImportPageInner() {
             setCasImportedVids={setEcasImportedVids}
             casPortfolioMap={ecasPortfolioMap}
             setCasPortfolioMap={setEcasPortfolioMap}
+            ensureAssetLedgerExists={ensureAssetLedgerExists}
+            forceRefreshDatabase={forceRefreshDatabase}
+            setRefreshKey={setRefreshKey}
+            inputStyle={inputStyle}
+            selectStyle={selectStyle}
+            labelStyle={labelStyle}
           />
         )}
 

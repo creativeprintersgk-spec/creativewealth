@@ -302,15 +302,15 @@ export default function HoldingsGrid({
       key={`${h.amid}-${h.assetId}`}
       onClick={() => onHoldingClick(h)}
       style={{ borderBottom: '1px solid var(--bbg-hover-bg)', cursor: 'pointer', transition: 'background 0.1s' }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bbg-surface)')}
+      onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       {/* Asset Name */}
       <td style={{ padding: '3px 16px', maxWidth: '300px' }} title={h.assetName}>
         <div style={{
           fontWeight: 600,
-          fontFamily: var(--bbg-mono), fontSize: 12px,
-          color: 'var(--bbg-text-main)',
+          fontSize: '13px',
+          color: '#1e293b',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis'
@@ -319,20 +319,20 @@ export default function HoldingsGrid({
         </div>
       </td>
       {/* Quantity */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '90px', fontWeight: 700, fontFamily: var(--bbg-mono), fontSize: 12px, color: 'var(--bbg-text-main)' }}>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '90px', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>
         {isNonUnitized ? '—' : fmtQty(h.quantity)}
       </td>
       {/* Avg Price */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontFamily: var(--bbg-mono), fontSize: 12px, color: 'var(--bbg-text-muted)' }}>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontSize: '13px', color: '#64748b' }}>
         {isNonUnitized ? '—' : (h.avgPrice > 0 ? fmt(h.avgPrice) : '—')}
       </td>
       {/* Amt Invested */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontWeight: 600, fontFamily: var(--bbg-mono), fontSize: 12px, color: 'var(--bbg-text-main)' }}>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>
         {fmt(h.amtInvested, 0)}
       </td>
       {/* Current Price */}
       <td 
-        style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontFamily: var(--bbg-mono), fontSize: 12px, color: (!isNonUnitized && h.currentPrice > 0) ? 'var(--bbg-text-main)' : 'var(--bbg-text-muted)', position: 'relative' }}
+        style={{ padding: '3px 16px', textAlign: 'right', width: '110px', fontSize: '13px', color: (!isNonUnitized && h.currentPrice > 0) ? '#1e293b' : '#64748b', position: 'relative' }}
         onMouseEnter={e => {
           if (isNonUnitized) return;
           const btn = e.currentTarget.querySelector('.edit-price-btn') as HTMLElement;
@@ -363,7 +363,7 @@ export default function HoldingsGrid({
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    color: 'var(--bbg-accent)',
+                    color: '#2563eb',
                     padding: '2px',
                     display: 'flex',
                     alignItems: 'center'
@@ -378,9 +378,9 @@ export default function HoldingsGrid({
         </div>
       </td>
       {/* Today's Gain */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '120px', fontFamily: var(--bbg-mono), fontSize: 12px, whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '120px', fontSize: '13px', whiteSpace: 'nowrap' }}>
         {isNonUnitized ? (
-          <span style={{ color: 'var(--bbg-text-muted)' }}>—</span>
+          <span style={{ color: '#64748b' }}>—</span>
         ) : (
           <>
             <span style={{ fontWeight: 700, color: gainColor(h.todaysGain) }}>
@@ -393,9 +393,9 @@ export default function HoldingsGrid({
         )}
       </td>
       {/* Overall Gain */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontFamily: var(--bbg-mono), fontSize: 12px, whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontSize: '13px', whiteSpace: 'nowrap' }}>
         {isNonUnitized ? (
-          <span style={{ color: 'var(--bbg-text-muted)' }}>—</span>
+          <span style={{ color: '#64748b' }}>—</span>
         ) : (
           <>
             <span style={{ fontWeight: 700, color: gainColor(h.overallGain) }}>
@@ -408,7 +408,7 @@ export default function HoldingsGrid({
         )}
       </td>
       {/* Current Value */}
-      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontWeight: 700, fontFamily: var(--bbg-mono), fontSize: 12px, color: 'var(--bbg-text-main)' }}>
+      <td style={{ padding: '3px 16px', textAlign: 'right', width: '130px', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>
         {fmt(h.currentValue > 0 ? h.currentValue : h.amtInvested, 0)}
       </td>
     </tr>
@@ -428,15 +428,15 @@ export default function HoldingsGrid({
       <React.Fragment key={key}>
         <tr
           onClick={() => toggleCategory(key)}
-          style={{ position: 'sticky', top: '31px', zIndex: 8, background: 'var(--bbg-hover-bg)', cursor: 'pointer', borderBottom: '2px solid var(--bbg-border)' }}
+          style={{ position: 'sticky', top: '31px', zIndex: 8, background: '#f1f5f9', cursor: 'pointer', borderBottom: '2px solid #cbd5e1' }}
         >
-          <td style={{ padding: '6px 16px', fontWeight: 700, fontSize: '12px', color: 'var(--bbg-text-main)' }} colSpan={3}>
+          <td style={{ padding: '6px 16px', fontWeight: 700, fontSize: '12px', color: '#334155' }} colSpan={3}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               {label} ({rows.length})
             </div>
           </td>
-          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', color: 'var(--bbg-text-muted)' }} colSpan={1}>
+          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', color: '#64748b' }} colSpan={1}>
             {fmt(totalInvested, 0)}
           </td>
           <td style={{ padding: '6px 16px' }} colSpan={1} />
@@ -446,7 +446,7 @@ export default function HoldingsGrid({
           <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: gainColor(totalGain) }} colSpan={1}>
             {totalValue > 0 ? fmt(totalGain, 0) : '—'}
           </td>
-          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: 'var(--bbg-text-main)' }} colSpan={1}>
+          <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#1e293b' }} colSpan={1}>
             {fmt(totalValue > 0 ? totalValue : totalInvested, 0)}
           </td>
         </tr>
@@ -459,8 +459,8 @@ export default function HoldingsGrid({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Table */}
       <div style={{ flex: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 220px)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: var(--bbg-mono), fontSize: 12px }}>
-          <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bbg-bg)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#ffffff' }}>
             <tr>
               {COLS.map(col => {
                 const isActive = sortColumn === col.key;
@@ -469,13 +469,13 @@ export default function HoldingsGrid({
                     key={col.key} 
                     onClick={() => handleHeaderClick(col.key)}
                     style={{
-                      position: 'sticky', top: 0, zIndex: 10, background: 'var(--bbg-bg)',
+                      position: 'sticky', top: 0, zIndex: 10, background: '#ffffff',
                       padding: '8px 16px', textAlign: col.align as any,
                       fontSize: '11px', fontWeight: 700, 
-                      color: isActive ? 'var(--bbg-accent)' : '#475569',
+                      color: isActive ? '#2563eb' : '#475569',
                       textTransform: 'uppercase', letterSpacing: '0.05em',
                       width: col.width, whiteSpace: 'nowrap',
-                      borderBottom: isActive ? '2px solid var(--bbg-accent)' : '2px solid var(--bbg-border)',
+                      borderBottom: isActive ? '2px solid #2563eb' : '2px solid #cbd5e1',
                       cursor: 'pointer',
                       userSelect: 'none',
                       transition: 'all 0.15s ease'
@@ -485,7 +485,7 @@ export default function HoldingsGrid({
                   >
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start', width: '100%' }}>
                       <span>{col.label}</span>
-                      <span style={{ fontSize: '10px', opacity: isActive ? 1 : 0.3, color: isActive ? 'var(--bbg-accent)' : 'var(--bbg-text-muted)' }}>
+                      <span style={{ fontSize: '10px', opacity: isActive ? 1 : 0.3, color: isActive ? '#2563eb' : '#94a3b8' }}>
                         {isActive ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
                       </span>
                     </div>
@@ -509,13 +509,13 @@ export default function HoldingsGrid({
             }
             {enrichedData.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ padding: '48px', textAlign: 'center', color: 'var(--bbg-text-muted)', fontSize: '14px' }}>
+                <td colSpan={8} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
                   No holdings found for selected portfolio
                 </td>
               </tr>
             )}
           </tbody>
-          <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 10, background: 'var(--bbg-surface)', borderTop: '2px solid var(--bbg-border)', boxShadow: '0 -2px 0 var(--bbg-border)' }}>
+          <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 10, background: '#f8fafc', borderTop: '2px solid #cbd5e1', boxShadow: '0 -2px 0 #cbd5e1' }}>
             <tr style={{ height: '40px', fontWeight: 800 }}>
               {/* Asset Name */}
               <td style={{ padding: '8px 16px', color: '#475569', fontSize: '12px' }}>
@@ -526,21 +526,21 @@ export default function HoldingsGrid({
               {/* Avg Price */}
               <td />
               {/* Amt Invested */}
-              <td style={{ padding: '8px 16px', textAlign: 'right', color: 'var(--bbg-text-main)', fontFamily: var(--bbg-mono), fontSize: 12px }}>
+              <td style={{ padding: '8px 16px', textAlign: 'right', color: '#1e293b', fontSize: '13px' }}>
                 {fmt(totals.invested, 0)}
               </td>
               {/* Cur Price */}
               <td />
               {/* Today's Gain */}
-              <td style={{ padding: '8px 16px', textAlign: 'right', color: gainColor(totals.todaysGain), fontFamily: var(--bbg-mono), fontSize: 12px }}>
+              <td style={{ padding: '8px 16px', textAlign: 'right', color: gainColor(totals.todaysGain), fontSize: '13px' }}>
                 {totals.todaysGain !== 0 ? fmt(totals.todaysGain, 0) : '—'}
               </td>
               {/* Overall Gain */}
-              <td style={{ padding: '8px 16px', textAlign: 'right', color: gainColor(totals.gain), fontFamily: var(--bbg-mono), fontSize: 12px }}>
+              <td style={{ padding: '8px 16px', textAlign: 'right', color: gainColor(totals.gain), fontSize: '13px' }}>
                 {totals.value > 0 ? fmt(totals.gain, 0) : '—'}
               </td>
               {/* Cur. Value */}
-              <td style={{ padding: '8px 16px', textAlign: 'right', color: 'var(--bbg-text-main)', fontFamily: var(--bbg-mono), fontSize: 12px, fontWeight: 900 }}>
+              <td style={{ padding: '8px 16px', textAlign: 'right', color: '#1e293b', fontSize: '13px', fontWeight: 900 }}>
                 {fmt(totals.value > 0 ? totals.value : totals.invested, 0)}
               </td>
             </tr>

@@ -209,13 +209,13 @@ export const generateTaxPlanningReport = (portfolioIds: string[], assetTypes: st
   const rows: any[] = [];
   
   for (const h of holdings) {
-    const cls = getAssetCGClass(h.asset_type, h.name);
+    const cls = getAssetCGClass(h.assetType, h.assetName);
     const isAllowed = assetTypes.includes('All Assets') || assetTypes.includes(cls) || assetTypes.includes('All');
     if (!isAllowed) continue;
 
     const txList = state.bs1.filter((t: any) => 
       t.pfid && numericPortIds.includes(Number(t.pfid)) && 
-      Number(t.atyid) === h.asset_type && 
+      Number(t.atyid) === h.assetType && 
       Number(t.amid) === h.amid
     ).sort((a: any, b: any) => new Date(a.dt).getTime() - new Date(b.dt).getTime());
 
@@ -241,13 +241,13 @@ export const generateTaxPlanningReport = (portfolioIds: string[], assetTypes: st
       const isLT = diffDays > threshold;
       const daysToLT = isLT ? 0 : threshold - diffDays;
       
-      const currentPrice = h.livePrice || lot.costPerUnit;
+      const currentPrice = h.currentPrice || lot.costPerUnit;
       const unrealisedGain = (currentPrice - lot.costPerUnit) * lot.remaining;
       const gainPercent = ((currentPrice - lot.costPerUnit) / lot.costPerUnit) * 100;
       
       rows.push({
         'Asset Class': cls,
-        'Asset Name': h.name,
+        'Asset Name': h.assetName,
         'Buy Date': lot.date.substring(0, 10),
         'Qty Remaining': lot.remaining,
         'Buy Price': lot.costPerUnit,

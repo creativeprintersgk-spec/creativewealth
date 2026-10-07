@@ -1,0 +1,224 @@
+/* ========================================================
+   WEALTHCORE BLOOMBERG TERMINAL LUXE (DARK MODE) THEME
+   Scoped strictly under .terminal-theme
+   Can be toggled on/off without affecting core application logic
+   ======================================================== */
+
+.terminal-theme,
+.terminal-theme body,
+.terminal-theme #root,
+.terminal-theme .app-layout {
+  background-color: #06080d !important;
+  color: #f1f5f9 !important;
+}
+
+/* ─── SIDEBAR ─── */
+.terminal-theme .sidebar {
+  background: #040508 !important;
+  border-right: 1px solid #111a2e !important;
+}
+
+.terminal-theme .sidebar-logo-text {
+  color: #f8fafc !important;
+}
+
+.terminal-theme .sidebar-nav-item {
+  color: #64748b !important;
+  transition: all 0.2s ease !important;
+}
+
+.terminal-theme .sidebar-nav-item:hover {
+  background: rgba(56, 189, 248, 0.06) !important;
+  color: #f8fafc !important;
+}
+
+.terminal-theme .sidebar-nav-item.active {
+  background: #0e1726 !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.15), inset 0 0 10px rgba(56, 189, 248, 0.05) !important;
+  border-radius: 8px !important;
+}
+
+/* ─── TOP NAVBAR ─── */
+.terminal-theme .print-hide[style*="background: white"],
+.terminal-theme .print-hide[style*="background: 'white'"],
+.terminal-theme div[style*="background: white"],
+.terminal-theme div[style*="background: rgb(255, 255, 255)"] {
+  background-color: #090d15 !important;
+  border-color: #162035 !important;
+  color: #f1f5f9 !important;
+}
+
+.terminal-theme select,
+.terminal-theme input {
+  background-color: #0b111e !important;
+  border-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+/* ─── MAIN CONTENT CONTAINERS & CARDS ─── */
+.terminal-theme .main-content,
+.terminal-theme main {
+  background-color: #06080d !important;
+}
+
+.terminal-theme div[style*="background: #f1f5f9"],
+.terminal-theme div[style*="background: rgb(241, 245, 249)"] {
+  background-color: #06080d !important;
+}
+
+.terminal-theme div[style*="background: #ffffff"],
+.terminal-theme div[style*="background: rgb(255, 255, 255)"] {
+  background-color: #0a0f1a !important;
+  border-color: #18233c !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* ─── BALANCE SHEET STYLES ─── */
+.terminal-theme div[style*="linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #1e40af 100%)"] {
+  background: linear-gradient(135deg, #091326 0%, #0f1f3d 60%, #162c56 100%) !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 15px rgba(56, 189, 248, 0.08) !important;
+}
+
+/* Balance Sheet Totals Bar */
+.terminal-theme div[style*="background: #f8fafc"],
+.terminal-theme div[style*="background: rgb(248, 250, 252)"] {
+  background-color: #080d17 !important;
+  border-color: #18233c !important;
+}
+
+.terminal-theme div[style*="borderTop: '2px solid #1e1b4b'"],
+.terminal-theme div[style*="border-top: 2px solid rgb(30, 27, 75)"] {
+  border-top-color: #38bdf8 !important;
+}
+
+/* High contrast numbers in Terminal */
+.terminal-theme span[style*="color: #000000"],
+.terminal-theme span[style*="color: rgb(0, 0, 0)"],
+.terminal-theme span[style*="color: '#000000'"] {
+  color: #f8fafc !important;
+}
+
+.terminal-theme span[style*="color: #475569"],
+.terminal-theme span[style*="color: rgb(71, 85, 105)"] {
+  color: #8493a8 !important;
+}
+
+/* Ledger Hover */
+.terminal-theme .bs-ledger-hover:hover,
+.terminal-theme div[style*="padding: '2px 2px'"]:hover {
+  background-color: rgba(56, 189, 248, 0.08) !important;
+}
+
+.terminal-theme div[style*="padding: '3px 4px'"]:hover {
+  background-color: rgba(56, 189, 248, 0.08) !important;
+}
+
+/* Balanced badge glowing green */
+.terminal-theme span[style*="color: #16a34a"],
+.terminal-theme span[style*="color: rgb(22, 163, 74)"] {
+  color: #34d399 !important;
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2) !important;
+}
+
+/* ─── PMS WORKSPACE STYLES ─── */
+.terminal-theme .pms-asset-card,
+.terminal-theme div[style*="background: #f8fafc"] {
+  background-color: #080d17 !important;
+  border-color: #18233c !important;
+}
+
+.terminal-theme table {
+  background-color: #0a0f1a !important;
+  color: #f1f5f9 !important;
+}
+
+.terminal-theme th {
+  background-color: #070b13 !important;
+  color: #94a3b8 !important;
+  border-color: #18233c !important;
+}
+
+.terminal-theme td {
+  border-color: #131c30 !important;
+}
+
+.terminal-theme tr:hover td {
+  background-color: rgba(56, 189, 248, 0.05) !important;
+}
+
+/* ─── LEDGER & VOUCHER TABLES ─── */
+.terminal-theme .ledger-table,
+.terminal-theme .ledger-row {
+  background-color: #0a0f1a !important;
+  color: #f1f5f9 !important;
+}
+
+.terminal-theme .ledger-row:hover {
+  background-color: rgba(56, 189, 248, 0.06) !important;
+}
+
+/* ─── CARDS & SUMMARY TILES ─── */
+.terminal-theme .card,
+.terminal-theme .stat-card,
+.terminal-theme .glass-panel {
+  background-color: #0a0f1a !important;
+  border: 1px solid #18233c !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Dashboard specific dark overrides */
+.terminal-theme h1,
+.terminal-theme h2,
+.terminal-theme h3,
+.terminal-theme [style*="color: #0f172a"],
+.terminal-theme [style*="color: '#0f172a'"],
+.terminal-theme [style*="color: rgb(15, 23, 42)"],
+.terminal-theme [style*="color: #1e293b"],
+.terminal-theme [style*="color: '#1e293b'"],
+.terminal-theme [style*="color: rgb(30, 41, 59)"] {
+  color: #f8fafc !important;
+}
+
+.terminal-theme [style*="background: #fff"],
+.terminal-theme [style*="background: '#fff'"],
+.terminal-theme [style*="background: rgb(255, 255, 255)"] {
+  background-color: #0a0f1a !important;
+  border-color: #18233c !important;
+}
+
+.terminal-theme [style*="background: #f8fafc"],
+.terminal-theme [style*="background: '#f8fafc'"],
+.terminal-theme [style*="background: rgb(248, 250, 252)"] {
+  background-color: #070b13 !important;
+  border-color: #18233c !important;
+}
+
+.terminal-theme [style*="background: #eff6ff"],
+.terminal-theme [style*="background: '#eff6ff'"],
+.terminal-theme [style*="background: rgb(239, 246, 255)"] {
+  background-color: rgba(56, 189, 248, 0.12) !important;
+  border-color: rgba(56, 189, 248, 0.3) !important;
+  color: #38bdf8 !important;
+}
+
+/* Balance Sheet Root Group Gradient Override */
+.terminal-theme div[style*="linear-gradient(90deg"] {
+  background: rgba(56, 189, 248, 0.08) !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+}
+
+/* ─── MODALS ─── */
+.terminal-theme .modal-container,
+.terminal-theme div[style*="background: white"][style*="borderRadius"],
+.terminal-theme div[style*="background: rgb(255, 255, 255)"][style*="border-radius"] {
+  background-color: #0a0f1a !important;
+  border: 1px solid #1e293b !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8) !important;
+  color: #f1f5f9 !important;
+}

@@ -5,7 +5,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { ReportConfig } from '../ReportsModal';
 
-import { formatInvestorName } from '../../logic';
+import { formatInvestorName, formatDateDDMMMYYYY } from '../../logic';
 
 interface PortfolioSummaryRendererProps {
   isOpen: boolean;
@@ -21,7 +21,7 @@ export default function PortfolioSummaryRenderer({ isOpen, onClose, reportConfig
   if (!isOpen || !reportConfig) return null;
 
   const now = new Date();
-  const dateString = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  const dateString = `${formatDateDDMMMYYYY(now)} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
   const formatCurrency = (val: number) => val.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
   const formatPct = (val: number) => (val > 0 ? '+' : '') + val.toFixed(2) + '%';

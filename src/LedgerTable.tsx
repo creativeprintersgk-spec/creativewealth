@@ -1,4 +1,4 @@
-import { getLedgerWithBalance } from "./logic";
+import { getLedgerWithBalance, formatDateDDMMMYYYY } from "./logic";
 
 export default function LedgerTable({ ledger }: { ledger: string }) {
   const result = getLedgerWithBalance(ledger);
@@ -32,7 +32,7 @@ export default function LedgerTable({ ledger }: { ledger: string }) {
                 </tr>
               ) : data.map((row: any, i: number) => (
                 <tr key={i} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                  <td className="py-2">{row.date}</td>
+                  <td className="py-2" style={{ whiteSpace: 'nowrap' }}>{formatDateDDMMMYYYY(row.date)}</td>
                   <td className="capitalize">{row.voucherType}</td>
 
                   <td className="text-right text-gain">

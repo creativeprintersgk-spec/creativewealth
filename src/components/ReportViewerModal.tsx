@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Printer, Download, ChevronLeft } from 'lucide-react';
 import type { ReportConfig } from './ReportsModal';
+import { formatDateDDMMMYYYY } from '../logic';
 
 interface ReportViewerModalProps {
   isOpen: boolean;
@@ -89,7 +90,7 @@ export default function ReportViewerModal({ isOpen, onClose, reportConfig, repor
       <div style={{ background: '#f8fafc', padding: '12px 32px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '24px', fontSize: '13px', color: '#475569' }}>
         <div><span style={{ fontWeight: 600, color: '#0f172a' }}>Assets:</span> {reportConfig.options.assetTypes.join(', ')}</div>
         {reportConfig.options.dateRange && (
-          <div><span style={{ fontWeight: 600, color: '#0f172a' }}>Period:</span> {reportConfig.options.dateRange.start} to {reportConfig.options.dateRange.end}</div>
+          <div><span style={{ fontWeight: 600, color: '#0f172a' }}>Period:</span> {formatDateDDMMMYYYY(reportConfig.options.dateRange.start)} to {formatDateDDMMMYYYY(reportConfig.options.dateRange.end)}</div>
         )}
       </div>
 
@@ -109,11 +110,20 @@ export default function ReportViewerModal({ isOpen, onClose, reportConfig, repor
             <tbody>
               {reportData.map((row, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }} className="table-row">
-                  {Object.values(row).map((val: any, j) => (
-                    <td key={j} style={{ padding: '12px 16px', color: '#334155' }}>
-                      {typeof val === 'number' ? val.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : String(val)}
-                    </td>
-                  ))}
+                  {Object.entries(row).map(([colKey, val]: [string, any], j) => {
+                    const isDateKey = colKey.toLowerCase().includes('date');
+                    const isIsoDate = typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val.trim());
+                    const displayVal = typeof val === 'number'
+                      ? val.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+                      : (isDateKey || isIsoDate)
+                        ? formatDateDDMMMYYYY(val)
+                        : String(val);
+                    return (
+                      <td key={j} style={{ padding: '12px 16px', color: '#334155', whiteSpace: (isDateKey || isIsoDate) ? 'nowrap' : 'normal' }}>
+                        {displayVal}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

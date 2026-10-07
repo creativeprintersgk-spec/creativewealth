@@ -16,6 +16,8 @@ import TrialBalance from "./pages/TrialBalance"
 import BackupRestorePage from "./pages/BackupRestorePage"
 import DividendReconciliation from "./pages/DividendReconciliation"
 import TaxLossHarvesting from "./pages/TaxLossHarvesting"
+import ExecutiveOverviewPage from "./pages/ExecutiveOverviewPage"
+import PortfolioAnalysisPage from "./pages/PortfolioAnalysisPage"
 import { initDatabase, getStoredGroups, getStoredLedgers, getStoredVouchers } from "./logic"
 import { FYProvider, useFY } from "./FYContext"
 import { FamilyProvider, useFamily } from "./contexts/FamilyContext"
@@ -23,6 +25,7 @@ import { TestModeProvider } from "./contexts/TestModeContext"
 import TopNavbar from "./TopNavbar"
 import AppShell from "./AppShell"
 import AuthGate from "./AuthGate"
+import { ThemeProvider } from "./contexts/ThemeContext"
 
 function AppContent() {
   const [ready, setReady] = React.useState(false);
@@ -37,7 +40,7 @@ function AppContent() {
   const isPms = location.pathname === "/pms";
 
   if (!ready) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f172a', color: '#94a3b8', fontSize: '14px', gap: '12px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bbg-text-main)', color: 'var(--bbg-text-muted)', fontSize: '14px', gap: '12px' }}>
       <div style={{ width: 20, height: 20, border: '2px solid #3b82f6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       Initializing WealthCore...
     </div>
@@ -46,6 +49,7 @@ function AppContent() {
   return (
     <TestModeProvider>
     <FamilyProvider>
+      <ThemeProvider>
       <AppShell>
         <div className="app-layout">
           <Sidebar />
@@ -61,6 +65,8 @@ function AppContent() {
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<><TopNavbar /><Dashboard /></>} />
+                <Route path="/executive-overview" element={<><TopNavbar /><ExecutiveOverviewPage /></>} />
+                <Route path="/portfolio-analysis" element={<PortfolioAnalysisPage />} />
                 <Route path="/pms" element={<PMSWorkspace />} />
                 {/* Accounting routes - we will add TopNavbar here or in the components */}
                 <Route path="/ledger" element={<><TopNavbar /><LedgerPage /></>} />
@@ -83,6 +89,7 @@ function AppContent() {
           </div>
         </div>
       </AppShell>
+      </ThemeProvider>
       {isGlobalLoading && (
         <div style={{
           position: 'fixed',
@@ -96,7 +103,7 @@ function AppContent() {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 9999,
-          color: '#fff',
+          color: 'var(--bbg-surface)',
           fontSize: '14px',
           fontWeight: 600,
           gap: '12px'

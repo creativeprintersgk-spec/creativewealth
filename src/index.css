@@ -15,7 +15,7 @@
   --bbg-hover-bg: #f1f5f9;
 }
 
-[data-theme="dark"] {
+[data-theme='dark'] {
   --bbg-bg: #000000;
   --bbg-surface: #0a0a0a;
   --bbg-border: #262626;
@@ -30,6 +30,7 @@
 }
 
 
+:root {
   --text-h: #08060d;
   --bg: #fff;
   --border: #e5e4e7;
@@ -62,35 +63,6 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-  --bbg-bg: #ffffff;
-  --bbg-surface: #f8fafc;
-  --bbg-border: #e2e8f0;
-  --bbg-text-main: #0f172a;
-  --bbg-text-muted: #64748b;
-  --bbg-green: #16a34a;
-  --bbg-red: #dc2626;
-  --bbg-accent: #2563eb;
-  --bbg-header-bg: #fcfcfd;
-  --bbg-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  --bbg-active-bg: #eff6ff;
-  --bbg-hover-bg: #f1f5f9;
-}
-
-[data-theme="dark"] {
-  --bbg-bg: #000000;
-  --bbg-surface: #0a0a0a;
-  --bbg-border: #262626;
-  --bbg-text-main: #f3f4f6;
-  --bbg-text-muted: #9ca3af;
-  --bbg-green: #4ade80;
-  --bbg-red: #f87171;
-  --bbg-accent: #f59e0b;
-  --bbg-header-bg: #171717;
-  --bbg-active-bg: #262626;
-  --bbg-hover-bg: #1f1f1f;
-}
-
-
     --text: #9ca3af;
     --text-h: #f3f4f6;
     --bg: #16171d;

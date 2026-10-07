@@ -1,16 +1,20 @@
 {
-  "timestamp": "2026-08-18T07:27:28.373Z",
+  "created_at": "2026-09-03T13:25:38.724Z",
+  "date": "2026-09-03",
   "tables": {
+    "portfolios": 41,
     "acc_pflink": 25,
-    "acmac1": 2445,
+    "acmac1": 2459,
+    "sam": 761,
     "asset_master": 65105,
-    "bs1": 16085,
-    "portfolios": 39,
-    "scnote1": 4061,
-    "sum_table": 2745,
-    "trans1": 19160,
-    "transc1": 22351,
-    "vouchers1": 9407,
-    "vouchersc1": 8166
+    "bs1": 16123,
+    "vouchersc1": 8164,
+    "vouchers1": 9449,
+    "transc1": 22345,
+    "trans1": 19244,
+    "mprices": 3672,
+    "scnote1": 4070,
+    "sum_table": 2753,
+    "investor_group_members": 33
   }
 }

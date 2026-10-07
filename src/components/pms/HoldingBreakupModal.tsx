@@ -5,7 +5,7 @@ interface Props {
   open: boolean;
   holding: any;
   onClose: () => void;
-  onDrilldown: (assetId: string, assetName: string, portIds: string[]) => void;
+  onDrilldown: (assetId: string, assetName: string, portIds: string[], atty?: number) => void;
 }
 
 export default function HoldingBreakupModal({
@@ -17,9 +17,17 @@ export default function HoldingBreakupModal({
 
   if (!open || !holding) return null;
 
+  const isNonUnitized = [130, 90, 110, 120, 140, 160, 170, 180, 210, 220].includes(holding.assetType) ||
+    (holding.assetTypeName || '').toLowerCase().includes('ppf') ||
+    (holding.assetTypeName || '').toLowerCase().includes('epf') ||
+    holding.assetName.toLowerCase().startsWith('ppf') ||
+    holding.assetName.toLowerCase().startsWith('epf');
+
   const totalQty = holding.portfolioSplits?.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) || 0;
   const totalInvested = holding.portfolioSplits?.reduce((acc: number, item: any) => acc + (item.amtInvested || 0), 0) || 0;
-  const totalCurrentValue = holding.portfolioSplits?.reduce((acc: number, item: any) => acc + ((item.quantity || 0) * holding.currentPrice), 0) || 0;
+  const totalCurrentValue = holding.portfolioSplits?.reduce((acc: number, item: any) => 
+    acc + (isNonUnitized ? (item.currentValue ?? item.amtInvested ?? 0) : ((item.quantity || 0) * (holding.currentPrice || 0))), 0
+  ) || 0;
 
   return (
     <div style={{
@@ -89,10 +97,17 @@ export default function HoldingBreakupModal({
             </thead>
 
             <tbody>
-              {holding.portfolioSplits.map((item: any, idx: number) => (
+              {holding.portfolioSplits.map((item: any, idx: number) => {
+                const isNonUnitized = [130, 90, 110, 120, 140, 160, 170, 180, 210, 220].includes(holding.assetType) ||
+                  (holding.assetTypeName || '').toLowerCase().includes('ppf') ||
+                  (holding.assetTypeName || '').toLowerCase().includes('epf') ||
+                  holding.assetName.toLowerCase().startsWith('ppf') ||
+                  holding.assetName.toLowerCase().startsWith('epf');
+
+                return (
                 <tr
                   key={idx}
-                  onDoubleClick={() => onDrilldown(holding.assetId, holding.assetName, [item.portfolioId])}
+                  onDoubleClick={() => onDrilldown(holding.assetId, holding.assetName, [item.portfolioId], holding.assetType)}
                   className="hover:bg-blue-50"
                   style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
                 >
@@ -106,10 +121,16 @@ export default function HoldingBreakupModal({
                   </td>
 
                   <td style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ fontWeight: 500 }}>{item.quantity.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                      {item.quantity > 0 ? (item.amtInvested / item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-                    </div>
+                    {isNonUnitized ? (
+                      <div style={{ color: '#94a3b8' }}>—</div>
+                    ) : (
+                      <>
+                        <div style={{ fontWeight: 500 }}>{item.quantity.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                          {item.quantity > 0 ? (item.amtInvested / item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                        </div>
+                      </>
+                    )}
                   </td>
 
                   <td style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', textAlign: 'right' }}>
@@ -117,11 +138,11 @@ export default function HoldingBreakupModal({
                   </td>
 
                   <td style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ fontWeight: 500 }}>{(item.quantity * holding.currentPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style={{ fontWeight: 500 }}>{(isNonUnitized ? (item.currentValue || item.amtInvested) : (item.quantity * holding.currentPrice)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        onDrilldown(holding.assetId, holding.assetName, [item.portfolioId]);
+                        onDrilldown(holding.assetId, holding.assetName, [item.portfolioId], holding.assetType);
                       }}
                       style={{ 
                         fontSize: '11px', 
@@ -138,7 +159,8 @@ export default function HoldingBreakupModal({
                     </button>
                   </td>
                 </tr>
-              ))}
+              );
+            })}
             </tbody>
             <tfoot style={{ backgroundColor: '#f1f5f9', fontWeight: 600, borderTop: '2px solid #cbd5e1' }}>
               <tr>
@@ -146,7 +168,7 @@ export default function HoldingBreakupModal({
                   Totals
                 </td>
                 <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0f172a' }}>
-                  {totalQty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                  {isNonUnitized ? '—' : totalQty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                 </td>
                 <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0f172a' }}>
                   {totalInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

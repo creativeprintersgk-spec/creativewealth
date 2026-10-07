@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { getStoredAccounts, getStoredLedgers, getStoredVouchers, getStoredGroups, getStoredEntries } from "../logic";
+import { getStoredAccounts, getStoredLedgers, getStoredVouchers, getStoredGroups, getStoredEntries, formatDateDDMMMYYYY } from "../logic";
 import { getTrialBalance, getBatchLedgers, getBatchVouchers, type LedgerPrintData, type VoucherPrintData } from "../services/reportPrinting";
 import { getBalanceSheet } from "../services/balanceSheet";
 import { getProfitLoss } from "../services/profitLoss";
@@ -201,7 +201,7 @@ export default function ReportPrinting() {
   const printTimeStr = useMemo(() => {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
-    return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return `${formatDateDDMMMYYYY(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }, [loading]);
 
   const handlePrint = () => {
@@ -525,27 +525,27 @@ export default function ReportPrinting() {
                 
                 {reportType === "balance_sheet" && (
                   <div style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
-                    Balance Sheet as on {effectiveDates.end}
+                    Balance Sheet as on {formatDateDDMMMYYYY(effectiveDates.end)}
                   </div>
                 )}
                 {reportType === "profit_loss" && (
                   <div style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
-                    Profit &amp; Loss Statement Period: {effectiveDates.start} to {effectiveDates.end}
+                    Profit &amp; Loss Statement Period: {formatDateDDMMMYYYY(effectiveDates.start)} to {formatDateDDMMMYYYY(effectiveDates.end)}
                   </div>
                 )}
                 {reportType === "trial_balance" && (
                   <div style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
-                    Trial Balance Period: {effectiveDates.start} to {effectiveDates.end}
+                    Trial Balance Period: {formatDateDDMMMYYYY(effectiveDates.start)} to {formatDateDDMMMYYYY(effectiveDates.end)}
                   </div>
                 )}
                 {reportType === "ledger_statement" && (
                   <div style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
-                    Ledger Summary Statement Period: {effectiveDates.start} to {effectiveDates.end}
+                    Ledger Summary Statement Period: {formatDateDDMMMYYYY(effectiveDates.start)} to {formatDateDDMMMYYYY(effectiveDates.end)}
                   </div>
                 )}
                 {reportType === "voucher_book" && (
                   <div style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>
-                    Voucher Report Book Period: {effectiveDates.start} to {effectiveDates.end}
+                    Voucher Report Book Period: {formatDateDDMMMYYYY(effectiveDates.start)} to {formatDateDDMMMYYYY(effectiveDates.end)}
                   </div>
                 )}
 
@@ -764,7 +764,7 @@ export default function ReportPrinting() {
                             <tbody>
                               {/* Opening Balance Row */}
                               <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                <td style={{ padding: "5px 8px", fontSize: "11px", color: "#475569" }}>{effectiveDates.start}</td>
+                                <td style={{ padding: "5px 8px", fontSize: "11px", color: "#475569", whiteSpace: "nowrap" }}>{formatDateDDMMMYYYY(effectiveDates.start)}</td>
                                 <td style={{ padding: "5px 8px", fontSize: "11px", fontWeight: 700, color: "#475569" }}>Opening Balance</td>
                                 <td style={{ padding: "5px 8px", textAlign: "right", fontSize: "11px", color: "#475569" }}>
                                   {opDr > 0 ? formatCurrency(opDr) : "—"}
@@ -780,7 +780,7 @@ export default function ReportPrinting() {
                               {/* Transaction list */}
                               {led.transactions.map((t, tIdx) => (
                                 <tr key={tIdx} style={{ borderBottom: "1px solid #f8fafc" }}>
-                                  <td style={{ padding: "4px 8px", fontSize: "10px", color: "#475569" }}>{t.date}</td>
+                                  <td style={{ padding: "4px 8px", fontSize: "10px", color: "#475569", whiteSpace: "nowrap" }}>{formatDateDDMMMYYYY(t.date)}</td>
                                   <td style={{ padding: "4px 8px", fontSize: "10px", color: "#334155" }}>
                                     <div>{t.againstLedger}</div>
                                     {showNarrationLedger && t.narration && (
@@ -848,7 +848,7 @@ export default function ReportPrinting() {
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "12px" }}>
                           <div>
                             <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Date:</span>
-                            <span style={{ fontSize: "11px", fontWeight: 700, marginLeft: "4px", color: "#334155" }}>{v.date}</span>
+                            <span style={{ fontSize: "11px", fontWeight: 700, marginLeft: "4px", color: "#334155" }}>{formatDateDDMMMYYYY(v.date)}</span>
                           </div>
                           <div>
                             <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Voucher No:</span>

@@ -1,8 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { X, ArrowRightLeft, ChevronDown, Calendar, Edit3, Plus } from 'lucide-react';
-import { getAssetTransactions } from '../../logic';
+import { getAssetTransactions, getStoredLedgers, getStoredGroups, formatDateDDMMMYYYY } from '../../logic';
 import PMSIncomeModal from './PMSIncomeModal';
 import PMSCorporateActionModal from './PMSCorporateActionModal';
+import PMSFDInvestmentModal from './PMSFDInvestmentModal';
+import PMSPPFModal from './PMSPPFModal';
+import PMSNCDBondModal from './PMSNCDBondModal';
+import PMSGoldSilverModal from './PMSGoldSilverModal';
+import PMSULIPModal from './PMSULIPModal';
 import { useFY } from '../../FYContext';
 
 interface Props {
@@ -10,6 +15,8 @@ interface Props {
   assetId: string;
   assetName: string;
   portfolioIds: string[];
+  /** Asset type number (atty) — used to pick the right entry modal */
+  atty?: number;
   onClose: () => void;
   onEditTransaction?: (
     voucherId: string,
@@ -24,21 +31,47 @@ export default function AssetLedgerModal({
   assetId,
   assetName,
   portfolioIds,
+  atty,
   onClose,
   onEditTransaction,
 }: Props) {
   // ⚠️ ALL hooks must come before any early return (React rules)
   const { triggerGlobalRefresh, globalRefreshTrigger } = useFY();
 
-  // Local date range state (Defaults to FY 2025-2027 as seen in user screenshots)
-  const [startDate, setStartDate] = useState('2025-04-01');
+  // Determine asset category from atty and assetName
+  const isFD = atty === 90 || atty === 30;
+  const isPPF = atty === 130 || (assetName || '').toLowerCase().includes('ppf');
+  const isNCD = atty === 110 || atty === 70 || (assetName || '').toLowerCase().includes('rbi') || (assetName || '').toLowerCase().includes('ncd');
+  const isBond = atty === 100 || atty === 40;
+  const isGold = atty === 150 || atty === 75;
+  const isSilver = atty === 151 || atty === 77;
+  const isMetalAsset = isGold || isSilver;
+  const isULIP = atty === 95 || (assetName || '').toLowerCase().includes('ulip') || (assetName || '').toLowerCase().includes('policy');
+  const isSpecialEntry = isFD || isPPF || isNCD || isBond || isMetalAsset || isULIP;
+  const isNonUnitized = isPPF || isFD || isNCD || isULIP || Number(assetId) >= 500000;
+
+  const defaultStart = isNonUnitized ? '1990-04-01' : '2026-04-01';
+  const defaultPreset = isNonUnitized ? 'Till Current Financial Year (all)' : 'Current Financial Year';
+
+  // Local date range state (Defaults to all history for PPF/NCD/FD so deposits & interest are visible)
+  const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState('2027-03-31');
   const [showPeriodModal, setShowPeriodModal] = useState(false);
-  const [periodPreset, setPeriodPreset] = useState('User Defined');
+  const [periodPreset, setPeriodPreset] = useState(defaultPreset);
   
   // Date range inputs for Period modal
-  const [tempStart, setTempStart] = useState('2025-04-01');
+  const [tempStart, setTempStart] = useState(defaultStart);
   const [tempEnd, setTempEnd] = useState('2027-03-31');
+
+  useEffect(() => {
+    if (open) {
+      setStartDate(defaultStart);
+      setEndDate('2027-03-31');
+      setPeriodPreset(defaultPreset);
+      setTempStart(defaultStart);
+      setTempEnd('2027-03-31');
+    }
+  }, [assetId, open, isNonUnitized, defaultStart, defaultPreset]);
 
   // UI Selection State
   const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
@@ -48,6 +81,38 @@ export default function AssetLedgerModal({
   // Modal open states
   const [incomeModalVoucherId, setIncomeModalVoucherId] = useState<string | null>(null);
   const [corporateAction, setCorporateAction] = useState<string | null>(null);
+
+  // New asset-type specific modals
+  const [fdModalVoucherId, setFdModalVoucherId] = useState<string | null>(null);
+  const [ppfModalVoucherId, setPpfModalVoucherId] = useState<string | null>(null);
+  const [ncdModalVoucherId, setNcdModalVoucherId] = useState<{ voucherId: string | null; category: 'ncd' | 'bonds' } | null>(null);
+  const [goldSilverModal, setGoldSilverModal] = useState<{ voucherId: string | null; metal: 'gold' | 'silver'; mode: 'addition' | 'sale' } | null>(null);
+  const [ulipModalVoucherId, setUlipModalVoucherId] = useState<string | null>(null);
+
+  // Handler: open the correct "new" entry modal for this asset type
+  const handleNewEntry = (mode: 'addition' | 'sale' = 'addition') => {
+    if (isFD) { setFdModalVoucherId('__new__'); return; }
+    if (isPPF) { setPpfModalVoucherId('__new__'); return; }
+    if (isNCD) { setNcdModalVoucherId({ voucherId: '__new__', category: 'ncd' }); return; }
+    if (isBond) { setNcdModalVoucherId({ voucherId: '__new__', category: 'bonds' }); return; }
+    if (isGold) { setGoldSilverModal({ voucherId: null, metal: 'gold', mode }); return; }
+    if (isSilver) { setGoldSilverModal({ voucherId: null, metal: 'silver', mode }); return; }
+    if (isULIP) { setUlipModalVoucherId('__new__'); return; }
+    // Fallback: standard equity/MF transaction modal
+    onEditTransaction?.('new', assetId, assetName, portfolioIds[0]);
+  };
+
+  // Handler: open correct edit modal for a clicked transaction
+  const handleEditEntry = (vId: string) => {
+    if (isFD) { setFdModalVoucherId(vId); return; }
+    if (isPPF) { setPpfModalVoucherId(vId); return; }
+    if (isNCD) { setNcdModalVoucherId({ voucherId: vId, category: 'ncd' }); return; }
+    if (isBond) { setNcdModalVoucherId({ voucherId: vId, category: 'bonds' }); return; }
+    if (isGold) { setGoldSilverModal({ voucherId: vId, metal: 'gold', mode: 'addition' }); return; }
+    if (isSilver) { setGoldSilverModal({ voucherId: vId, metal: 'silver', mode: 'addition' }); return; }
+    if (isULIP) { setUlipModalVoucherId(vId); return; }
+    onEditTransaction?.(vId, assetId, assetName, portfolioIds[0]);
+  };
 
   // Corporate action trty values — these have no accounting voucher, treat as read-only
   const CORPORATE_TRTY = new Set([45, 85, 40, 41, 42, 43, 47, 48, 49, 38, 39, 36, 37, 50, 51, 52]);
@@ -95,9 +160,7 @@ export default function AssetLedgerModal({
   };
 
   const formatDate = (dStr: string) => {
-    if (!dStr) return '';
-    const [yyyy, mm, dd] = dStr.split('-');
-    return `${dd}/${mm}/${yyyy.substring(2)}`;
+    return formatDateDDMMMYYYY(dStr);
   };
 
   const fmtQty = (q: number) => {
@@ -113,19 +176,21 @@ export default function AssetLedgerModal({
   if (!open) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 60
-    }}>
+    <>
+      {/* ── MAIN MODAL OVERLAY ── */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 60
+      }}>
       <div style={{
         width: '1000px',
         maxWidth: '95vw',
@@ -181,13 +246,26 @@ export default function AssetLedgerModal({
         </div>
 
         {/* ACTION BAR */}
-        <div style={{ padding: '8px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '20px', fontSize: '13px', fontWeight: 600, background: '#fff' }}>
+        <div style={{ padding: '8px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '16px', fontSize: '13px', fontWeight: 600, background: '#fff', alignItems: 'center' }}>
+          {/* Primary action button — label changes by asset type */}
           <button 
-            onClick={() => onEditTransaction?.('new', assetId, assetName, portfolioIds[0])} 
+            onClick={() => handleNewEntry('addition')} 
             style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
           >
-            <Plus size={14} /> Buy Sell
+            <Plus size={14} />
+            {isULIP ? 'Add Renewal Premium' : isMetalAsset ? 'Add Purchase' : isFD ? 'New Investment' : isPPF ? 'New Contribution' : (isNCD || isBond) ? 'New Buy' : 'Buy Sell'}
           </button>
+
+          {/* Gold/Silver Sale button — only shown for metal assets */}
+          {isMetalAsset && (
+            <button
+              onClick={() => handleNewEntry('sale')}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Plus size={14} /> Add Sale
+            </button>
+          )}
+
           <button 
             onClick={() => {
               if (selectedTxId) {
@@ -198,7 +276,7 @@ export default function AssetLedgerModal({
                   // Corporate actions (splits, bonus, merger) — read-only info
                   setInfoRow(tx);
                 } else if (tx) {
-                  onEditTransaction?.(tx.voucherId, assetId, assetName, portfolioIds[0]);
+                  handleEditEntry(tx.voucherId);
                 }
               } else {
                 alert("Please select a transaction row below to edit.");
@@ -285,7 +363,7 @@ export default function AssetLedgerModal({
                   { label: "Price", width: '15%', align: 'right' },
                   { label: "Brokerage (Rs.)", width: '14%', align: 'right' },
                   { label: "Amount", width: '16%', align: 'right' },
-                  { label: "Bal. Quant", width: '16%', align: 'right' }
+                  { label: isSpecialEntry ? "Balance (₹)" : "Bal. Quant", width: '16%', align: 'right' }
                 ].map((col) => (
                   <th
                     key={col.label}
@@ -316,7 +394,7 @@ export default function AssetLedgerModal({
                 <td style={{ padding: '12px 16px', width: '15%' }}></td>
                 <td style={{ padding: '12px 16px', width: '14%' }}></td>
                 <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right' }}>{openingCost > 0 ? `${fmtAmt(openingCost)}` : ''}</td>
-                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800 }}>{fmtQty(openingQty)}</td>
+                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800 }}>{openingQty > 0 ? fmtQty(openingQty) : (openingCost > 0 ? fmtAmt(openingCost) : '')}</td>
               </tr>
 
               {/* 2. Transaction Rows */}
@@ -344,7 +422,7 @@ export default function AssetLedgerModal({
                     } else if (isCorporate) {
                       setInfoRow(tx);
                     } else {
-                      onEditTransaction?.(tx.voucherId, assetId, assetName, portfolioIds[0]);
+                      handleEditEntry(tx.voucherId);
                     }
                   };
 
@@ -380,7 +458,7 @@ export default function AssetLedgerModal({
                         {tx.amount > 0 ? `${fmtAmt(tx.amount)}` : (isCorporate ? <span style={{color:'#94a3b8',fontSize:'11px'}}>Cost basis transfer</span> : '')}
                       </td>
                       <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800, background: '#f8fafc' }}>
-                        {fmtQty(tx.balanceQty)}
+                        {tx.balanceQty > 0 ? fmtQty(tx.balanceQty) : (tx.balanceCost !== undefined ? fmtAmt(tx.balanceCost) : '')}
                       </td>
                     </tr>
                   );
@@ -395,7 +473,7 @@ export default function AssetLedgerModal({
                 <td style={{ padding: '12px 16px', width: '15%' }}></td>
                 <td style={{ padding: '12px 16px', width: '14%' }}></td>
                 <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right' }}>{closingCost > 0 ? `${fmtAmt(closingCost)}` : ''}</td>
-                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800 }}>{fmtQty(closingQty)}</td>
+                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800 }}>{closingQty > 0 ? fmtQty(closingQty) : (closingCost > 0 ? fmtAmt(closingCost) : '')}</td>
               </tr>
             </tbody>
           </table>
@@ -416,8 +494,8 @@ export default function AssetLedgerModal({
           </div>
           <div style={{ display: 'flex', gap: '32px' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <span style={{ color: '#64748b' }}>Closing Qty:</span>
-              <span style={{ fontWeight: 800 }}>{fmtQty(closingQty)}</span>
+              <span style={{ color: '#64748b' }}>{isSpecialEntry || closingQty === 0 ? 'Closing Value:' : 'Closing Qty:'}</span>
+              <span style={{ fontWeight: 800 }}>{closingQty > 0 ? fmtQty(closingQty) : `₹${closingCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}</span>
             </div>
           </div>
         </div>
@@ -539,11 +617,94 @@ export default function AssetLedgerModal({
         </div>
       )}
 
+
       <style>{`
         .ledger-row:hover { background-color: #f1f5f9 !important; }
         .dropdown-item { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: #475569; border-radius: 6px; cursor: pointer; transition: background 0.1s; }
         .dropdown-item:hover { background: #f1f5f9; color: #0f172a; }
       `}</style>
     </div>
+
+      {/* ── ASSET-TYPE SPECIFIC MODALS ── */}
+
+      {/* FD Investment Modal */}
+      {fdModalVoucherId && (
+        <PMSFDInvestmentModal
+          assetId={assetId}
+          assetName={assetName}
+          portfolioIds={portfolioIds}
+          voucherId={fdModalVoucherId === '__new__' ? undefined : fdModalVoucherId}
+          onClose={() => setFdModalVoucherId(null)}
+          onSaved={async () => {
+            setFdModalVoucherId(null);
+            await triggerGlobalRefresh();
+          }}
+        />
+      )}
+
+      {/* PPF/EPF Modal */}
+      {ppfModalVoucherId && (
+        <PMSPPFModal
+          assetId={assetId}
+          assetName={assetName}
+          portfolioIds={portfolioIds}
+          voucherId={ppfModalVoucherId === '__new__' ? undefined : ppfModalVoucherId}
+          onClose={() => setPpfModalVoucherId(null)}
+          onSaved={async () => {
+            setPpfModalVoucherId(null);
+            await triggerGlobalRefresh();
+          }}
+        />
+      )}
+
+      {/* NCD / Bond Modal */}
+      {ncdModalVoucherId && (
+        <PMSNCDBondModal
+          assetId={assetId}
+          assetName={assetName}
+          portfolioIds={portfolioIds}
+          voucherId={ncdModalVoucherId.voucherId === '__new__' ? undefined : (ncdModalVoucherId.voucherId ?? undefined)}
+          assetCategory={ncdModalVoucherId.category}
+          onClose={() => setNcdModalVoucherId(null)}
+          onSaved={async () => {
+            setNcdModalVoucherId(null);
+            await triggerGlobalRefresh();
+          }}
+        />
+      )}
+
+      {/* Gold / Silver Modal */}
+      {goldSilverModal && (
+        <PMSGoldSilverModal
+          assetId={assetId}
+          assetName={assetName}
+          portfolioIds={portfolioIds}
+          voucherId={goldSilverModal.voucherId ?? undefined}
+          metal={goldSilverModal.metal}
+          initialMode={goldSilverModal.mode}
+          onClose={() => setGoldSilverModal(null)}
+          onSaved={async () => {
+            setGoldSilverModal(null);
+            await triggerGlobalRefresh();
+          }}
+        />
+      )}
+
+      {/* ULIP Policy / Renewal Modal */}
+      {ulipModalVoucherId && (
+        <PMSULIPModal
+          assetId={assetId}
+          assetName={assetName}
+          portfolioIds={portfolioIds}
+          voucherId={ulipModalVoucherId === '__new__' ? undefined : ulipModalVoucherId}
+          initialMode="renewal"
+          onClose={() => setUlipModalVoucherId(null)}
+          onSaved={async () => {
+            setUlipModalVoucherId(null);
+            await triggerGlobalRefresh();
+          }}
+        />
+      )}
+    </>
   );
 }

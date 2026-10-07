@@ -4,7 +4,7 @@ import { useFY } from '../FYContext';
 import { Calculator, TrendingUp, TrendingDown, AlertCircle, FileText, Download, PieChart, ExternalLink, FileDown, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { getStoredPortfolios, getCapitalGains } from '../logic';
+import { getStoredPortfolios, getCapitalGains, formatDateDDMMMYYYY } from '../logic';
 import { generateCapitalGainsDetailed } from '../services/capitalGainsEngine';
 import CapitalGainsRenderer from '../components/reports/CapitalGainsRenderer';
 import { downloadItrScheduleCg } from '../services/itrExportService';
@@ -73,7 +73,7 @@ export default function CapitalGainsPage() {
           setData(Object.values(summary));
 
           // 2. Asset Class bifurcation summary using verified capital gains engine
-          const detailed = generateCapitalGainsDetailed(pfIdStrs, ['All Assets'], customRange.start, customRange.end);
+          const detailed = generateCapitalGainsDetailed(pfIdStrs, ['All Assets'], customRange.start, customRange.end, txns);
           setAssetClassData(detailed);
 
           setLoading(false);
@@ -84,7 +84,7 @@ export default function CapitalGainsPage() {
       }
     }
     fetchData();
-  }, [customRange]);
+  }, [customRange.start, customRange.end]);
 
   const formatCurrency = (val: number) => {
     return (val || 0).toLocaleString('en-IN', {
@@ -414,10 +414,10 @@ function PortfolioTaxModal({
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${displayName}  |  FY: ${selectedFY} (${startDate} to ${endDate})`, 14, 18);
+    doc.text(`${displayName}  |  FY: ${selectedFY} (${formatDateDDMMMYYYY(startDate)} to ${formatDateDDMMMYYYY(endDate)})`, 14, 18);
 
     doc.setFontSize(8);
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, pageWidth - 14, 18, { align: 'right' });
+    doc.text(`Generated: ${formatDateDDMMMYYYY(new Date())}`, pageWidth - 14, 18, { align: 'right' });
 
     // Summary KPI Boxes
     const boxW = (pageWidth - 28 - 9) / 4;
@@ -551,7 +551,7 @@ function PortfolioTaxModal({
               </h2>
             </div>
             <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-              Financial Year: <strong style={{ color: '#1e293b' }}>{selectedFY}</strong> ({startDate} to {endDate})
+              Financial Year: <strong style={{ color: '#1e293b' }}>{selectedFY}</strong> ({formatDateDDMMMYYYY(startDate)} to {formatDateDDMMMYYYY(endDate)})
             </div>
           </div>
 
@@ -747,7 +747,8 @@ function PortfolioTaxModal({
           ) : (
             <CapitalGainsRenderer
               isOpen={true}
-              onClose={() => {}}
+              onClose={onClose}
+              onBack={() => setActiveTab('summary')}
               reportConfig={{
                 category: 'Capital Gains',
                 reportName: 'Capital Gains - Income Tax Return Format',

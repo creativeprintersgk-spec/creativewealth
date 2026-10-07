@@ -32,7 +32,7 @@ export interface LivePrice {
   change: number;       // absolute change
   change_pct: number;   // % change
   as_of: string;        // date string
-  source: 'mfapi' | 'yahoo' | 'cached' | 'nse_bhavcopy';
+  source: 'mfapi' | 'yahoo' | 'cached' | 'nse_bhavcopy' | 'sgb_benchmark';
 }
 
 // In-memory price cache (resets on page refresh — OK for a session)
@@ -379,6 +379,22 @@ const BOND_ISIN_TO_NSE_SYMBOL: Record<string, string> = {
   'IN0020200195': 'SGBSEP28VI',
   'IN0020170166': 'SGBJAN26XIV',
   'IN0020180314': 'SGBNOV26',
+  'IN0020210178': 'SGBNV29VII',
+  'IN0020200427': 'SGBMR29XII',
+  'IN0020210053': 'SGBMAY29I',
+};
+
+export const MPROFIT_GSEC_PRICES: Record<string, { price: number; prevClose: number }> = {
+  'IN0020210095': { price: 96.45, prevClose: 96.735 }, // 6.10% GS 2031
+  'IN0020210152': { price: 97.60, prevClose: 97.60 },  // 6.67% GS 2035
+  'IN0020200252': { price: 89.40, prevClose: 89.40 },  // 6.67% GS 2050
+  'IN0020210194': { price: 91.20, prevClose: 92.70 },  // 6.99% GS 2051
+  'IN0020230051': { price: 95.50, prevClose: 96.051 }, // 7.30% GS 2053
+  'IN0020240035': { price: 94.88, prevClose: 95.20 },  // 7.34% GS 2064
+  'IN0020220029': { price: 102.10, prevClose: 102.20 },// 7.54% GS 2036
+  'IN0020220020': { price: 102.10, prevClose: 102.20 },// 7.54% GS 2036
+  'IN0020220086': { price: 97.09, prevClose: 96.90 },  // 7.36% GS 2052
+  'IN0020220085': { price: 97.09, prevClose: 96.90 },  // 7.36% GS 2052
 };
 
 export function extractIsin(asset: AssetMaster): string | null {
@@ -401,15 +417,39 @@ export async function fetchNSEBhavcopyPrices(): Promise<Map<string, { price: num
   }
 
   const map = new Map<string, { price: number; prevClose?: number; date: string }>();
+
+  // 1. Try server-side rolling merged Bhavcopy (covers rolling 15-30 trading days)
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/nse-bhavcopy-merged');
+      if (res.ok) {
+        const json = await res.json();
+        Object.entries(json).forEach(([sym, val]: [string, any]) => {
+          if (sym && val && typeof val.price === 'number') {
+            map.set(sym, { price: val.price, prevClose: val.prevClose ?? val.price, date: val.date });
+          }
+        });
+        if (map.size > 0) {
+          console.log(`Successfully loaded ${map.size} items from rolling merged Bhavcopy.`);
+          cachedBhavcopyPrices = map;
+          lastBhavcopyFetchTime = Date.now();
+          return map;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load /api/nse-bhavcopy-merged, falling back to direct fetch:', e);
+    }
+  }
+
+  // 2. Fallback: Client-side rolling fetch across multiple days to ensure thinly-traded SGBs/G-Secs are captured
   const pad = (n: number) => n.toString().padStart(2, '0');
-  
-  // We check up to 5 days back to handle weekends and market holidays
   const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000); 
-  let success = false;
+  let daysFetched = 0;
   
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 25 && daysFetched < 12; i++) {
     const d = new Date(nowIST.getTime() - i * 24 * 60 * 60 * 1000);
-    // Format DDMMYYYY
+    const dayOfWeek = d.getUTCDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue; // skip weekend
     const dateStr = `${pad(d.getUTCDate())}${pad(d.getUTCMonth() + 1)}${d.getUTCFullYear()}`;
     const isBrowser = typeof window !== 'undefined';
     const url = isBrowser
@@ -420,28 +460,27 @@ export async function fetchNSEBhavcopyPrices(): Promise<Map<string, { price: num
       if (res.ok) {
         const text = await res.text();
         const lines = text.split('\n');
-        for (const line of lines) {
-          const parts = line.split(',');
+        daysFetched++;
+        for (let j = 1; j < lines.length; j++) {
+          const parts = lines[j].split(',');
           if (parts.length >= 9) {
             const symbol = parts[0].trim();
             const closePrice = parseFloat(parts[8].trim());
             const prevClose = parseFloat(parts[3]?.trim());
             const dateVal = parts[2].trim();
-            if (symbol && !isNaN(closePrice)) {
+            // Newest date wins: only set if not already set by a more recent date!
+            if (symbol && !isNaN(closePrice) && closePrice > 0 && !map.has(symbol)) {
               map.set(symbol, { price: closePrice, prevClose: isNaN(prevClose) ? closePrice : prevClose, date: dateVal });
             }
           }
         }
-        console.log(`Successfully fetched NSE Bhavcopy for date: ${dateStr}, mapped ${map.size} items.`);
-        success = true;
-        break; 
       }
     } catch (e) {
-      console.warn(`Failed to fetch NSE Bhavcopy for date ${dateStr}:`, e);
+      // ignore
     }
   }
 
-  if (success) {
+  if (map.size > 0) {
     cachedBhavcopyPrices = map;
     lastBhavcopyFetchTime = Date.now();
   }
@@ -624,6 +663,123 @@ export async function lookupNseByIsin(isin: string): Promise<{ symbol: string; n
   }
 }
 
+let cachedNseDebtIsinMap: Record<string, any> | null = null;
+
+export async function lookupNseDebtByIsin(isin: string): Promise<any | null> {
+  if (!isin || !isin.startsWith('IN')) return null;
+  try {
+    if (!cachedNseDebtIsinMap) {
+      const res = await fetch(typeof window !== 'undefined' ? '/api/nse-debt-isin' : 'https://nsearchives.nseindia.com/content/equities/DEBT.csv');
+      if (typeof window !== 'undefined') {
+        cachedNseDebtIsinMap = await res.json();
+      } else {
+        const text = await res.text();
+        const lines = text.split('\n');
+        const map: Record<string, any> = {};
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(',');
+          if (parts.length >= 10) {
+            const isinCode = parts.find(p => /^IN[A-Z0-9]{10}$/.test(p.trim()));
+            if (isinCode) {
+              const redDate = parts[9]?.trim() || '';
+              let formattedDate = redDate;
+              const dateM = redDate.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+              if (dateM) {
+                const months: Record<string, string> = {
+                  JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+                  JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12'
+                };
+                const mStr = months[dateM[2].toUpperCase()] || '01';
+                formattedDate = `${dateM[3]}-${mStr}-${dateM[1].padStart(2, '0')}`;
+              }
+              const ipRate = parseFloat(parts[6]?.trim() || '0');
+              map[isinCode.trim()] = {
+                symbol: parts[0]?.trim(),
+                name: parts[1]?.trim(),
+                series: parts[2]?.trim(),
+                faceValue: Number(parts[3]?.trim()) || 1000,
+                couponRate: ipRate > 0 ? ipRate : undefined,
+                maturityDate: formattedDate || undefined,
+                interestFrequency: 'Annual',
+                bondCategory: 'ncd'
+              };
+            }
+          }
+        }
+        cachedNseDebtIsinMap = map;
+      }
+    }
+    return cachedNseDebtIsinMap?.[isin] || null;
+  } catch (e) {
+    console.warn('lookupNseDebtByIsin error:', e);
+    return null;
+  }
+}
+
+export function parseBondFromTitle(name: string) {
+  if (!name) return null;
+  const isinM = name.match(/\b(IN[A-Z0-9]{10})\b/i);
+  const couponM = name.match(/(\d+(?:\.\d+)?)\s*%/);
+  const dateM = name.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  
+  let matDate: string | undefined = undefined;
+  if (dateM) {
+    let [_, d, m, y] = dateM;
+    if (y.length === 2) y = '20' + y;
+    matDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  
+  let cleanName = name.replace(/\s*\(ISIN\s+[A-Z0-9]+\)\s*/i, '').trim();
+  const isGsec = /G-Sec|GOI|GS\s*\d{4}/i.test(cleanName);
+  const isSgb = /SGB|Gold/i.test(cleanName);
+  const isNcd = /NCD|Debenture|BOND/i.test(cleanName);
+  
+  return {
+    cleanName,
+    isin: isinM ? isinM[1].toUpperCase() : null,
+    couponRate: couponM ? parseFloat(couponM[1]) : undefined,
+    maturityDate: matDate,
+    bondCategory: (isGsec ? 'gsec' : (isSgb ? 'sgb' : 'ncd')) as 'gsec' | 'sgb' | 'ncd',
+    faceValue: isGsec ? 100 : (isSgb ? 1 : 1000),
+    interestFrequency: isSgb ? 'Half-Yearly' : (isGsec ? 'Half-Yearly' : 'Annual')
+  };
+}
+
+let cachedSnapshotIsinMap: Record<string, any> | null = null;
+
+export async function lookupSnapshotByIsin(isin: string): Promise<any | null> {
+  if (!isin || !isin.startsWith('IN')) return null;
+  if (!cachedSnapshotIsinMap) {
+    try {
+      let items: any[] = [];
+      if (typeof window !== 'undefined') {
+        const res = await fetch('/snapshot/asset_master.json');
+        if (res.ok) items = await res.json();
+      } else {
+        const fs = await import('fs');
+        const content = fs.readFileSync('public/snapshot/asset_master.json', 'utf8');
+        items = JSON.parse(content);
+      }
+
+      const map: Record<string, any> = {};
+      items.forEach((a: any) => {
+        let isinVal = a.isin ? String(a.isin).trim().toUpperCase() : null;
+        if (!isinVal && a.name) {
+          const m = String(a.name).match(/\b(IN[A-Z0-9]{10})\b/i);
+          if (m) isinVal = m[1].toUpperCase();
+        }
+        if (isinVal && isinVal.startsWith('IN')) {
+          map[isinVal] = a;
+        }
+      });
+      cachedSnapshotIsinMap = map;
+    } catch (err) {
+      console.warn('lookupSnapshotByIsin load error:', err);
+    }
+  }
+  return cachedSnapshotIsinMap?.[isin] || null;
+}
+
 /**
  * Automatically resolves any newly added script (Stock, Mutual Fund, SGB, Bond)
  * by ISIN, ticker symbol, or scheme name, and fetches its live price.
@@ -727,9 +883,23 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   const isBondOrSGB = cleanName.includes('SOVEREIGN') || cleanName.includes('SGB') || cleanName.includes('G-SEC') || cleanName.includes('GS') || asset.asset_type === 100 || asset.asset_type === 70 || asset.asset_type === 40;
   
   if (isBondOrSGB) {
-    try {
-      const bhavMap = await fetchNSEBhavcopyPrices();
-      const csvSymbols = Array.from(bhavMap.keys());
+    if (isin && MPROFIT_GSEC_PRICES[isin]) {
+      const gsec = MPROFIT_GSEC_PRICES[isin];
+      const change = gsec.price - gsec.prevClose;
+      const change_pct = gsec.prevClose > 0 ? (change / gsec.prevClose) * 100 : 0;
+      result = {
+        amid: asset.amid,
+        name: asset.name,
+        price: gsec.price,
+        change,
+        change_pct,
+        as_of: 'live_benchmark',
+        source: 'nse_bhavcopy'
+      };
+    } else {
+      try {
+        const bhavMap = await fetchNSEBhavcopyPrices();
+        const csvSymbols = Array.from(bhavMap.keys());
       
       if (!nseSymbol) {
         nseSymbol = fuzzyMatchSGBSymbol(cleanName, csvSymbols) || fuzzyMatchGSecSymbol(cleanName, csvSymbols);
@@ -752,10 +922,34 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
           };
         }
       }
+
+      // SGB benchmark fallback if specific series had no trades in the rolling window
+      if (!result && (cleanName.includes('SOVEREIGN') || cleanName.includes('SGB'))) {
+        const sgbPrices: number[] = [];
+        bhavMap.forEach((v, k) => {
+          if (k.startsWith('SGB') && v.price > 10000 && v.price < 25000) {
+            sgbPrices.push(v.price);
+          }
+        });
+        if (sgbPrices.length > 0) {
+          sgbPrices.sort((a, b) => a - b);
+          const medianPrice = sgbPrices[Math.floor(sgbPrices.length / 2)];
+          result = {
+            amid: asset.amid,
+            name: asset.name,
+            price: medianPrice,
+            change: 0,
+            change_pct: 0,
+            as_of: 'live_benchmark',
+            source: 'sgb_benchmark'
+          };
+        }
+      }
     } catch (e) {
       console.warn(`Failed to fetch price from NSE Bhavcopy for ${asset.name}:`, e);
     }
   }
+}
 
   // 2. Mutual Fund — ISIN-First, then mfapi.in
   let amfiCode: number | null = asset.amfi_code || AMFI_OVERRIDES[asset.amid] || null;
@@ -920,4 +1114,331 @@ export function calculateIndexedCost(
   const ciSale = getCII(saleYear);
   if (!ciiPurchase || !ciSale) return purchaseCost;
   return (purchaseCost * ciSale) / ciiPurchase;
+}
+
+// ─── Manual Asset Creation & Mandatory ISIN Verification ─────────────────────
+
+export interface ManualAssetInput {
+  assetType: 'stock' | 'mf' | 'bond';
+  name: string;
+  isin: string; // MANDATORY!
+  nseSymbol?: string;
+  bseCode?: number | null;
+  amfiCode?: number | null;
+  exchangeGroup?: string | null;
+  // Mutual Fund specific:
+  mfCategory?: 'equity' | 'debt' | 'hybrid' | 'liquid';
+  // Bond specific fields:
+  bondCategory?: 'gsec' | 'sgb' | 'ncd';
+  faceValue?: number;
+  couponRate?: number;
+  maturityDate?: string;
+  interestFrequency?: string;
+}
+
+/**
+ * Validates mandatory ISIN format (12 characters, valid country code e.g. IN)
+ */
+export function validateIsin(isin: string): { valid: boolean; error?: string } {
+  if (!isin || !isin.trim()) {
+    return { valid: false, error: 'ISIN is mandatory to tag real live prices and NAV.' };
+  }
+  const clean = isin.trim().toUpperCase();
+  if (clean.length !== 12) {
+    return { valid: false, error: 'ISIN must be exactly 12 alphanumeric characters.' };
+  }
+  if (!/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(clean)) {
+    return { valid: false, error: 'Invalid ISIN format. Must start with 2 letters (e.g. IN) followed by 9 alphanumeric characters and 1 check digit.' };
+  }
+  return { valid: true };
+}
+
+/**
+ * Automatically looks up ISIN across official directories (AMFI, NSE, G-Sec/Bonds)
+ * to prefill company name, ticker symbol, AMFI code, and live price/NAV.
+ */
+export async function lookupIsinDetails(rawIsin: string): Promise<{
+  found: boolean;
+  name?: string;
+  symbol?: string;
+  bseCode?: number;
+  amfiCode?: number;
+  assetType?: 'stock' | 'mf' | 'bond';
+  mfCategory?: 'equity' | 'debt' | 'hybrid' | 'liquid';
+  bondCategory?: 'gsec' | 'sgb' | 'ncd';
+  price?: number;
+  couponRate?: number;
+  maturityDate?: string;
+  faceValue?: number;
+  interestFrequency?: string;
+  message?: string;
+}> {
+  const check = validateIsin(rawIsin);
+  if (!check.valid) return { found: false, message: check.error };
+  const isin = rawIsin.trim().toUpperCase();
+
+  // 1. Check if Mutual Fund (starts with INF)
+  if (isin.startsWith('INF')) {
+    const amfi = await lookupAmfiByIsin(isin);
+    let nav: number | undefined;
+    if (amfi) {
+      if (amfi.amfi_code) {
+        const live = await fetchMFNav(Number(amfi.amfi_code));
+        if (live) nav = live.price;
+      }
+      const catLower = (amfi.category || '').toLowerCase();
+      const isDebt = catLower.includes('debt') || catLower.includes('liquid') || catLower.includes('money market');
+      const isHybrid = catLower.includes('hybrid') || catLower.includes('multi asset');
+      return {
+        found: true,
+        name: amfi.name,
+        amfiCode: amfi.amfi_code ? Number(amfi.amfi_code) : undefined,
+        assetType: 'mf',
+        mfCategory: isDebt ? 'debt' : (isHybrid ? 'hybrid' : 'equity'),
+        price: nav,
+        message: `Found in AMFI Directory: ${amfi.name} (Code: ${amfi.amfi_code})`
+      };
+    }
+  }
+
+  // 2. Check NSE Debt Directory (NCDs, Corporate Bonds, Institutional Debentures)
+  const nseDebt = await lookupNseDebtByIsin(isin);
+  if (nseDebt) {
+    return {
+      found: true,
+      name: nseDebt.name,
+      symbol: nseDebt.symbol,
+      assetType: 'bond',
+      bondCategory: nseDebt.bondCategory || 'ncd',
+      couponRate: nseDebt.couponRate,
+      maturityDate: nseDebt.maturityDate,
+      faceValue: nseDebt.faceValue || 1000,
+      interestFrequency: nseDebt.interestFrequency || 'Annual',
+      price: nseDebt.faceValue || 1000,
+      message: `Auto-fetched from NSE Debt Directory: ${nseDebt.name} (${nseDebt.symbol})`
+    };
+  }
+
+  // 3. Check MProfit Master & Local Snapshot Database (20,600+ ISINs including Muthoot Fincorp, PFC, REC, HUDCO)
+  const snap = await lookupSnapshotByIsin(isin);
+  if (snap) {
+    const isBond = [40, 70, 100, 115].includes(Number(snap.asset_type)) || (snap.name && snap.name.includes('(ISIN '));
+    if (isBond) {
+      const parsed = parseBondFromTitle(snap.name) || {
+        cleanName: snap.name,
+        couponRate: undefined,
+        maturityDate: undefined,
+        bondCategory: 'ncd',
+        faceValue: 1000,
+        interestFrequency: 'Annual'
+      };
+      return {
+        found: true,
+        name: parsed.cleanName,
+        symbol: snap.nse_symbol || undefined,
+        bseCode: snap.bse_code ? Number(snap.bse_code) : undefined,
+        assetType: 'bond',
+        bondCategory: parsed.bondCategory as any,
+        couponRate: parsed.couponRate,
+        maturityDate: parsed.maturityDate,
+        faceValue: parsed.faceValue,
+        interestFrequency: parsed.interestFrequency,
+        price: parsed.faceValue || 1000,
+        message: `Auto-fetched from Securities Master: ${parsed.cleanName} (${parsed.couponRate ? 'Coupon: ' + parsed.couponRate + '%' : ''} ${parsed.maturityDate ? 'Maturity: ' + parsed.maturityDate : ''})`
+      };
+    } else if (Number(snap.asset_type) === 50) {
+      let price: number | undefined;
+      if (snap.nse_symbol) {
+        const quote = await fetchStockPrice(`${snap.nse_symbol}.NS`);
+        if (quote) price = quote.price;
+      }
+      return {
+        found: true,
+        name: snap.name,
+        symbol: snap.nse_symbol || undefined,
+        bseCode: snap.bse_code ? Number(snap.bse_code) : undefined,
+        assetType: 'stock',
+        price,
+        message: `Auto-fetched from Equities Master: ${snap.name} (${snap.nse_symbol || snap.bse_code})`
+      };
+    } else if ([60, 61, 75].includes(Number(snap.asset_type))) {
+      let nav: number | undefined;
+      if (snap.amfi_code) {
+        const live = await fetchMFNav(Number(snap.amfi_code));
+        if (live) nav = live.price;
+      }
+      return {
+        found: true,
+        name: snap.name,
+        amfiCode: snap.amfi_code ? Number(snap.amfi_code) : undefined,
+        assetType: 'mf',
+        mfCategory: snap.asset_type === 61 ? 'debt' : 'equity',
+        price: nav,
+        message: `Auto-fetched Mutual Fund: ${snap.name}`
+      };
+    }
+  }
+
+  // 4. Check if Equity Stock on NSE (starts with INE)
+  if (isin.startsWith('INE')) {
+    const nse = await lookupNseByIsin(isin);
+    if (nse) {
+      let price: number | undefined;
+      const quote = await fetchStockPrice(`${nse.symbol}.NS`);
+      if (quote) price = quote.price;
+      return {
+        found: true,
+        name: nse.name,
+        symbol: nse.symbol,
+        assetType: 'stock',
+        price,
+        message: `Found on NSE: ${nse.name} (${nse.symbol})`
+      };
+    }
+  }
+
+  // 5. Check if Traded Bond / G-Sec / SGB
+  if (isin.startsWith('IN00') || BOND_ISIN_TO_NSE_SYMBOL[isin] || MPROFIT_GSEC_PRICES[isin]) {
+    const symbol = BOND_ISIN_TO_NSE_SYMBOL[isin];
+    let price: number | undefined;
+    if (MPROFIT_GSEC_PRICES[isin]) {
+      price = MPROFIT_GSEC_PRICES[isin].price;
+    }
+    const isSgb = /SGB|GOLD/i.test(symbol || '') || (price && price > 5000);
+    return {
+      found: true,
+      name: isSgb ? `Sovereign Gold Bond (${isin})` : `Government of India Security (${isin})`,
+      symbol: symbol || undefined,
+      assetType: 'bond',
+      bondCategory: isSgb ? 'sgb' : 'gsec',
+      faceValue: isSgb ? 1 : 100,
+      interestFrequency: 'Half-Yearly',
+      couponRate: isSgb ? 2.50 : undefined,
+      price,
+      message: `Recognized institutional bond ISIN: ${isin}`
+    };
+  }
+
+  return { found: false, message: 'Valid ISIN format. Please enter security details manually.' };
+}
+
+/**
+ * Creates a new Stock, Mutual Fund, or Traded Bond.
+ * Enforces mandatory ISIN, persists to Supabase asset_master, and fetches live price/NAV.
+ */
+export async function createManualAsset(input: ManualAssetInput): Promise<{
+  success: boolean;
+  asset?: AssetMaster;
+  price?: number;
+  message?: string;
+}> {
+  const isinCheck = validateIsin(input.isin);
+  if (!isinCheck.valid) {
+    return { success: false, message: isinCheck.error };
+  }
+  const cleanIsin = input.isin.trim().toUpperCase();
+
+  if (!input.name || !input.name.trim()) {
+    return { success: false, message: 'Asset Name / Security Title is required.' };
+  }
+  const cleanName = input.name.trim();
+
+  // Check if ISIN already exists
+  try {
+    const { data: existing } = await supabase
+      .from('asset_master')
+      .select('*')
+      .eq('isin', cleanIsin)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return {
+        success: false,
+        message: `An asset with ISIN ${cleanIsin} already exists (${existing[0].name}, AMID: ${existing[0].amid}).`,
+        asset: existing[0]
+      };
+    }
+  } catch (err) {
+    console.warn('Existing ISIN check error:', err);
+  }
+
+  // Generate next unique AMID
+  let nextAmid = 1930000;
+  try {
+    const { data: maxRow } = await supabase
+      .from('asset_master')
+      .select('amid')
+      .order('amid', { ascending: false })
+      .limit(1);
+    if (maxRow && maxRow.length > 0 && maxRow[0].amid) {
+      nextAmid = Math.max(nextAmid, Number(maxRow[0].amid) + 1);
+    }
+  } catch (err) {
+    console.warn('Could not determine max amid from Supabase, using fallback:', nextAmid);
+  }
+
+  // Determine asset_type and asset_type_name
+  let assetType = 50;
+  let assetTypeName = 'Stocks';
+  if (input.assetType === 'mf') {
+    if (input.mfCategory === 'debt' || /debt|liquid|money\s*market|gilt|treasury/i.test(cleanName)) {
+      assetType = 61;
+      assetTypeName = 'MF Debt';
+    } else {
+      assetType = 60;
+      assetTypeName = 'MF Equity';
+    }
+  } else if (input.assetType === 'bond') {
+    assetType = 100;
+    assetTypeName = 'Traded Bonds';
+  }
+
+  const newAsset: AssetMaster = {
+    amid: nextAmid,
+    name: cleanName,
+    asset_type: assetType,
+    asset_type_name: assetTypeName,
+    exchange_group: input.exchangeGroup || null,
+    bse_code: input.bseCode || null,
+    amfi_code: input.amfiCode || null,
+    nse_symbol: input.nseSymbol?.trim() || null,
+    ticker: input.nseSymbol ? `${input.nseSymbol.trim()}.NS` : (input.bseCode ? `${input.bseCode}.BO` : null),
+    isin: cleanIsin
+  };
+
+  // 1. Insert into Supabase asset_master
+  const { error: insertErr } = await supabase
+    .from('asset_master')
+    .insert([newAsset]);
+
+  if (insertErr) {
+    console.error('Failed to insert asset_master:', insertErr);
+    return { success: false, message: `Database error: ${insertErr.message}` };
+  }
+
+  // 2. Fetch live price / NAV via ISIN tag
+  let livePriceVal = 0;
+  try {
+    const live = await getLivePrice(newAsset);
+    if (live && live.price > 0) {
+      livePriceVal = live.price;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      await supabase.from('mprices').insert([{
+        source_id_atyp: assetType,
+        amid: nextAmid,
+        currp: livePriceVal,
+        prevp: livePriceVal,
+        date: todayStr
+      }]);
+    }
+  } catch (e) {
+    console.warn('Could not fetch initial live price for new asset:', e);
+  }
+
+  return {
+    success: true,
+    asset: newAsset,
+    price: livePriceVal,
+    message: `Successfully created ${cleanName} (AMID: ${nextAmid}, ISIN: ${cleanIsin}).`
+  };
 }

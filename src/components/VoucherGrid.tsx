@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { v4 as uuid } from "uuid"
-import { getLedgerWithBalance, type VoucherLine } from "../logic"
+import { getLedgerBalance, type VoucherLine } from "../logic"
 
 export type LedgerOption = {
   id: string
@@ -175,10 +175,7 @@ export default function VoucherGrid({
         <tbody>
           {rows.map((row, index) => {
             const ledgerMeta = row.ledgerId ? allowedLedgers.find(l => String(l.id) === String(row.ledgerId)) : null
-            const balRaw = row.ledgerId ? getLedgerWithBalance(row.ledgerId) : null
-            const currentBalance = balRaw && !Array.isArray(balRaw)
-              ? balRaw.closingBalance
-              : 0
+            const currentBalance = row.ledgerId ? getLedgerBalance(row.ledgerId) : 0
             const hasEntry = (row.debit || 0) > 0 || (row.credit || 0) > 0
             const isDebit = (row.debit || 0) > 0
             const effect = (ledgerMeta && hasEntry) ? getEffect(ledgerMeta.accountingType as LedgerType, isDebit) : ''

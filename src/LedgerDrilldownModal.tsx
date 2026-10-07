@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { X, ExternalLink, Download, Plus, ArrowUpRight, ArrowDownLeft, Printer } from 'lucide-react';
-import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries } from './logic';
+import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries, formatDateDDMMMYYYY } from './logic';
 import { useFY } from './FYContext';
 
 interface LedgerDrilldownModalProps {
@@ -106,6 +106,25 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
   const transactions = isArray ? [] : drilldownData.transactions;
   const groups = getStoredGroups();
 
+  const isBankLedger = useMemo(() => {
+    if (!ledger) return false;
+    const grp = groups.find(g => String(g.id) === String(ledger.groupId));
+    const grpName = (grp?.name || '').toLowerCase();
+    const ledName = (ledger.name || '').toLowerCase();
+    return (
+      String(ledger.groupId) === '60' ||
+      grpName.includes('bank') ||
+      ledName.includes('bank') ||
+      ledName.includes('kotak') ||
+      ledName.includes('hdfc') ||
+      ledName.includes('icici') ||
+      ledName.includes('sbi') ||
+      ledName.includes('axis') ||
+      ledName.includes('idbi') ||
+      ledName.includes('dbs')
+    );
+  }, [ledger, groups]);
+
   const filteredTransactions = useMemo(() => {
     if (!searchTerm) return transactions;
     const lower = searchTerm.toLowerCase();
@@ -113,7 +132,7 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
       return (
         (t.againstLedger && t.againstLedger.toLowerCase().includes(lower)) ||
         (t.narration && t.narration.toLowerCase().includes(lower)) ||
-        (t.date && t.date.includes(lower)) ||
+        (t.date && (t.date.includes(lower) || formatDateDDMMMYYYY(t.date).toLowerCase().includes(lower))) ||
         (t.voucherType && t.voucherType.toLowerCase().includes(lower)) ||
         (t.debit > 0 && String(t.debit).includes(lower)) ||
         (t.credit > 0 && String(t.credit).includes(lower))
@@ -172,7 +191,7 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#111827' }}>{ledger.name}</h2>
               <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                {groups.find(g => g.id === ledger.groupId)?.name} | Period: {localRange.start} to {localRange.end}
+                {groups.find(g => g.id === ledger.groupId)?.name} | Period: {formatDateDDMMMYYYY(localRange.start)} to {formatDateDDMMMYYYY(localRange.end)}
               </div>
             </div>
           </div>
@@ -217,13 +236,17 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
             </div>
           </div>
           <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Debit (+)</div>
+            <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+              Debit (+) {isBankLedger && <span style={{ fontSize: '10px', color: '#059669', textTransform: 'none', fontWeight: 700 }}>(Deposit)</span>}
+            </div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#059669', marginTop: '4px' }}>
               {formatCurrency(summary.debit)}
             </div>
           </div>
           <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Credit (-)</div>
+            <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+              Credit (-) {isBankLedger && <span style={{ fontSize: '10px', color: '#dc2626', textTransform: 'none', fontWeight: 700 }}>(Withdrawal)</span>}
+            </div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#dc2626', marginTop: '4px' }}>
               {formatCurrency(summary.credit)}
             </div>
@@ -326,8 +349,14 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                 <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>Voucher Type</th>
                 <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>Account Name</th>
                 {isDetailed && <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>Narration</th>}
-                <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>Debit</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>Credit</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>
+                  <div>Debit</div>
+                  {isBankLedger && <div style={{ fontSize: '9px', fontWeight: 600, color: '#059669', textTransform: 'none', letterSpacing: 0 }}>(Deposit)</div>}
+                </th>
+                <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>
+                  <div>Credit</div>
+                  {isBankLedger && <div style={{ fontSize: '9px', fontWeight: 600, color: '#dc2626', textTransform: 'none', letterSpacing: 0 }}>(Withdrawal)</div>}
+                </th>
                 <th style={{ padding: '6px 16px', textAlign: 'right', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>Balance</th>
               </tr>
             </thead>
@@ -368,7 +397,7 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                     style={{ borderBottom: '1px solid #f9fafb', cursor: 'pointer', backgroundColor: isImported ? '#e0f2fe' : 'transparent' }}
                     onClick={() => onVoucherClick(t.voucherId)}
                   >
-                    <td style={{ padding: '5px 16px', fontSize: '12px', color: '#374151' }}>{t.date}</td>
+                    <td style={{ padding: '5px 16px', fontSize: '12px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDateDDMMMYYYY(t.date)}</td>
                     <td style={{ padding: '5px 8px', fontSize: '12px' }}>
                       <span style={{ 
                         padding: '1px 6px', 
