@@ -3950,7 +3950,32 @@ export async function deleteVoucher(id: any) {
 
 export async function saveLedger(ledger: any) { console.log('saveLedger stub', ledger?.id); }
 export async function deleteLedger(id: any) { console.log('deleteLedger stub', id); }
-export async function saveMasterRecord(type: any, record: any) { console.log('saveMasterRecord stub', type); }
+export async function saveMasterRecord(type: any, record: any) { 
+  if (type === 'portfolios') {
+    const pfolio_type = record.portfolioType === 'Equity' ? 1 
+      : record.portfolioType === 'Mutual Funds' ? 2 
+      : record.portfolioType === 'Fixed Income' ? 3 
+      : record.portfolioType === 'Real Estate' ? 4 
+      : record.portfolioType === 'F&O / Currency' ? 5 
+      : 0;
+
+    if (record.id) {
+      const { error } = await supabase.from('portfolios').update({ 
+        investor_name: record.portfolioName,
+        pfolio_type 
+      }).eq('id', record.id);
+      if (!error) {
+        const p = state.portfolios.find(pf => String(pf.id) === String(record.id));
+        if (p) {
+          p.investor_name = record.portfolioName;
+          p.pfolio_type = pfolio_type;
+        }
+      }
+    }
+  } else {
+    console.log('saveMasterRecord stub', type);
+  }
+}
 export async function deleteMasterRecord(type: any, id: any) { console.log('deleteMasterRecord stub', type, id); }
 
 export function getYearEndClosingLines(selectedFY: string, accountId: string) {
@@ -4511,12 +4536,27 @@ export async function forceRefreshDatabase() {
 
 export async function togglePortfolioStatus(portfolioId: string, isActive: boolean) {
   const newStatus = isActive ? 1 : 0;
-  const { error } = await supabase.from('portfolios').update({ exit_status: newStatus }).eq('id', portfolioId);
+  
+  // If activating and the name starts with 'x', strip it so it actually becomes active in UI
+  const p = state.portfolios.find(pf => String(pf.id) === String(portfolioId));
+  let newName = p ? p.investor_name : undefined;
+  if (isActive && newName && newName.toLowerCase().startsWith('x')) {
+    newName = newName.replace(/^x\s*/i, '');
+  }
+
+  const updates: any = { exit_status: newStatus };
+  if (newName && newName !== p?.investor_name) {
+    updates.investor_name = newName;
+  }
+
+  const { error } = await supabase.from('portfolios').update(updates).eq('id', portfolioId);
   if (error) {
     console.error('Failed to toggle portfolio status', error);
   } else {
-    const p = state.portfolios.find(pf => String(pf.id) === String(portfolioId));
-    if (p) p.exit_status = newStatus;
+    if (p) {
+      p.exit_status = newStatus;
+      if (updates.investor_name) p.investor_name = updates.investor_name;
+    }
   }
 }
 
