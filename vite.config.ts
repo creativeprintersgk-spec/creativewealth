@@ -365,7 +365,7 @@ export default defineConfig({
     port: 5173, allowedHosts: true,
     strictPort: true,
     proxy: {
-      '/api/tt': { target: 'https://quotes-api.tickertape.in', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/tt/, '') }, '/api/yahoo': {
+      '/api/groww': { target: 'https://groww.in/v1/api/stocks_data/v1/tr_live_prices', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/groww/, '') }, '/api/tt': { target: 'https://quotes-api.tickertape.in', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/tt/, '') }, '/api/yahoo': {
         target: 'https://query1.finance.yahoo.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/yahoo/, ''),
@@ -399,4 +399,5 @@ export default defineConfig({
   },
 })
  
+
 

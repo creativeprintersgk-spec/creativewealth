@@ -5,6 +5,7 @@
     { "source": "/api/mfapi/(.*)", "destination": "https://api.mfapi.in/$1" },
     { "source": "/api/nse-bhavcopy/(.*)", "destination": "https://nsearchives.nseindia.com/products/content/$1" },
     { "source": "/api/tt/(.*)", "destination": "https://quotes-api.tickertape.in/$1" },
+    { "source": "/api/groww/(.*)", "destination": "https://groww.in/v1/api/stocks_data/v1/tr_live_prices/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
