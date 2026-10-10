@@ -5,25 +5,29 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
 
-/* Force Plus Jakarta Sans across all elements inside the Wirely Simulator */
+/* Force Plus Jakarta Sans across all elements inside the Wirely Dashboard & Simulator */
 .wirely-simulator-root,
 .wirely-simulator-root *,
-.wirely-simulator-root button,
-.wirely-simulator-root input,
-.wirely-simulator-root select,
-.wirely-simulator-root textarea,
-.wirely-simulator-root h1,
-.wirely-simulator-root h2,
-.wirely-simulator-root h3,
-.wirely-simulator-root h4,
-.wirely-simulator-root h5,
-.wirely-simulator-root h6,
-.wirely-simulator-root p,
-.wirely-simulator-root span,
-.wirely-simulator-root a,
-.wirely-simulator-root table,
-.wirely-simulator-root th,
-.wirely-simulator-root td {
+.wirely-standalone-root,
+.wirely-standalone-root *,
+.wirely-canvas,
+.wirely-canvas *,
+.wirely-canvas button,
+.wirely-canvas input,
+.wirely-canvas select,
+.wirely-canvas textarea,
+.wirely-canvas h1,
+.wirely-canvas h2,
+.wirely-canvas h3,
+.wirely-canvas h4,
+.wirely-canvas h5,
+.wirely-canvas h6,
+.wirely-canvas p,
+.wirely-canvas span,
+.wirely-canvas a,
+.wirely-canvas table,
+.wirely-canvas th,
+.wirely-canvas td {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;

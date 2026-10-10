@@ -681,7 +681,7 @@ export default function SimulatorDashboard() {
   // ── Standalone Mode for /dashboard ──
   if (!isSimulator) {
     return (
-      <div style={{ width: '100%', minHeight: '100%', background: '#dbe6f4', overflowX: 'hidden' }}>
+      <div className="wirely-standalone-root" style={{ width: '100%', minHeight: '100%', background: '#dbe6f4', overflowX: 'hidden' }}>
         {renderDashboardCanvas()}
         {showPlanModal && renderPlanModal()}
       </div>
