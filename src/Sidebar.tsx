@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign, TrendingDown, TrendingUp, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign, TrendingDown, TrendingUp, BarChart3, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { getIndices } from './services/priceService';
 import { getStoredFamilies } from './logic';
 import { useTestMode } from './contexts/TestModeContext';
@@ -56,14 +56,47 @@ export default function Sidebar() {
 
   const { signOut } = useAuth();
 
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('sidebar_collapsed') === 'true';
+  });
+
+  const toggleSidebar = (collapsed: boolean) => {
+    setIsCollapsed(collapsed);
+    localStorage.setItem('sidebar_collapsed', String(collapsed));
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 320);
+  };
+
   return (
-    <aside className="sidebar print-hide">
-      <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <LayoutDashboard size={14} color="white" />
+    <>
+      {isCollapsed && (
+        <button
+          className="sidebar-floating-toggle"
+          onClick={() => toggleSidebar(false)}
+          title="Slide out navigation menu"
+        >
+          <PanelLeftOpen size={15} color="#ffffff" />
+          <span>Menu</span>
+        </button>
+      )}
+
+      <aside className={`sidebar print-hide ${isCollapsed ? 'collapsed' : ''}`}>
+        <div className="sidebar-logo">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="sidebar-logo-icon">
+              <LayoutDashboard size={14} color="white" />
+            </div>
+            <span className="sidebar-logo-text">WealthCore</span>
+          </div>
+          <button
+            className="sidebar-toggle-btn"
+            onClick={() => toggleSidebar(true)}
+            title="Slide navigation menu in"
+          >
+            <PanelLeftClose size={15} color="rgba(255, 255, 255, 0.9)" />
+          </button>
         </div>
-        <span className="sidebar-logo-text">WealthCore</span>
-      </div>
 
       <nav className="sidebar-nav">
         {/* WEALTH WORKSPACE */}
@@ -280,5 +313,6 @@ export default function Sidebar() {
         .sidebar-action-btn:hover { background: rgba(255,255,255,0.28); color: #fff; border-color: rgba(255,255,255,0.45); }
       `}</style>
     </aside>
+    </>
   );
 }

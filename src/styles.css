@@ -44,12 +44,84 @@ body {
   flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.38);
   box-shadow: 4px 0 24px rgba(40, 65, 95, 0.18);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.3s cubic-bezier(0.16, 1, 0.3, 1), margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  position: relative;
+  z-index: 50;
+}
+
+.sidebar.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  margin-left: -224px !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-toggle-btn {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #ffffff;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateX(-1px);
+}
+
+.sidebar-floating-toggle {
+  position: fixed;
+  left: 12px;
+  top: 14px;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: 
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, #7491b0 0%, #5c7b9e 50%, #48678c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(40, 65, 95, 0.25);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+}
+
+.sidebar-floating-toggle:hover {
+  transform: translateX(3px);
+  background: 
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, #819ec0 0%, #688cb3 50%, #52759c 100%);
+  box-shadow: 0 6px 22px rgba(40, 65, 95, 0.35);
+}
+
+.sidebar.collapsed + div {
+  padding-left: 92px;
+}
+
+.app-layout > div {
+  transition: padding-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Logo row */
 .sidebar-logo {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.25);

@@ -711,9 +711,10 @@
 
 .wirely-ops-inner-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
+  width: 100%;
 }
 
 .wirely-pills-col {
@@ -721,6 +722,15 @@
   flex-direction: column;
   gap: 10px;
   justify-content: flex-start;
+  min-width: 0;
+  width: 100%;
+}
+
+.wirely-directory-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
 }
 
 .wirely-op-pill-light {
