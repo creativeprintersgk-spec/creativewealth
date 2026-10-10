@@ -1838,50 +1838,94 @@ function ImportPageInner() {
     if (file.name.toLowerCase().endsWith('.pdf')) {
       try {
         const buffer = await file.arrayBuffer();
-        
-        // 1. In-browser client-side parse (works on Vercel & localhost with zero server dependency)
-        const clientRes = await parseContractNoteClientPdf(buffer, '', selectedBroker);
-        if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
-          await ingestParsedCnResult(clientRes);
-          e.target.value = '';
-          return;
-        }
 
-        // If client reported password required, open modal
-        if (clientRes.status === 'error' && (clientRes.message || '').toLowerCase().includes('password')) {
-          setPendingFile(file);
-          setPasswordPromptOpen(true);
-          return;
-        }
+        // 1. Build list of candidate passwords (auto-decrypt without ever prompting user if known)
+        const candidatePasswords: string[] = ['']; // Unencrypted first
 
-        // 2. Fallback: try local server /api/parse-cn if available
+        // Saved passwords in localStorage
         try {
-          const response = await fetch('/api/parse-cn', {
-            method: 'POST',
-            headers: {
-              'x-cn-password': '',
-              'x-cn-broker': selectedBroker,
-              'Content-Type': 'application/pdf'
-            },
-            body: buffer
-          });
+          const brokerSaved = localStorage.getItem(`wealthcore_cn_password_${selectedBroker}`);
+          if (brokerSaved && !candidatePasswords.includes(brokerSaved)) candidatePasswords.push(brokerSaved);
 
-          if (response.ok) {
-            const result = await response.json();
-            if (result.status === 'ok' && result.trades && result.trades.length > 0) {
-              await ingestParsedCnResult(result);
+          const defaultSaved = localStorage.getItem('wealthcore_cn_password');
+          if (defaultSaved && !candidatePasswords.includes(defaultSaved)) candidatePasswords.push(defaultSaved);
+
+          const savedList: string[] = JSON.parse(localStorage.getItem('wealthcore_saved_passwords') || '[]');
+          for (const s of savedList) {
+            if (s && !candidatePasswords.includes(s)) candidatePasswords.push(s);
+          }
+        } catch {}
+
+        // Known PANs from family portfolios in state
+        (state.portfolios || []).forEach((p: any) => {
+          if (p.pan && typeof p.pan === 'string') {
+            const cleanPan = p.pan.trim().toUpperCase();
+            if (cleanPan && !candidatePasswords.includes(cleanPan)) {
+              candidatePasswords.push(cleanPan);
+            }
+          }
+        });
+
+        // Try decrypting with each candidate password in background
+        for (const candPwd of candidatePasswords) {
+          try {
+            const clientRes = await parseContractNoteClientPdf(buffer, candPwd, selectedBroker);
+            if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
+              // Successfully decrypted and parsed! Save password permanently
+              if (candPwd) {
+                try {
+                  localStorage.setItem('wealthcore_cn_password', candPwd);
+                  localStorage.setItem(`wealthcore_cn_password_${selectedBroker}`, candPwd);
+                  if (clientRes.pan) {
+                    localStorage.setItem(`wealthcore_cn_password_pan_${clientRes.pan.toUpperCase()}`, candPwd);
+                  }
+                  const savedList: string[] = JSON.parse(localStorage.getItem('wealthcore_saved_passwords') || '[]');
+                  if (!savedList.includes(candPwd)) {
+                    savedList.unshift(candPwd);
+                    localStorage.setItem('wealthcore_saved_passwords', JSON.stringify(savedList.slice(0, 30)));
+                  }
+                } catch {}
+              }
+              await ingestParsedCnResult(clientRes);
               e.target.value = '';
               return;
             }
+          } catch (candErr) {
+            // Continue trying other candidate passwords
           }
-        } catch (serverErr) {
-          // Server endpoint not reachable (e.g. on Vercel), continue to prompt
+        }
+
+        // Fallback: try local server /api/parse-cn with saved password
+        const savedPwd = localStorage.getItem(`wealthcore_cn_password_${selectedBroker}`) || localStorage.getItem('wealthcore_cn_password') || '';
+        if (savedPwd) {
+          try {
+            const response = await fetch('/api/parse-cn', {
+              method: 'POST',
+              headers: {
+                'x-cn-password': savedPwd,
+                'x-cn-broker': selectedBroker,
+                'Content-Type': 'application/pdf'
+              },
+              body: buffer
+            });
+            if (response.ok) {
+              const result = await response.json();
+              if (result.status === 'ok' && result.trades && result.trades.length > 0) {
+                await ingestParsedCnResult(result);
+                e.target.value = '';
+                return;
+              }
+            }
+          } catch {}
         }
       } catch (directErr) {
-        // Direct parse failed (e.g. password required), fallback to modal
+        // Direct parse failed, prompt user
       }
 
+      // Only prompt if none of the saved or family passwords worked
       setPendingFile(file);
+      const lastSaved = localStorage.getItem(`wealthcore_cn_password_${selectedBroker}`) || localStorage.getItem('wealthcore_cn_password') || '';
+      if (lastSaved) setTempPassword(lastSaved);
       setPasswordPromptOpen(true);
     } else {
       // CSV / HTML / TXT file
@@ -1981,6 +2025,24 @@ function ImportPageInner() {
       try {
         const clientRes = await parseContractNoteClientPdf(buffer, pwd, selectedBroker);
         if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
+          // Persist password permanently across all brokers & sessions
+          if (pwd) {
+            try {
+              localStorage.setItem('wealthcore_cn_password', pwd);
+              localStorage.setItem(`wealthcore_cn_password_${selectedBroker}`, pwd);
+              if (clientRes.pan) {
+                localStorage.setItem(`wealthcore_cn_password_pan_${clientRes.pan.toUpperCase()}`, pwd);
+              }
+              const savedList = JSON.parse(localStorage.getItem('wealthcore_saved_passwords') || '[]');
+              if (!savedList.includes(pwd)) {
+                savedList.unshift(pwd);
+                localStorage.setItem('wealthcore_saved_passwords', JSON.stringify(savedList.slice(0, 30)));
+              }
+            } catch (saveErr) {
+              console.warn('Failed to save CN password to localStorage:', saveErr);
+            }
+          }
+
           await ingestParsedCnResult(clientRes);
           setPasswordPromptOpen(false);
           setTempPassword('');
@@ -2024,6 +2086,24 @@ function ImportPageInner() {
       const result = await response.json();
       if (result.status === 'error') {
         throw new Error(result.message || "Invalid password or parsing error");
+      }
+
+      // Persist password permanently across all brokers & sessions
+      if (pwd) {
+        try {
+          localStorage.setItem('wealthcore_cn_password', pwd);
+          localStorage.setItem(`wealthcore_cn_password_${selectedBroker}`, pwd);
+          if (result.pan) {
+            localStorage.setItem(`wealthcore_cn_password_pan_${result.pan.toUpperCase()}`, pwd);
+          }
+          const savedList = JSON.parse(localStorage.getItem('wealthcore_saved_passwords') || '[]');
+          if (!savedList.includes(pwd)) {
+            savedList.unshift(pwd);
+            localStorage.setItem('wealthcore_saved_passwords', JSON.stringify(savedList.slice(0, 30)));
+          }
+        } catch (saveErr) {
+          console.warn('Failed to save CN password to localStorage:', saveErr);
+        }
       }
 
       await ingestParsedCnResult(result);
