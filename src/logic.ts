@@ -61,6 +61,10 @@ export type Entry = {
 // ── ASSET TYPE MAPS ───────────────────────────────────────────────────────────
 export const ASSET_TYPE_MAP: Record<number, string> = {
   10: 'Stocks',
+  30: 'Futures (Stock)',
+  31: 'Options (Stock)',
+  32: 'Futures (Index)',
+  33: 'Options (Index)',
   50: 'Stocks',
   51: 'Stocks',
   60: 'Mutual Funds (Equity)',
@@ -70,6 +74,10 @@ export const ASSET_TYPE_MAP: Record<number, string> = {
   75: 'Mutual Funds (Hybrid)',
   77: 'Silver',
   80: 'Insurance',
+  81: 'Futures (Currency)',
+  82: 'Options (Currency)',
+  83: 'Futures (Commodity)',
+  84: 'Options (Commodity)',
   90: 'Fixed Deposits',
   95: 'NPS / ULiP',
   100: 'Traded Bonds',
@@ -91,6 +99,10 @@ export const ASSET_TYPE_MAP: Record<number, string> = {
 };
 
 export const ASSET_TYPE_ICON: Record<number, string> = {
+  30: 'FUT',
+  31: 'OPT',
+  32: 'FUT',
+  33: 'OPT',
   50: 'EQ',
   51: 'EQ',
   60: 'MF',
@@ -100,6 +112,10 @@ export const ASSET_TYPE_ICON: Record<number, string> = {
   75: 'MF',
   77: 'SLV',
   80: 'INS',
+  81: 'FUT',
+  82: 'OPT',
+  83: 'FUT',
+  84: 'OPT',
   90: 'FD',
   95: 'NPS',
   100: 'BND',
@@ -1377,29 +1393,30 @@ export function getHoldings(
                          /^(futstk|futidx|futcur|futcom|optstk|optidx|optcur|optcom)/i.test(rawName);
 
     // Closed / expired derivatives (zero quantity) must NEVER be shown as active delivery holdings in PMS
-    if (isDerivative && qty <= 0.0001 && !includeZeroQty) {
+    if (isDerivative && Math.abs(qty) <= 0.0001 && !includeZeroQty) {
       return;
     }
 
     // Determine effective quantity:
     // Non-unitized physical assets (PPF, FD, Properties, Jewellery, etc.) use 1 when only amount is tracked.
+    // Derivatives allow negative quantity (short open positions).
     // Derivatives, stocks, and mutual funds with 0 quantity must NEVER be inflated to 1!
     const isNonUnitizedAsset = [90, 110, 120, 130, 140, 150, 151, 160, 170, 180, 190, 220].includes(s.resolvedAtty);
-    const effectiveQty = qty > 0 ? qty : ((isNonUnitizedAsset && (currv > 0 || inv > 0)) ? 1 : 0);
+    const effectiveQty = isDerivative ? qty : (qty > 0 ? qty : ((isNonUnitizedAsset && (currv > 0 || inv > 0)) ? 1 : 0));
 
-    if (effectiveQty <= 0 && !includeZeroQty) {
+    if (Math.abs(effectiveQty) <= 0.0001 && !includeZeroQty) {
       return;
     }
 
-    const fallbackCurr = effectiveQty > 0 ? (currv > 0 ? currv / effectiveQty : inv / effectiveQty) : 0;
-    const fallbackPrev = effectiveQty > 0 ? fallbackCurr - (tgain / effectiveQty) : fallbackCurr;
+    const fallbackCurr = effectiveQty !== 0 ? (currv !== 0 ? Math.abs(currv / effectiveQty) : Math.abs(inv / effectiveQty)) : 0;
+    const fallbackPrev = effectiveQty !== 0 ? fallbackCurr - (tgain / effectiveQty) : fallbackCurr;
 
     let currPrice = price.curr || fallbackCurr;
     let prevPrice = price.prev || fallbackPrev;
 
     // For any asset where no live quote exists (e.g. unlisted equity, private equity, non-traded bonds/FDs/commodities),
     // fall back to purchase cost (avgPrice = amtinv / qty) so price and value are never 0 or missing.
-    const avgPrice = effectiveQty > 0 ? inv / effectiveQty : 0;
+    const avgPrice = effectiveQty !== 0 ? Math.abs(inv / effectiveQty) : 0;
     if (currPrice === 0 && avgPrice > 0) {
       currPrice = avgPrice;
       prevPrice = avgPrice;
@@ -1611,13 +1628,14 @@ export function getHoldings(
       return h;
     }
 
-    h.avgPrice = h.quantity > 0 ? h.amtInvested / h.quantity : (h.amtInvested > 0 ? h.amtInvested : 0);
+    h.avgPrice = h.quantity !== 0 ? Math.abs(h.amtInvested / h.quantity) : (Math.abs(h.amtInvested));
     if (h.currentPrice === 0 && h.avgPrice > 0) {
       h.currentPrice = h.avgPrice;
       h.prevPrice = h.avgPrice;
     }
-    h.currentValue = h.quantity > 0 ? h.quantity * h.currentPrice : (h.amtInvested > 0 ? h.amtInvested : 0);
-    h.overallGain = h.currentValue > 0 ? h.currentValue - h.amtInvested : 0;
+    h.currentValue = h.quantity !== 0 ? (h.quantity * h.currentPrice) : h.amtInvested;
+    h.overallGain = h.currentValue - h.amtInvested;
+    h.overallGainPct = h.amtInvested !== 0 ? (h.overallGain / Math.abs(h.amtInvested)) * 100 : 0;
     // Sanity safeguard: if ratio is > 5x (e.g. data entry typo or unit mismatch like per-gram vs per-10g),
     // prevent phantom single-day spikes from corrupting the daily movement
     if (h.prevPrice > 0 && h.currentPrice > 0) {
@@ -3361,6 +3379,9 @@ async function syncPortfolioStats(portfolioId: number, amid: number) {
   let amtInvested = 0;
   const existingSum = state.sumTable.find((s: any) => Number(s.pfolio_id) === portfolioId && Number(s.amid) === amid);
   let assetType = resolveAssetType(portfolioId, amid, existingSum?.atty);
+  const rawName = state.assetNameMap[amid] || '';
+  const isDerivative = [30, 31, 32, 33, 80, 81, 82, 83, 84].includes(assetType) ||
+                       /^(futstk|futidx|futcur|futcom|optstk|optidx|optcur|optcom)/i.test(rawName);
 
   const sortedTxs = [...txs].sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trid) - Number(b.trid)));
 
@@ -3384,12 +3405,14 @@ async function syncPortfolioStats(portfolioId: number, amid: number) {
     }
   });
 
-  if (qty < 0) qty = 0;
-  if (amtInvested < 0) amtInvested = 0;
+  if (!isDerivative) {
+    if (qty < 0) qty = 0;
+    if (amtInvested < 0) amtInvested = 0;
+  }
 
   const price = state.priceMap[amid]?.curr || 0;
-  const currv = qty > 0 ? (price > 0 ? qty * price : amtInvested) : amtInvested;
-  const effectiveQty = qty > 0 ? qty : (amtInvested > 0 ? 1 : 0);
+  const currv = qty !== 0 ? (price > 0 ? qty * price : amtInvested) : amtInvested;
+  const effectiveQty = qty !== 0 ? qty : (!isDerivative && amtInvested > 0 ? 1 : 0);
 
   const summaryRow: any = {
     pfolio_id: portfolioId,

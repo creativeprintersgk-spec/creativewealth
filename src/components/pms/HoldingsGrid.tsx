@@ -43,6 +43,12 @@ function getRefreshInterval(): number {
  
 const ASSET_TYPE_ORDER = [
   50,  // Stocks
+  30,  // Futures (Stock)
+  31,  // Options (Stock)
+  32,  // Futures (Index)
+  33,  // Options (Index)
+  81,  // Futures (Currency)
+  82,  // Options (Currency)
   60,  // Mutual Funds (Equity)
   61,  // Mutual Funds (Debt)
   62,  // Mutual Funds (Other)
@@ -147,7 +153,7 @@ export default function HoldingsGrid({
 
         const updated = data.map(row => {
           const priceRow = priceByAmid.get(row.amid);
-          const fallbackPrice = row.quantity > 0 && row.amtInvested > 0 ? (row.amtInvested / row.quantity) : 0;
+          const fallbackPrice = row.quantity !== 0 && row.amtInvested !== 0 ? Math.abs(row.amtInvested / row.quantity) : 0;
           let currPrice = (priceRow && priceRow.curr > 0) ? priceRow.curr : (row.currentPrice > 0 ? row.currentPrice : fallbackPrice);
           let prevPrice = (priceRow && priceRow.prev > 0) ? priceRow.prev : (row.prevPrice > 0 ? row.prevPrice : currPrice);
 
@@ -156,7 +162,7 @@ export default function HoldingsGrid({
             prevPrice = state.priceMap[row.amid].prev || currPrice;
           }
 
-          const currentValue = currPrice > 0 ? (row.quantity * currPrice) : (row.currentValue > 0 ? row.currentValue : row.amtInvested);
+          const currentValue = currPrice > 0 ? (row.quantity * currPrice) : (row.currentValue !== 0 ? row.currentValue : row.amtInvested);
           const overallGain = currentValue - row.amtInvested;
           const todaysGain = prevPrice > 0 && currPrice > 0 ? row.quantity * (currPrice - prevPrice) : 0;
           const todaysGainPct = prevPrice > 0 && currPrice > 0 ? ((currPrice - prevPrice) / prevPrice) * 100 : 0;
@@ -167,7 +173,7 @@ export default function HoldingsGrid({
             prevPrice,
             currentValue,
             overallGain,
-            overallGainPct: row.amtInvested > 0 ? (overallGain / row.amtInvested) * 100 : 0,
+            overallGainPct: row.amtInvested !== 0 ? (overallGain / Math.abs(row.amtInvested)) * 100 : 0,
             todaysGain,
             todaysGainPct,
           };

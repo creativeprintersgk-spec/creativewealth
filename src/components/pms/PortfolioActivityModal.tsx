@@ -35,6 +35,7 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
   // Distinct Asset Types Map
   const mapAssetCategory = (atyid?: number, assetName?: string) => {
     const name = (assetName || '').toLowerCase();
+    if ([30, 31, 32, 33, 81, 82, 83, 84].includes(atyid!) || /^(fut|opt)/i.test(name)) return 'F&O / Derivatives';
     if (name.includes('gold') || name.includes('silver') || atyid === 75 || atyid === 77 || atyid === 150 || atyid === 151) return 'Gold & Precious Metals';
     if (atyid === 50) return 'Stocks & ETFs';
     if (atyid === 60 || atyid === 61) return 'Mutual Funds';
@@ -152,6 +153,7 @@ export default function PortfolioActivityModal({ open, onClose, portfolioIds, ti
             >
               <option value="ALL">All Asset Types</option>
               <option value="Stocks & ETFs">Stocks & ETFs</option>
+              <option value="F&O / Derivatives">F&O / Derivatives</option>
               <option value="Mutual Funds">Mutual Funds</option>
               <option value="Gold & Precious Metals">Gold & Precious Metals</option>
               <option value="Traded Bonds">Traded Bonds</option>
