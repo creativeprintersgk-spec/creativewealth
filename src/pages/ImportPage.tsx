@@ -1739,10 +1739,12 @@ function ImportPageInner() {
   const resolveOrCreatePortfolio = async (
     pan: string,
     clientName: string,
-    ucc: string
+    ucc: string,
+    isFno: boolean = false
   ): Promise<{ portfolioId: string; accountId: string; portfolioName: string }> => {
     const normPan = (pan || '').trim().toUpperCase();
     const normName = (clientName || '').trim().toUpperCase();
+    const isHuf = normName.includes('HUF') || (normPan.length === 10 && normPan[3] === 'H');
 
     const isActPf = (p: any) => 
       !p.is_group && 
@@ -1751,24 +1753,48 @@ function ImportPageInner() {
       p.exit_status !== 0 && 
       !p.investor_name.toLowerCase().startsWith('x');
 
+    const pickBestPf = (candidates: any[]) => {
+      if (isFno) {
+        if (isHuf) {
+          const hufFo = candidates.find(p => /huf/i.test(p.investor_name) && (/fo/i.test(p.investor_name) || p.pfolio_type === 5));
+          if (hufFo) return hufFo;
+        }
+        const anyFo = candidates.find(p => /fo/i.test(p.investor_name) || p.pfolio_type === 5);
+        if (anyFo) return anyFo;
+      } else {
+        if (isHuf) {
+          const hufInv = candidates.find(p => /huf/i.test(p.investor_name) && (/inv|eq/i.test(p.investor_name) || p.pfolio_type === 0));
+          if (hufInv) return hufInv;
+        }
+        const equity = candidates.find(p => /inv|eq|stock/i.test(p.investor_name) && !/fo|curr|mf/i.test(p.investor_name));
+        if (equity) return equity;
+      }
+      return candidates[0];
+    };
+
     // 1. Try matching by PAN first
     if (normPan) {
-      const candidatePfs = (state.portfolios || []).filter(
+      let candidatePfs = (state.portfolios || []).filter(
         (p: any) => p.pan && p.pan.trim().toUpperCase() === normPan && isActPf(p)
       );
+
+      // If client name is also provided, ensure candidate doesn't mismatch family member name
+      if (normName && candidatePfs.length > 0) {
+        const nameTokens = normName.split(/\s+/).filter(w => w.length > 2);
+        const nameFiltered = candidatePfs.filter((p: any) => {
+          const pStr = `${p.investor_name || ''} ${p.full_name || ''}`.toUpperCase();
+          return nameTokens.some(tok => pStr.includes(tok));
+        });
+        if (nameFiltered.length > 0) candidatePfs = nameFiltered;
+      }
+
       if (candidatePfs.length > 0) {
-        // Prefer active equity / investment portfolio (name has 'inv', 'eq', 'stock', not FO, CURR, HUF, MF)
-        const best = candidatePfs.find((p: any) => 
-          /inv|eq|stock/i.test(p.investor_name) && !/fo|curr|huf|mf/i.test(p.investor_name)
-        ) || candidatePfs.find((p: any) => 
-          (p.pfolio_type === 0 || p.pfolio_type === 1) && !/fo|curr|huf/i.test(p.investor_name)
-        ) || candidatePfs[0];
-        
+        const best = pickBestPf(candidatePfs);
         const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(best.id));
         return {
           portfolioId: String(best.id),
           portfolioName: best.investor_name || best.full_name || `Portfolio ${best.id}`,
-          accountId: link ? String(link.acid) : '31'
+          accountId: link ? String(link.acid) : (isHuf ? '62' : '31')
         };
       }
     }
@@ -1779,7 +1805,7 @@ function ImportPageInner() {
       const tokens = cleanNorm.split(' ').filter(w => w.length > 1);
 
       const activeList = (state.portfolios || []).filter(isActPf);
-      const matchByName = activeList.find((p: any) => {
+      const matches = activeList.filter((p: any) => {
         const pFull = (p.full_name || '').toUpperCase().trim();
         const pInv = (p.investor_name || '').toUpperCase().trim();
         if (!pFull && !pInv) return false;
@@ -1799,18 +1825,19 @@ function ImportPageInner() {
         return common.length >= 2;
       });
 
-      if (matchByName) {
-        if (normPan && (!matchByName.pan || matchByName.pan.trim().toUpperCase() !== normPan)) {
-          matchByName.pan = normPan;
+      if (matches.length > 0) {
+        const best = pickBestPf(matches);
+        if (normPan && (!best.pan || best.pan.trim().toUpperCase() !== normPan)) {
+          best.pan = normPan;
           if (await isSupabaseReachable()) {
-            await supabase.from('portfolios').update({ pan: normPan }).eq('id', matchByName.id);
+            await supabase.from('portfolios').update({ pan: normPan }).eq('id', best.id);
           }
         }
-        const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(matchByName.id));
+        const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(best.id));
         return {
-          portfolioId: String(matchByName.id),
-          portfolioName: matchByName.investor_name || matchByName.full_name || `Portfolio ${matchByName.id}`,
-          accountId: link ? String(link.acid) : '31'
+          portfolioId: String(best.id),
+          portfolioName: best.investor_name || best.full_name || `Portfolio ${best.id}`,
+          accountId: link ? String(link.acid) : (isHuf ? '62' : '31')
         };
       }
     }
@@ -1832,7 +1859,7 @@ function ImportPageInner() {
       full_name: clientName.trim() || finalName,
       pan: normPan || null,
       is_group: false,
-      pfolio_type: 0,
+      pfolio_type: isFno ? 5 : 0,
       exit_status: 1
     };
 
@@ -1844,7 +1871,7 @@ function ImportPageInner() {
     }
     state.portfolios.push(newPfRow);
 
-    const linkRow = { pfid: nextPfid, acid: 31, client_id: 1 };
+    const linkRow = { pfid: nextPfid, acid: isHuf ? 62 : 31, client_id: 1 };
     if (await isSupabaseReachable()) {
       await supabase.from('acc_pflink').insert(linkRow);
     }
@@ -1856,7 +1883,7 @@ function ImportPageInner() {
     return {
       portfolioId: String(nextPfid),
       portfolioName: finalName,
-      accountId: '31'
+      accountId: isHuf ? '62' : '31'
     };
   };
 
@@ -1866,7 +1893,8 @@ function ImportPageInner() {
     const newTrades: any[] = [];
 
     // 1. Auto-detect & auto-resolve Portfolio / Individual
-    const resolvedPf = await resolveOrCreatePortfolio(result.pan || '', result.clientName || '', result.ucc || '');
+    const isFno = (result.trades || []).some((t: any) => !t.isin || /OPT|FUT/i.test(t.assetName || ''));
+    const resolvedPf = await resolveOrCreatePortfolio(result.pan || '', result.clientName || '', result.ucc || '', isFno);
     const autoSelectedPortfolio = resolvedPf.portfolioId;
     setSelectedPortfolio(autoSelectedPortfolio);
 

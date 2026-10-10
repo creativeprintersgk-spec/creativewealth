@@ -1337,14 +1337,14 @@ export function getHoldings(
   includeZeroQty: boolean = false,
   includeAccountingLedgers: boolean = true
 ): AssetHolding[] {
-  const pSet = new Set(portfolioIds);
+  const pSet = new Set(portfolioIds.map(Number));
   
   // 1. Filter sum_table for active holdings (qnt > 0 or currv > 0)
   // We exclude amtinv > 0 because sold assets often still retain an amtinv value in the sumTable
   // Safeguard: Exclude rogue / phantom records (amid 1490)
   const rows = state.sumTable.filter((s: any) => 
-    pSet.has(s.pfolio_id) && 
-    s.amid !== 1490 &&
+    pSet.has(Number(s.pfolio_id)) && 
+    Number(s.amid) !== 1490 &&
     (includeZeroQty || Number(s.qnt) > 0.0001 || Number(s.currv) > 0.01)
   );
 
