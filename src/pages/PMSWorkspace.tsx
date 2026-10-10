@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useFamily } from '../contexts/FamilyContext';
 import { useFY } from '../FYContext';
 import ReportsModal, { type ReportConfig } from "../components/ReportsModal";
@@ -179,10 +179,24 @@ class ModalErrorBoundary extends React.Component<{ onClose: () => void; children
 
 export default function PMSWorkspace() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { activeFamily } = useFamily();
   const { customRange, triggerGlobalRefresh, globalRefreshTrigger } = useFY();
   const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('pms_activeTab') || 'all');
-  const [activeAssetType, setActiveAssetType] = useState<string>('dashboard');
+  const queryAssetType = searchParams.get('assetType');
+  const [activeAssetType, setActiveAssetType] = useState<string>(() => {
+    if (queryAssetType && (ASSET_TYPE_TABS as readonly string[]).includes(queryAssetType)) {
+      return queryAssetType;
+    }
+    return 'dashboard';
+  });
+
+  useEffect(() => {
+    const qType = searchParams.get('assetType');
+    if (qType && (ASSET_TYPE_TABS as readonly string[]).includes(qType)) {
+      setActiveAssetType(qType);
+    }
+  }, [searchParams]);
   const [openTabIds, setOpenTabIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('pms_openTabs');
     return saved ? JSON.parse(saved) : ['all'];

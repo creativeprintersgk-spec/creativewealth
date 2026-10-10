@@ -59,9 +59,7 @@ export default function SimulatorDashboard() {
   const [tick, setTick] = useState(0);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
   
-  // Sub-tabs & Expand State
-  const [isHoldingsExpanded, setIsHoldingsExpanded] = useState(false);
-  const [isFamilyExpanded, setIsFamilyExpanded] = useState(false);
+  // Accounts Slider Expand State
   const [isAccountsSliderExpanded, setIsAccountsSliderExpanded] = useState(() => {
     const saved = localStorage.getItem('wirely_accounts_expanded');
     return saved !== null ? saved === 'true' : true;
@@ -303,8 +301,8 @@ export default function SimulatorDashboard() {
       .sort((a, b) => (b.currentValue || b.amtInvested) - (a.currentValue || a.amtInvested));
   }, [holdings]);
 
-  // Filtered list based on category selection
-  const filteredHoldings = useMemo(() => {
+  // Filtered list based on category selection (Shows Top 5 on Dashboard)
+  const { filteredHoldings, filteredTotalCount } = useMemo(() => {
     let list = topHoldings;
     if (selectedCategoryFilter) {
       const cat = assetBreakdown.find(a => a.shortName.toLowerCase() === selectedCategoryFilter.toLowerCase() || a.id.toLowerCase() === selectedCategoryFilter.toLowerCase());
@@ -313,13 +311,40 @@ export default function SimulatorDashboard() {
         list = topHoldings.filter(h => getAssetCategoryKey(h.assetName, h.assetType) === catId);
       }
     }
-    return isHoldingsExpanded ? list : list.slice(0, 4);
-  }, [topHoldings, selectedCategoryFilter, assetBreakdown, isHoldingsExpanded]);
+    return {
+      filteredHoldings: list.slice(0, 5),
+      filteredTotalCount: list.length
+    };
+  }, [topHoldings, selectedCategoryFilter, assetBreakdown]);
 
-  // Family accounts list (slice top 4 unless expanded)
+  // Family accounts list (slice top 5 on dashboard)
   const displayedFamilyAccounts = useMemo(() => {
-    return isFamilyExpanded ? familyAccounts : familyAccounts.slice(0, 4);
-  }, [familyAccounts, isFamilyExpanded]);
+    return familyAccounts.slice(0, 5);
+  }, [familyAccounts]);
+
+  // Helper to map category to PMS Workspace assetType
+  const getPmsAssetTypeForCategory = (catKey: string | null): string => {
+    if (!catKey) return 'all';
+    const k = catKey.toLowerCase();
+    if (k.includes('bond')) return 'bonds';
+    if (k.includes('equity') || k.includes('stock')) return 'stocks';
+    if (k.includes('gold') || k.includes('bullion')) return 'gold';
+    if (k.includes('mf') || k.includes('mutual')) return 'mf_eq';
+    if (k.includes('ppf') || k.includes('deposit')) return 'ppf';
+    if (k.includes('liquid')) return 'mf_debt';
+    return 'all';
+  };
+
+  const getPmsRouteForHolding = (h: any): string => {
+    const cat = getAssetCategoryKey(h.assetName, h.assetType);
+    if (cat === 'bonds') return '/pms?assetType=bonds';
+    if (cat === 'equity') return '/pms?assetType=stocks';
+    if (cat === 'bullion') return '/pms?assetType=gold';
+    if (cat === 'mf_eq') return '/pms?assetType=mf_eq';
+    if (cat === 'fixed_inc') return (h.assetName || '').toLowerCase().includes('ppf') ? '/pms?assetType=ppf' : '/pms?assetType=fds';
+    if (cat === 'liquid') return '/pms?assetType=mf_debt';
+    return '/pms?assetType=all';
+  };
 
   // Real Bank Balance across all bank accounts
   const bankBalanceData = useMemo(() => {
@@ -939,25 +964,6 @@ export default function SimulatorDashboard() {
             {formatMoney(summary.currentValue)}
           </div>
 
-          {/* Subtitle & Daily Gain */}
-          <div className="wirely-hero-val-label">
-            <span>Total portfolio value</span>
-            <span style={{ color: '#cbd5e1' }}>•</span>
-            <span style={{ 
-              color: summary.todaysGain >= 0 ? '#16a34a' : '#dc2626', 
-              fontWeight: 700, 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '3px'
-            }}>
-              {summary.todaysGain >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              {summary.todaysGain >= 0 ? '+' : ''}{formatMoney(summary.todaysGain)} ({summary.todaysGainPct >= 0 ? '+' : ''}{summary.todaysGainPct.toFixed(2)}% Today)
-            </span>
-            <span style={{ color: '#94a3b8' }}>
-              • As of Today, {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-
           {/* Accounts Horizontal Slider OR Extended Full Accounts View (Placed Directly UNDER Portfolio Value) */}
           {!isAccountsSliderExpanded ? (
             <div className="wirely-accounts-slider-wrap">
@@ -1271,15 +1277,12 @@ export default function SimulatorDashboard() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid rgba(220, 235, 252, 0.7)' }}>
-                    <div className="wirely-op-sub-light" style={{ fontSize: '9.5px', color: '#64748b' }}>
-                      Unrealised: <strong style={{ color: summary.overallGain >= 0 ? '#16a34a' : '#dc2626' }}>{summary.overallGain > 0 ? `+${formatCompact(summary.overallGain)}` : formatCompact(summary.overallGain)}</strong> • Realised FY: <strong style={{ color: '#0f172a' }}>{((taxOverview?.realizedSTCG || 0) + (taxOverview?.realizedLTCG || 0)) > 0 ? `+${formatCompact((taxOverview?.realizedSTCG || 0) + (taxOverview?.realizedLTCG || 0))}` : formatCompact((taxOverview?.realizedSTCG || 0) + (taxOverview?.realizedLTCG || 0))}</strong>
-                    </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid rgba(220, 235, 252, 0.7)' }}>
                     <span 
                       onClick={() => navigate('/pms')}
                       style={{ fontSize: '9.5px', color: '#2563eb', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                     >
-                      PMS ›
+                      PMS Workspace ›
                     </span>
                   </div>
                 </div>
@@ -1315,7 +1318,6 @@ export default function SimulatorDashboard() {
                     <div className="wirely-op-sub-dark" style={{ fontSize: '9.5px', color: 'rgba(255, 255, 255, 0.85)' }}>
                       Live Market Session Movement
                     </div>
-                    <span style={{ fontSize: '9.5px', color: '#ffffff', fontWeight: 700 }}>Live Quotes ›</span>
                   </div>
                 </div>
               </div>
@@ -1441,10 +1443,7 @@ export default function SimulatorDashboard() {
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <div style={{ 
                       display: 'flex', 
-                      flexDirection: 'column', 
-                      maxHeight: isHoldingsExpanded ? '320px' : 'none', 
-                      overflowY: isHoldingsExpanded ? 'auto' : 'visible',
-                      paddingRight: isHoldingsExpanded ? '4px' : '0px'
+                      flexDirection: 'column'
                     }}>
                       {filteredHoldings.map((h, idx) => {
                         const badge = getAssetBadge(h.assetName, h.assetType);
@@ -1489,8 +1488,8 @@ export default function SimulatorDashboard() {
                               </span>
                               <button 
                                 className="wirely-member-btn" 
-                                title="Inspect Asset"
-                                onClick={() => navigate('/pms')}
+                                title="Inspect Asset in PMS"
+                                onClick={() => navigate(getPmsRouteForHolding(h))}
                               >
                                 <ArrowUpRight size={13} />
                               </button>
@@ -1504,12 +1503,14 @@ export default function SimulatorDashboard() {
                       <button 
                         className="wirely-view-all-link"
                         style={{ margin: 0 }}
-                        onClick={() => setIsHoldingsExpanded(!isHoldingsExpanded)}
+                        onClick={() => navigate(`/pms?assetType=${getPmsAssetTypeForCategory(selectedCategoryFilter)}`)}
                       >
-                        {isHoldingsExpanded ? '‹ Show top 4 holdings' : `Extend list (${topHoldings.length} assets) ›`}
+                        {selectedCategoryFilter 
+                          ? `Extend list (${selectedCategoryFilter} • ${filteredTotalCount} assets in PMS) ›` 
+                          : `Extend list (${topHoldings.length} assets in PMS) ›`}
                       </button>
                       <button
-                        onClick={() => navigate('/pms')}
+                        onClick={() => navigate(`/pms?assetType=${getPmsAssetTypeForCategory(selectedCategoryFilter)}`)}
                         style={{ background: 'transparent', border: 'none', color: '#2563eb', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}
                       >
                         <span>PMS Table</span>
@@ -1523,10 +1524,7 @@ export default function SimulatorDashboard() {
                     <div style={{ 
                       display: 'flex', 
                       flexDirection: 'column', 
-                      gap: '2px', 
-                      maxHeight: isFamilyExpanded ? '380px' : 'none', 
-                      overflowY: isFamilyExpanded ? 'auto' : 'visible', 
-                      paddingRight: isFamilyExpanded ? '4px' : '0px' 
+                      gap: '2px'
                     }}>
                       {displayedFamilyAccounts.map((acc, idx) => {
                         const accPortfolios = getStoredPortfolios().filter(p => String(p.accountId) === String(acc.id));
@@ -1577,9 +1575,9 @@ export default function SimulatorDashboard() {
                       <button 
                         className="wirely-view-all-link"
                         style={{ margin: 0 }}
-                        onClick={() => setIsFamilyExpanded(!isFamilyExpanded)}
+                        onClick={() => navigate('/pms')}
                       >
-                        {isFamilyExpanded ? '‹ Show top 4 accounts' : `Extend list (${familyAccounts.length} accounts) ›`}
+                        Extend list ({familyAccounts.length} folios in PMS) ›
                       </button>
                       <button
                         onClick={() => navigate('/ledger')}
