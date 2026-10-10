@@ -1811,25 +1811,6 @@ export default function SimulatorDashboard() {
                 <ArrowUpRight size={10} />
               </button>
             </div>
-
-            {/* Multi-source Freshness Indicator */}
-            <div className="wirely-sync-freshness">
-              <span style={{ fontWeight: 700, color: 'rgba(255, 255, 255, 0.9)' }}>Sync Freshness:</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
-                  <span style={{ color: '#ffffff', fontWeight: 600 }}>Equity & MF: Live</span>
-                </span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8', boxShadow: '0 0 6px #38bdf8' }} />
-                  <span style={{ color: '#ffffff', fontWeight: 600 }}>Bonds/PPF: Accrued</span>
-                </span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c084fc', boxShadow: '0 0 6px #c084fc' }} />
-                  <span style={{ color: '#ffffff', fontWeight: 600 }}>Banks: Ledger Match</span>
-                </span>
-              </div>
-            </div>
           </div>
 
           </div>
