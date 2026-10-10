@@ -38,6 +38,7 @@ import {
   getStoredVouchers, 
   syncLivePrices,
   getLedgerBalance,
+  getCapitalGains,
   state 
 } from '../logic';
 import { computeXIRR } from '../services/xirrEngine';
@@ -352,6 +353,32 @@ export default function SimulatorDashboard() {
     };
   }, [familyAccounts, selectedAccountId, tick, globalRefreshTrigger]);
 
+  // Real Liquid and Arbitrage holdings balance across all family accounts
+  const liquidArbitrageData = useMemo(() => {
+    const liquidHoldings = holdings.filter(h => {
+      const n = (h.assetName || '').toLowerCase();
+      return (
+        n.includes('liquid') ||
+        n.includes('arbitrage') ||
+        n.includes('overnight') ||
+        n.includes('money market') ||
+        n.includes('floater') ||
+        [61, 62].includes(h.assetType)
+      );
+    });
+
+    const total = liquidHoldings.reduce(
+      (sum, h) => sum + (h.currentValue > 0 ? h.currentValue : (h.amtInvested || 0)),
+      0
+    );
+
+    return {
+      total,
+      count: liquidHoldings.length,
+      holdings: liquidHoldings,
+    };
+  }, [holdings]);
+
   // Vouchers / Transactions count
   const allVouchers = useMemo(() => getStoredVouchers(), [tick]);
   const totalTxnCount = allVouchers.length > 0 ? allVouchers.length : 17692;
@@ -418,6 +445,21 @@ export default function SimulatorDashboard() {
   // ── 5. RETURN BY PERIOD TOGGLE & SPARKLINE DATA ──
   const periodData = useMemo(() => {
     const val = summary.currentValue;
+    const todayStr = '2026-10-10';
+    const date1M = '2026-09-10';
+    const date1Y = '2025-10-10';
+    
+    let cg1M = 0;
+    let cg1Y = 0;
+    try {
+      const rows1M = getCapitalGains(pfIds, date1M, todayStr) || [];
+      cg1M = rows1M.reduce((s: number, r: any) => s + (Number(r.gainLoss) || 0), 0);
+      const rows1Y = getCapitalGains(pfIds, date1Y, todayStr) || [];
+      cg1Y = rows1Y.reduce((s: number, r: any) => s + (Number(r.gainLoss) || 0), 0);
+    } catch (e) {
+      console.warn('Period capital gains error:', e);
+    }
+
     switch (returnPeriod) {
       case '1D':
         return {
@@ -428,22 +470,24 @@ export default function SimulatorDashboard() {
           sparkline: [val - summary.todaysGain, val - summary.todaysGain * 0.75, val - summary.todaysGain * 0.4, val - summary.todaysGain * 0.1, val]
         };
       case '1M': {
-        const gain1M = val * 0.048;
+        const gain1M = cg1M;
+        const pct1M = val > 0 ? (gain1M / val) * 100 : 0;
         return {
           gain: gain1M,
-          gainPct: 4.8,
-          label: '30-Day Movement',
+          gainPct: pct1M,
+          label: '30-Day Realized Gain',
           xirr: null,
           sparkline: [val - gain1M, val - gain1M * 0.8, val - gain1M * 0.55, val - gain1M * 0.2, val]
         };
       }
       case '1Y': {
-        const gain1Y = val * 0.134;
+        const gain1Y = cg1Y;
+        const pct1Y = val > 0 ? (gain1Y / val) * 100 : 0;
         return {
           gain: gain1Y,
-          gainPct: 13.4,
-          label: '1-Year Return',
-          xirr: 16.2,
+          gainPct: pct1Y,
+          label: '1-Year Realized Gain',
+          xirr: null,
           sparkline: [val - gain1Y, val - gain1Y * 0.8, val - gain1Y * 0.5, val - gain1Y * 0.25, val]
         };
       }
@@ -1499,22 +1543,31 @@ export default function SimulatorDashboard() {
                                 <div className="wirely-member-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                   {h.assetName}
                                 </div>
-                                <div className="wirely-member-detail">
-                                  {isDepositOrPPF 
-                                    ? `Sovereign EEE (7.10% p.a.) • ${formatCompact(curVal)}` 
-                                    : `Qty: ${h.quantity?.toLocaleString('en-IN') || 0} • ${formatCompact(curVal)}`}
+                                <div className="wirely-member-detail" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span>
+                                    {isDepositOrPPF 
+                                      ? 'Sovereign EEE (7.10% p.a.)' 
+                                      : `Qty: ${h.quantity?.toLocaleString('en-IN') || 0}`}
+                                  </span>
+                                  <span style={{ color: '#94a3b8' }}>•</span>
+                                  <span style={{ 
+                                    fontWeight: 700, 
+                                    color: (h.overallGain || 0) >= 0 ? '#16a34a' : '#dc2626' 
+                                  }}>
+                                    {formatGainPct(h.overallGainPct)}
+                                  </span>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="wirely-member-actions">
+                            <div className="wirely-member-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <span style={{ 
-                                fontSize: '11px', 
+                                fontSize: '12.5px', 
                                 fontWeight: 800, 
-                                color: (h.overallGain || 0) >= 0 ? '#16a34a' : '#dc2626',
-                                marginRight: '2px'
+                                color: '#0f172a',
+                                letterSpacing: '-0.01em'
                               }}>
-                                {formatGainPct(h.overallGainPct)}
+                                {formatCompact(curVal)}
                               </span>
                               <button 
                                 className="wirely-member-btn" 
@@ -1715,22 +1768,44 @@ export default function SimulatorDashboard() {
                 ))}
               </div>
 
-            {/* Total Bank Balance across all Bank Accounts */}
+            {/* Total Bank Balance & Liquid/Arbitrage Balances across all Family Accounts */}
             <div className="wirely-liquidity-status">
-              <div className="wirely-liquidity-main">
-                <span className="wirely-liquidity-icon">🏦</span>
-                <span className="wirely-liquidity-title">Total Bank Balance:</span>
-                <span className="wirely-liquidity-value">
-                  {formatMoney(bankBalanceData.total)}
-                </span>
-                <span className="wirely-liquidity-count">
-                  ({bankBalanceData.accountCount} Accounts)
-                </span>
+              <div className="wirely-liquidity-main" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="wirely-liquidity-icon">🏦</span>
+                  <span className="wirely-liquidity-title">Total Bank Balance:</span>
+                  <span className="wirely-liquidity-value">
+                    {formatMoney(bankBalanceData.total)}
+                  </span>
+                  <span className="wirely-liquidity-count">
+                    ({bankBalanceData.accountCount} Accounts)
+                  </span>
+                </div>
+
+                <span style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '11px', fontWeight: 700 }}>•</span>
+
+                <div 
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                  onClick={() => {
+                    setSelectedCategoryFilter('Liquid Reserves');
+                    setActiveSubTab('holdings');
+                  }}
+                  title="Click to view all Liquid & Arbitrage funds in holdings list"
+                >
+                  <span className="wirely-liquidity-icon">⚡</span>
+                  <span className="wirely-liquidity-title">Liquid & Arbitrage:</span>
+                  <span className="wirely-liquidity-value">
+                    {formatMoney(liquidArbitrageData.total)}
+                  </span>
+                  <span className="wirely-liquidity-count">
+                    ({liquidArbitrageData.count} Holdings)
+                  </span>
+                </div>
               </div>
               <button
                 onClick={() => navigate('/ledger')}
                 className="wirely-liquidity-btn"
-                title="View all 33 Bank Accounts in General Ledger"
+                title="View Bank Accounts in General Ledger"
               >
                 <span>Bank Ledgers</span>
                 <ArrowUpRight size={10} />

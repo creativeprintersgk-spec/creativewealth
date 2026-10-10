@@ -193,30 +193,28 @@ export default function Sidebar() {
 
       <div className="sidebar-bottom">
         {/* Indices Display */}
-        <div style={{ padding: '0 12px 12px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ fontSize: '9px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.05em', marginBottom: '8px', textTransform: 'uppercase' }}>Market Indices</div>
+        <div style={{ padding: '0 12px 12px', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.2)' }}>
+          <div style={{ fontSize: '9px', fontWeight: 800, color: 'rgba(255, 255, 255, 0.75)', letterSpacing: '0.05em', marginBottom: '8px', textTransform: 'uppercase' }}>Market Indices</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {indices.map(idx => (
               <div key={idx.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{idx.name}</span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.9)' }}>{idx.name}</span>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#fff' }}>{idx.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                  <div style={{ fontSize: '10px', fontWeight: 600, color: idx.change_pct >= 0 ? '#4ade80' : '#f87171' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 600, color: idx.change_pct >= 0 ? '#4ade80' : '#fca5a5' }}>
                     {idx.change >= 0 ? '+' : ''}{idx.change.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({idx.change_pct >= 0 ? '+' : ''}{idx.change_pct.toFixed(2)}%)
                   </div>
                 </div>
               </div>
             ))}
             {indices.length === 0 && !error && (
-              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>Loading indices...</div>
+              <div style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.6)' }}>Loading indices...</div>
             )}
             {error && (
-              <div style={{ fontSize: '10px', color: '#f87171' }}>{error}</div>
+              <div style={{ fontSize: '10px', color: '#fca5a5' }}>{error}</div>
             )}
           </div>
         </div>
-
-
 
         <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
           <button 
@@ -232,7 +230,7 @@ export default function Sidebar() {
           </button>
           <button 
             className="sidebar-action-btn"
-            style={{ flex: 1, padding: '0 4px', fontSize: '10px', color: '#fca5a5' }}
+            style={{ flex: 1, padding: '0 4px', fontSize: '10px', color: '#fecaca', background: 'rgba(239, 68, 68, 0.25)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
             title="Sign out of WealthCore session"
             onClick={async () => {
               if (window.confirm('Are you sure you want to sign out?')) {
@@ -241,13 +239,13 @@ export default function Sidebar() {
               }
             }}
           >
-            <LogOut size={12} color="#f87171" /> Sign Out
+            <LogOut size={12} color="#fca5a5" /> Sign Out
           </button>
         </div>
 
         {/* FAMILY CONTEXT SELECTOR */}
-        <div style={{ padding: '8px 12px 4px', marginTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ fontSize: '9px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.05em', marginBottom: '6px', textTransform: 'uppercase' }}>Family Context</div>
+        <div style={{ padding: '8px 12px 4px', marginTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
+          <div style={{ fontSize: '9px', fontWeight: 800, color: 'rgba(255, 255, 255, 0.75)', letterSpacing: '0.05em', marginBottom: '6px', textTransform: 'uppercase' }}>Family Context</div>
           <div style={{ position: 'relative' }}>
             <select
               value={activeFamilyId || ''}
@@ -256,8 +254,8 @@ export default function Sidebar() {
                 width: '100%',
                 padding: '7px 24px 7px 10px',
                 borderRadius: '6px',
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.35)',
+                background: 'rgba(255, 255, 255, 0.18)',
                 color: '#fff',
                 fontSize: '11px',
                 fontWeight: 600,
@@ -267,19 +265,19 @@ export default function Sidebar() {
               }}
             >
               {families.map(f => (
-                <option key={f.id} value={f.id} style={{ background: '#0f172a', color: '#fff' }}>
+                <option key={f.id} value={f.id} style={{ background: '#3b5a7a', color: '#fff' }}>
                   {f.familyName || f.name}
                 </option>
               ))}
             </select>
-            <ChevronDown size={12} color="rgba(255,255,255,0.5)" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+            <ChevronDown size={12} color="rgba(255, 255, 255, 0.8)" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
           </div>
         </div>
       </div>
 
       <style>{`
-        .sidebar-action-btn { flex: 1; height: 32px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
-        .sidebar-action-btn:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.2); }
+        .sidebar-action-btn { flex: 1; height: 32px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; color: #ffffff; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
+        .sidebar-action-btn:hover { background: rgba(255,255,255,0.28); color: #fff; border-color: rgba(255,255,255,0.45); }
       `}</style>
     </aside>
   );
