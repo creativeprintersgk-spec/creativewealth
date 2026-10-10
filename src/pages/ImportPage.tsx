@@ -1252,22 +1252,41 @@ function ImportPageInner() {
     // Get active account ID for the portfolio — STRICT, no fallback cross-account
     const pf = portfolios.find((p: any) => String(p.id) === String(portfolioId));
     const acid = pf ? Number(pf.accountId) : 31;
-    const nameLower = String(name || '').toLowerCase().trim();
 
-    // Step 1: In-memory lookup — EXACT acid match only
+    // Helper to strip corporate suffixes, ISINs, and non-alphanumerics
     const cleanLedgerName = (n: string) => {
       let cleaned = String(n || '').replace(/\s*\(?ISIN\s+[A-Z0-9]{12}\)?/gi, '');
       cleaned = cleaned.replace(/\s*\([A-Z]{2}[A-Z0-9]{10}\)/gi, '');
       cleaned = cleaned.replace(/\s*\(\d[\d\s\/,-]*\)/gi, '');
-      return cleaned.toLowerCase().trim().replace(/\s*-\s*$/, '').trim();
+      // Strip corporate legal forms and designations
+      cleaned = cleaned.replace(/\b(limited|ltd\.?|private|pvt\.?|corp|corporation|inc|india)\b/gi, '');
+      // Strip all punctuation, spaces, and non-alphanumerics
+      return cleaned.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
     };
     const cleanedNameLower = cleanLedgerName(name);
 
-    const existingByName = state.acmac1.find((a: any) =>
-      !a.is_group &&
-      a.acid === acid &&
-      a.name && cleanLedgerName(a.name) === cleanedNameLower
-    );
+    // Step 0: Direct amid / sid linkage check for this portfolio & account
+    if (amid && amid > 0) {
+      // Look up if this portfolio already has a sid assigned for this amid
+      const bsMatch = (state.bs1 || []).find((b: any) => Number(b.pfid) === Number(portfolioId) && Number(b.amid) === Number(amid) && Number(b.sid) > 0);
+      const sumMatch = (state.sumTable || []).find((s: any) => Number(s.pfid) === Number(portfolioId) && Number(s.amid) === Number(amid) && Number(s.sid) > 0);
+      const sid = bsMatch?.sid || sumMatch?.sid;
+      if (sid && sid > 0) {
+        const expectedLedgerId = 500000 + Number(sid);
+        const existingBySid = state.acmac1.find((a: any) => !a.is_group && Number(a.acid) === acid && Number(a.id) === expectedLedgerId);
+        if (existingBySid) {
+          console.log(`[ensureLedger] Reusing ledger by sid/amid "${existingBySid.name}" id=${existingBySid.id} acid=${acid}`);
+          return Number(existingBySid.id);
+        }
+      }
+    }
+
+    // Step 1: In-memory lookup by cleaned name (stripping Limited, Ltd, etc.) — EXACT acid match only
+    const existingByName = state.acmac1.find((a: any) => {
+      if (a.is_group || Number(a.acid) !== acid || !a.name) return false;
+      const aClean = cleanLedgerName(a.name);
+      return aClean === cleanedNameLower || (cleanedNameLower.length > 3 && aClean.length > 3 && (aClean.startsWith(cleanedNameLower) || cleanedNameLower.startsWith(aClean)));
+    });
     if (existingByName) {
       console.log(`[ensureLedger] Reusing "${existingByName.name}" id=${existingByName.id} acid=${acid}`);
       return Number(existingByName.id);
@@ -1278,14 +1297,20 @@ function ImportPageInner() {
       try {
         const { data: dbByName } = await supabase.from('acmac1')
           .select('*')
-          .ilike('name', name.trim())
-          .eq('acid', acid)            // STRICT — same account only, NEVER cross-account
-          .eq('is_group', false)
-          .limit(1);
+          .eq('acid', acid)
+          .eq('is_group', false);
         if (dbByName && dbByName.length > 0) {
-          console.log(`[ensureLedger] DB found "${dbByName[0].name}" id=${dbByName[0].id} acid=${acid}`);
-          state.acmac1.push(dbByName[0]);
-          return Number(dbByName[0].id);
+          const matchedDb = dbByName.find((a: any) => {
+            const aClean = cleanLedgerName(a.name);
+            return aClean === cleanedNameLower || (cleanedNameLower.length > 3 && aClean.length > 3 && (aClean.startsWith(cleanedNameLower) || cleanedNameLower.startsWith(aClean)));
+          });
+          if (matchedDb) {
+            console.log(`[ensureLedger] DB found "${matchedDb.name}" id=${matchedDb.id} acid=${acid}`);
+            if (!state.acmac1.find((a: any) => a.id === matchedDb.id)) {
+              state.acmac1.push(matchedDb);
+            }
+            return Number(matchedDb.id);
+          }
         }
       } catch (err) {
         console.warn("Could not query acmac1 in cloud:", err);
@@ -1339,9 +1364,10 @@ function ImportPageInner() {
       if (selectedTrades.length === 0) throw new Error("No valid trades selected.");
 
       const grouped = selectedTrades.reduce((acc: any, t: any) => {
-        const pf = portfolios.find((p: any) => String(p.id) === String(topPortfolioId));
-        const pId = pf ? String(pf.id) : String(t.portfolioId || topPortfolioId || 1);
-        const groupDate = topCnDate || t.date;
+        const rawPid = t.portfolioId || selectedPortfolio || topPortfolioId || 1;
+        const pf = portfolios.find((p: any) => String(p.id) === String(rawPid));
+        const pId = pf ? String(pf.id) : String(rawPid);
+        const groupDate = t.date || topCnDate || cnDate;
         const key = `${pId}_${groupDate}`;
         if (!acc[key]) acc[key] = { pId, groupDate, tradesInGroup: [] };
         acc[key].tradesInGroup.push(t);
@@ -1385,17 +1411,33 @@ function ImportPageInner() {
             // This matches MProfit double-entry: Cr Stock@Cost + Cr LTCG/STCG@Gain = Dr Broker@Proceeds
             const saleProceeds = gross;
 
-            // Task 1.2: Centralized FIFO cost engine from logic.ts (buildAssetFifoLedger + depleteFifoLots)
-            // Properly accounts for prior sells, splits, and lot adjustments rather than raw buyRows.
+            // Centralized FIFO cost engine from logic.ts (buildAssetFifoLedger + depleteFifoLots)
+            // Exclude transactions from current contract note voucher so they don't consume lots prematurely
             const priorTxForAsset = (state.bs1 || [])
-              .filter((r: any) => Number(r.pfid) === Number(pId) && r.amid === t.amid && (r.dt || '') <= (t.date || '') && (FIFO_BUY_TRTY.has(Number(r.trty)) || FIFO_SELL_TRTY.has(Number(r.trty)) || [85, 45].includes(Number(r.trty))))
+              .filter((r: any) => 
+                Number(r.pfid) === Number(pId) && 
+                Number(r.amid) === Number(t.amid) && 
+                (r.dt || '') <= (t.date || '') && 
+                (!cnNo || !String(r.narr || '').includes(cnNo)) &&
+                (FIFO_BUY_TRTY.has(Number(r.trty)) || FIFO_SELL_TRTY.has(Number(r.trty)) || [85, 45].includes(Number(r.trty)))
+              )
               .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trty) - Number(b.trty)));
 
             const { openLots } = buildAssetFifoLedger(priorTxForAsset, '0001-01-01', t.date, new Map(), {});
             const { totalCost: fifoTotalCost, matchedLots } = depleteFifoLots(openLots, t.quantity);
 
-            // Fallback: no buy history → zero gain (cost = proceeds)
-            const finalCost = fifoTotalCost > 0 ? fifoTotalCost : saleProceeds;
+            // Fallback 1: Check active holdings in sum_table if FIFO open lots was empty
+            let derivedCost = fifoTotalCost;
+            if (derivedCost <= 0) {
+              const holding = (state.sumTable || []).find((s: any) => Number(s.pfid) === Number(pId) && Number(s.amid) === Number(t.amid));
+              if (holding && Number(holding.qnt) > 0 && Number(holding.amtinv) > 0) {
+                const avgPrice = Number(holding.amtinv) / Number(holding.qnt);
+                derivedCost = avgPrice * t.quantity;
+              }
+            }
+
+            // Fallback 2: If still no buy history, cost = proceeds (zero gain)
+            const finalCost = derivedCost > 0 ? derivedCost : saleProceeds;
             const costBasis = Number(finalCost.toFixed(2));
             const capitalGain = Number((saleProceeds - costBasis).toFixed(2));
 
