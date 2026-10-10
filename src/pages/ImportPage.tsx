@@ -26,7 +26,7 @@ const BROKER_MATCHERS: Record<string, string[]> = {
   kotak: ['kotak'],
   hdfc: ['hdfc'],
   motilal: ['motilal', 'mosl', 'mofsl'],
-  dhan: ['dhan', 'moneylicious'],
+  dhan: ['dhan', 'moneylicious', 'raise'],
   mirae: ['mirae', 'mstock', 'm.stock'],
   rk_global: ['rk global', 'r k global', 'rkglobal'],
   upstox: ['upstox', 'rksv'],
@@ -2094,20 +2094,22 @@ function ImportPageInner() {
     }
   };
 
-  // ── Broker contract note PDF/CSV file select ──────────────────────────────
-  const handleBrokerCnFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // ── Broker contract note PDF/CSV processor ───────────────────────────────
+  const processBrokerCnFile = async (file: File) => {
     if (!file) return;
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
       try {
         const buffer = await file.arrayBuffer();
 
-        // 1. Build list of candidate passwords (auto-decrypt without ever prompting user if known)
-        const candidatePasswords: string[] = ['']; // Unencrypted first
+        // 1. Build comprehensive list of candidate passwords (auto-decrypt without ever prompting user)
+        const candidatePasswords: string[] = ['']; // Try unencrypted first
 
         // Saved passwords in localStorage
         try {
+          const directSaved = localStorage.getItem('wealthcore_cn_password');
+          if (directSaved && !candidatePasswords.includes(directSaved)) candidatePasswords.push(directSaved);
+
           for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
             if (k && k.startsWith('wealthcore_cn_password')) {
@@ -2148,12 +2150,14 @@ function ImportPageInner() {
         for (const candPwd of candidatePasswords) {
           try {
             const clientRes = await parseContractNoteClientPdf(buffer, candPwd, 'auto');
-            if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
-              // Successfully decrypted and parsed! Save password permanently
+            if (clientRes.status === 'ok') {
+              // Successfully decrypted! Save password permanently across all keys
               if (candPwd) {
                 try {
                   localStorage.setItem('wealthcore_cn_password', candPwd);
-                  localStorage.setItem(`wealthcore_cn_password_${clientRes.broker}`, candPwd);
+                  if (clientRes.broker && clientRes.broker !== 'auto') {
+                    localStorage.setItem(`wealthcore_cn_password_${clientRes.broker}`, candPwd);
+                  }
                   if (clientRes.pan) {
                     localStorage.setItem(`wealthcore_cn_password_pan_${clientRes.pan.toUpperCase()}`, candPwd);
                   }
@@ -2164,16 +2168,18 @@ function ImportPageInner() {
                   }
                 } catch {}
               }
-              await ingestParsedCnResult(clientRes);
-              e.target.value = '';
-              return;
+
+              if (clientRes.trades && clientRes.trades.length > 0) {
+                await ingestParsedCnResult(clientRes);
+                return;
+              }
             }
           } catch (candErr) {
             // Continue trying other candidate passwords
           }
         }
 
-        // Fallback: try local server /api/parse-cn with saved password
+        // Fallback: try local server /api/parse-cn with saved password if available
         const savedPwd = localStorage.getItem(`wealthcore_cn_password_${selectedBroker}`) || localStorage.getItem('wealthcore_cn_password') || '';
         if (savedPwd) {
           try {
@@ -2190,7 +2196,6 @@ function ImportPageInner() {
               const result = await response.json();
               if (result.status === 'ok' && result.trades && result.trades.length > 0) {
                 await ingestParsedCnResult(result);
-                e.target.value = '';
                 return;
               }
             }
@@ -2200,7 +2205,7 @@ function ImportPageInner() {
         // Direct parse failed, prompt user
       }
 
-      // Only prompt if none of the saved or family passwords worked
+      // Only prompt if none of the saved or candidate passwords worked
       setPendingFile(file);
       const lastSaved = localStorage.getItem(`wealthcore_cn_password_${selectedBroker}`) || localStorage.getItem('wealthcore_cn_password') || '';
       if (lastSaved) setTempPassword(lastSaved);
@@ -2214,7 +2219,6 @@ function ImportPageInner() {
         const clientRes = parseContractNoteClientText(text, file.name, 'auto');
         if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
           await ingestParsedCnResult(clientRes);
-          e.target.value = '';
           return;
         }
 
@@ -2253,6 +2257,13 @@ function ImportPageInner() {
         alert("Error parsing file: " + (err.message || String(err)));
         console.error(err);
       }
+    }
+  };
+
+  const handleBrokerCnFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processBrokerCnFile(file);
     }
     e.target.value = '';
   };
@@ -2302,12 +2313,14 @@ function ImportPageInner() {
       // 1. Primary engine: In-browser client-side decryption (works on Vercel & localhost)
       try {
         const clientRes = await parseContractNoteClientPdf(buffer, pwd, 'auto');
-        if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
-          // Persist password permanently across all brokers & sessions
+        if (clientRes.status === 'ok') {
+          // Persist password permanently across all brokers & sessions IMMEDIATELY
           if (pwd) {
             try {
               localStorage.setItem('wealthcore_cn_password', pwd);
-              localStorage.setItem(`wealthcore_cn_password_${clientRes.broker}`, pwd);
+              if (clientRes.broker && clientRes.broker !== 'auto') {
+                localStorage.setItem(`wealthcore_cn_password_${clientRes.broker}`, pwd);
+              }
               if (clientRes.pan) {
                 localStorage.setItem(`wealthcore_cn_password_pan_${clientRes.pan.toUpperCase()}`, pwd);
               }
@@ -2321,11 +2334,17 @@ function ImportPageInner() {
             }
           }
 
-          await ingestParsedCnResult(clientRes);
-          setPasswordPromptOpen(false);
-          setTempPassword('');
-          setPasswordError('');
-          return;
+          if (clientRes.trades && clientRes.trades.length > 0) {
+            await ingestParsedCnResult(clientRes);
+            setPasswordPromptOpen(false);
+            setTempPassword('');
+            setPasswordError('');
+            return;
+          } else {
+            // PDF decrypted successfully, but no trades detected
+            setPasswordError('PDF decrypted successfully, but no trade records were found in the document.');
+            return;
+          }
         }
 
         if (clientRes.status === 'error') {
@@ -2352,7 +2371,7 @@ function ImportPageInner() {
       });
 
       if (!response.ok) {
-         let errMsg = "Failed to decrypt PDF. Please check your PAN/password.";
+         let errMsg = "Failed to parse PDF.";
          try {
            const errData = await response.json();
            if (errData.error) errMsg = errData.error;
@@ -2816,6 +2835,28 @@ function ImportPageInner() {
             {/* File drop zone */}
             <div
               onClick={() => { const inp = document.getElementById('cn-file-input') as HTMLInputElement; inp?.click(); }}
+              onDragOver={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.style.borderColor = '#2563eb';
+                e.currentTarget.style.background = '#eff6ff';
+              }}
+              onDragLeave={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.style.borderColor = '#cbd5e1';
+                e.currentTarget.style.background = '#f8fafc';
+              }}
+              onDrop={async e => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.style.borderColor = '#cbd5e1';
+                e.currentTarget.style.background = '#f8fafc';
+                const file = e.dataTransfer?.files?.[0];
+                if (file) {
+                  await processBrokerCnFile(file);
+                }
+              }}
               style={{ border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '28px', textAlign: 'center', cursor: 'pointer', background: '#f8fafc', transition: 'all 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = '#2563eb')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = '#cbd5e1')}
@@ -2828,7 +2869,7 @@ function ImportPageInner() {
                 onChange={handleBrokerCnFileSelect}
               />
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
-              <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>Click to select Contract Note file</div>
+              <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>Click or Drag & Drop Contract Note file here</div>
               <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>PDF / CSV: Zerodha · Groww · ICICI Direct · Kotak · HDFC Sec · Motilal Oswal · Dhan · MStock · RK Global</div>
             </div>
 

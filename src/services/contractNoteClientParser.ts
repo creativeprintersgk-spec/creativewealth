@@ -99,7 +99,7 @@ export function detectBroker(text: string, filename = ''): string {
   if (t.includes('kotak securities') || t.includes('kotak')) return 'kotak';
   if (t.includes('hdfc securities') || t.includes('hdfcsec') || t.includes('hdfc')) return 'hdfc';
   if (t.includes('motilal oswal') || t.includes('mofsl') || t.includes('motilal')) return 'motilal';
-  if (t.includes('moneylicious') || t.includes('dhan')) return 'dhan';
+  if (t.includes('raise securities') || t.includes('moneylicious') || t.includes('dhan')) return 'dhan';
   if (t.includes('mirae asset') || t.includes('mstock') || t.includes('m.stock')) return 'mirae';
   if (t.includes('r k global') || t.includes('r.k. global') || t.includes('rkglobal')) return 'rk_global';
   if (t.includes('upstox') || t.includes('rksv')) return 'upstox';
@@ -154,11 +154,35 @@ export function extractUcc(text: string): string {
   return '';
 }
 
-function extractPan(text: string): string {
+function extractPan(text: string, passwordHint = ''): string {
+  // If user entered their PAN as the PDF password, that is the client's true unmasked PAN!
+  if (passwordHint && /^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(passwordHint.trim())) {
+    return passwordHint.trim().toUpperCase();
+  }
+
+  // Look for client PAN near Client Code / Address, avoiding "Trading Member" or broker PAN
+  const clientPanMatch = text.match(/(?:Client\s+PAN|Constituent\s+PAN|PAN\s*:\s*)([A-Z]{5}[0-9]{4}[A-Z]{1})/i);
+  if (clientPanMatch && !/trading\s*member/i.test(clientPanMatch[0])) {
+    return clientPanMatch[1].toUpperCase();
+  }
+
+  // Check for masked PAN: e.g. AB******9L with password hint
+  const maskedPan = text.match(/\b([A-Z]{2})[*xX]{6}([0-9][A-Z])\b/);
+  if (maskedPan && passwordHint) {
+    const cleanPwd = passwordHint.trim().toUpperCase();
+    if (cleanPwd.startsWith(maskedPan[1]) && cleanPwd.endsWith(maskedPan[2])) {
+      return cleanPwd;
+    }
+  }
+
   const kwMatch = text.match(/(?:PAN|Permanent\s+Account\s+Number)[\s:/-]*([A-Z]{5}[0-9]{4}[A-Z]{1})/i);
-  if (kwMatch) return kwMatch[1].toUpperCase();
+  if (kwMatch && !/trading\s*member/i.test(kwMatch[0])) return kwMatch[1].toUpperCase();
+
   const all = text.match(PAN_REGEX);
-  if (all && all.length > 0) return all[0].toUpperCase();
+  if (all && all.length > 0) {
+    const nonBroker = all.find(p => !text.includes(`PAN of Trading Member   ${p}`) && !text.includes(`Member PAN   ${p}`));
+    return (nonBroker || all[0]).toUpperCase();
+  }
   return '';
 }
 
@@ -191,7 +215,14 @@ function extractChargeVal(line: string): number {
   }
   if (parenMatches.length > 0) return parenMatches[0];
 
-  // If no parenthesized decimal, look for trailing plain decimal numbers (e.g. Groww/ICICI where charges are written without parentheses)
+  // In Dhan/Kotak/Groww: "40.00 DR" or "2.32 DR"
+  const drCrMatch = line.match(/([0-9,]+\.[0-9]{2})\s*DR\b/i);
+  if (drCrMatch) {
+    const v = parseFloat(drCrMatch[1].replace(/,/g, ''));
+    if (!isNaN(v) && v > 0) return v;
+  }
+
+  // If no parenthesized decimal, look for trailing plain decimal numbers
   const trailingMatches = line.match(/\b([0-9,]+\.[0-9]{2})\b/g);
   if (trailingMatches && trailingMatches.length > 0) {
     const v = parseFloat(trailingMatches[trailingMatches.length - 1].replace(/,/g, ''));
@@ -224,12 +255,12 @@ function extractCharges(text: string): ParsedCharges {
       if (v > 0) charges.stamp = v;
     }
     // 3. Exchange / Transaction charges
-    else if (/Exchange\s+transaction\s+charges|Trans(?:action)?\s+charges/i.test(line)) {
+    else if (/(?:NSE|BSE)?\s*Transaction\s+charges|Exchange\s+transaction\s+charges|Trans(?:action)?\s+charges/i.test(line)) {
       const v = extractChargeVal(line);
       if (v > 0) charges.transCharges = v;
     }
     // 4. Brokerage (Taxable value of supply)
-    else if ((/Taxable\s+value\s+of\s+Supply|Brokerage/i.test(line)) && !/of\s+Brok/i.test(line)) {
+    else if ((/Taxable\s+value\s+of\s+Supply|Brokerage/i.test(line)) && !/of\s+Brok/i.test(line) && !/Charges|Fees|GST/i.test(line)) {
       const v = extractChargeVal(line);
       if (v > 0) charges.brokerage = v;
     }
@@ -356,7 +387,7 @@ export async function parseContractNoteClientPdf(
 
   const autoBroker = detectBroker(fullText);
   const detected = autoBroker || (brokerHint !== 'auto' && brokerHint ? brokerHint : 'zerodha');
-  const pan = extractPan(fullText);
+  const pan = extractPan(fullText, password);
   const clientName = extractClientName(fullText, lines);
   const ucc = extractUcc(fullText);
   const cnNo = extractCnNumber(fullText);
@@ -367,7 +398,7 @@ export async function parseContractNoteClientPdf(
   const summaryTrades: ParsedTrade[] = [];
   const annexureTrades: ParsedTrade[] = [];
 
-  // Pass 1: Parse Summary Table (Zerodha, Motilal, Kotak, HDFC, Groww)
+  // Pass 1: Parse Stock Summary Table with ISIN (Zerodha, Motilal, Kotak, HDFC, Groww)
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const parts = line.split(/\s+/);
@@ -401,7 +432,7 @@ export async function parseContractNoteClientPdf(
     }
   }
 
-  // Pass 2: If no summary table found, parse Trade-by-Trade Annexure
+  // Pass 2: If no summary table found, parse Stock Trade-by-Trade Annexure
   if (summaryTrades.length === 0) {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -471,11 +502,98 @@ export async function parseContractNoteClientPdf(
     }
   }
 
-  // Consolidate trades by ISIN
-  const rawTrades = summaryTrades.length > 0 ? summaryTrades : annexureTrades;
+  // Pass 3: Derivative & F&O Trade parsing (Options & Futures across Dhan, Zerodha, Groww, etc.)
+  const fnoAnnexureTrades: ParsedTrade[] = [];
+  const fnoSummaryTrades: ParsedTrade[] = [];
+
+  // If contract note has Trade Annexure, prioritize executions from the Annexure
+  const annexureIdx = fullText.search(/Trade\s+Annexure/i);
+  const annexureText = annexureIdx !== -1 ? fullText.slice(annexureIdx) : fullText;
+
+  // Annexure format: (OPTIDX|OPTSTK|FUTIDX|FUTSTK) Symbol [B|S] Quantity Price NetRate NetAmount
+  const fnoAnnexRegex = /\b(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Za-z0-9\s-]+?(?:CE|PE|FUT)(?:\s*-\s*[A-Z]+)?)\s+([BS])\s+(-?\d+)\s+([\d.,]+)\s+([\d.,]+)\s+([-\d.,]+)/gi;
+  for (const m of annexureText.matchAll(fnoAnnexRegex)) {
+    const rawSymbol = (m[1] + ' ' + m[2]).replace(/\s*-\s*(?:NSE|BSE)$/i, '').replace(/\s+/g, ' ').trim();
+    const side = m[3].toUpperCase();
+    const qty = Math.abs(parseInt(m[4], 10));
+    const price = cleanNum(m[5]);
+    const val = cleanNum(m[7]) || (qty * price);
+    const isBuy = side === 'B';
+    if (qty > 0) {
+      fnoAnnexureTrades.push({
+        assetName: rawSymbol,
+        isin: '',
+        buyQty: isBuy ? qty : 0,
+        buyWap: isBuy ? price : 0,
+        buyVal: isBuy ? Math.abs(val) : 0,
+        sellQty: !isBuy ? qty : 0,
+        sellWap: !isBuy ? price : 0,
+        sellVal: !isBuy ? Math.abs(val) : 0
+      });
+    }
+  }
+
+  if (fnoAnnexureTrades.length === 0) {
+    // Summary table F&O format:
+    const fnoSummaryRegex = /\b(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Za-z0-9\s-]+?(?:CE|PE|FUT)(?:\s*-\s*[A-Z]+)?)\s+([BS])\s+(-?\d+)\s+([\d.,]+)/gi;
+    for (const m of fullText.matchAll(fnoSummaryRegex)) {
+      const rawSymbol = (m[1] + ' ' + m[2]).replace(/\s*-\s*(?:NSE|BSE)$/i, '').replace(/\s+/g, ' ').trim();
+      const side = m[3].toUpperCase();
+      const qty = Math.abs(parseInt(m[4], 10));
+      const price = cleanNum(m[5]);
+      const val = qty * price;
+      const isBuy = side === 'B';
+      if (qty > 0) {
+        fnoSummaryTrades.push({
+          assetName: rawSymbol,
+          isin: '',
+          buyQty: isBuy ? qty : 0,
+          buyWap: isBuy ? price : 0,
+          buyVal: isBuy ? Math.abs(val) : 0,
+          sellQty: !isBuy ? qty : 0,
+          sellWap: !isBuy ? price : 0,
+          sellVal: !isBuy ? Math.abs(val) : 0
+        });
+      }
+    }
+  }
+
+  // Generic F&O pattern across other brokers (e.g. NIFTY 06OCT26 22550 CE B 65 5.70)
+  if (fnoAnnexureTrades.length === 0 && fnoSummaryTrades.length === 0) {
+    const genericFnoRegex = /\b([A-Z]{3,12}\s+\d{1,2}[A-Za-z]{3}\d{2,4}\s+(?:\d+(?:\.\d+)?\s+)?(?:CE|PE|FUT))\b.*?\b([BS])\s+(-?\d+)\s+([\d.,]+)/gi;
+    for (const m of fullText.matchAll(genericFnoRegex)) {
+      const rawSymbol = m[1].replace(/\s+/g, ' ').trim();
+      const side = m[2].toUpperCase();
+      const qty = Math.abs(parseInt(m[3], 10));
+      const price = cleanNum(m[4]);
+      const val = qty * price;
+      const isBuy = side === 'B';
+      if (qty > 0) {
+        fnoSummaryTrades.push({
+          assetName: rawSymbol,
+          isin: '',
+          buyQty: isBuy ? qty : 0,
+          buyWap: isBuy ? price : 0,
+          buyVal: isBuy ? Math.abs(val) : 0,
+          sellQty: !isBuy ? qty : 0,
+          sellWap: !isBuy ? price : 0,
+          sellVal: !isBuy ? Math.abs(val) : 0
+        });
+      }
+    }
+  }
+
+  const selectedFno = fnoAnnexureTrades.length > 0 ? fnoAnnexureTrades : fnoSummaryTrades;
+  const rawTrades = [
+    ...(summaryTrades.length > 0 ? summaryTrades : annexureTrades),
+    ...selectedFno
+  ];
+
+  // Consolidate trades by ISIN or by contract assetName for F&O
   const tradeMap = new Map<string, ParsedTrade>();
   for (const t of rawTrades) {
-    const key = t.isin;
+    const key = t.isin || t.assetName;
+    if (!key) continue;
     if (!tradeMap.has(key)) {
       tradeMap.set(key, { ...t });
     } else {
@@ -533,7 +651,6 @@ export function parseContractNoteClientText(
     const isBuy = /\b(BUY|B)\b/i.test(line);
     const isSell = /\b(SELL|S)\b/i.test(line);
 
-    // Split CSV / TSV or whitespace
     const parts = line.includes(',') ? line.split(',') : line.split(/\t|\s+/);
     const nums = parts.map(p => cleanNum(p)).filter(n => Math.abs(n) > 0);
 
@@ -559,10 +676,34 @@ export function parseContractNoteClientText(
     }
   }
 
+  // F&O in text/CSV
+  const fnoAnnexRegex = /\b(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Za-z0-9\s-]+?(?:CE|PE|FUT)(?:\s*-\s*[A-Z]+)?)\s+([BS])\s+(-?\d+)\s+([\d.,]+)\s+([\d.,]+)\s+([-\d.,]+)/gi;
+  for (const m of text.matchAll(fnoAnnexRegex)) {
+    const rawSymbol = (m[1] + ' ' + m[2]).replace(/\s*-\s*(?:NSE|BSE)$/i, '').replace(/\s+/g, ' ').trim();
+    const side = m[3].toUpperCase();
+    const qty = Math.abs(parseInt(m[4], 10));
+    const price = cleanNum(m[5]);
+    const val = cleanNum(m[7]) || (qty * price);
+    const isBuy = side === 'B';
+    if (qty > 0) {
+      rawTrades.push({
+        assetName: rawSymbol,
+        isin: '',
+        buyQty: isBuy ? qty : 0,
+        buyWap: isBuy ? price : 0,
+        buyVal: isBuy ? Math.abs(val) : 0,
+        sellQty: !isBuy ? qty : 0,
+        sellWap: !isBuy ? price : 0,
+        sellVal: !isBuy ? Math.abs(val) : 0
+      });
+    }
+  }
+
   // Consolidate
   const tradeMap = new Map<string, ParsedTrade>();
   for (const t of rawTrades) {
-    const key = t.isin;
+    const key = t.isin || t.assetName;
+    if (!key) continue;
     if (!tradeMap.has(key)) {
       tradeMap.set(key, { ...t });
     } else {
