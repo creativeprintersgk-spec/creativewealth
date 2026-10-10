@@ -19,6 +19,41 @@ for (const [amidStr, isinVal] of Object.entries(isinDictionary as Record<string,
   if (isinVal) isinToAmidMap[isinVal.toUpperCase().trim()] = Number(amidStr);
 }
 
+const BROKER_MATCHERS: Record<string, string[]> = {
+  zerodha: ['zerodha'],
+  groww: ['groww', 'nextbillion'],
+  icici: ['icici', 'direct'],
+  kotak: ['kotak'],
+  hdfc: ['hdfc'],
+  motilal: ['motilal', 'mosl', 'mofsl'],
+  dhan: ['dhan', 'moneylicious'],
+  mirae: ['mirae', 'mstock', 'm.stock'],
+  rk_global: ['rk global', 'r k global', 'rkglobal'],
+  upstox: ['upstox', 'rksv'],
+  angel: ['angel', 'angelone', 'angel one'],
+  sharekhan: ['sharekhan'],
+  axis: ['axis'],
+  '5paisa': ['5paisa', 'five paisa']
+};
+
+const BROKER_NAMES: Record<string, string> = {
+  auto: '⚡ Auto-Detect Broker',
+  zerodha: 'Zerodha',
+  groww: 'Groww',
+  icici: 'ICICI Direct',
+  kotak: 'Kotak Securities',
+  hdfc: 'HDFC Securities',
+  motilal: 'Motilal Oswal',
+  dhan: 'Dhan',
+  mirae: 'MStock / Mirae Asset',
+  rk_global: 'R K Global',
+  upstox: 'Upstox',
+  angel: 'Angel One',
+  sharekhan: 'Sharekhan',
+  axis: 'Axis Securities',
+  '5paisa': '5Paisa'
+};
+
 // Define the 12 MProfit replicated tables and their expected file names
 interface TableConfig {
   key: string;
@@ -1031,7 +1066,7 @@ function ImportPageInner() {
     // Broker Contract Note States
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("");
   const [selectedBrokerLedger, setSelectedBrokerLedger] = useState<string>("");
-  const [selectedBroker, setSelectedBroker] = useState<string>("zerodha");
+  const [selectedBroker, setSelectedBroker] = useState<string>("auto");
   const [cnDate, setCnDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [cnNo, setCnNo] = useState<string>("");
   const [cnTrades, setCnTrades] = useState<any[]>([]);
@@ -1046,6 +1081,11 @@ function ImportPageInner() {
   });
   const [pdfFinalNet, setPdfFinalNet] = useState<number | null>(null);
   const [lastCommittedInfo, setLastCommittedInfo] = useState<any>(null);
+  const [autoDetectedInfo, setAutoDetectedInfo] = useState<{
+    individual: string;
+    broker: string;
+    pan?: string;
+  } | null>(null);
 
   // Initialize DB data for selectors
   useEffect(() => {
@@ -1653,21 +1693,176 @@ function ImportPageInner() {
     setCnDate(date);
   };
 
+  // ── Auto-Detect & Auto-Create Portfolio for Contract Note ───────────────
+  const resolveOrCreatePortfolio = async (
+    pan: string,
+    clientName: string,
+    ucc: string
+  ): Promise<{ portfolioId: string; accountId: string; portfolioName: string }> => {
+    const normPan = (pan || '').trim().toUpperCase();
+    const normName = (clientName || '').trim().toUpperCase();
+
+    const isActPf = (p: any) => 
+      !p.is_group && 
+      p.pfolio_type !== 10 && 
+      p.exit_status !== 2 && 
+      p.exit_status !== 0 && 
+      !p.investor_name.toLowerCase().startsWith('x');
+
+    // 1. Try matching by PAN first
+    if (normPan) {
+      const candidatePfs = (state.portfolios || []).filter(
+        (p: any) => p.pan && p.pan.trim().toUpperCase() === normPan && isActPf(p)
+      );
+      if (candidatePfs.length > 0) {
+        // Prefer active equity / investment portfolio (name has 'inv', 'eq', 'stock', not FO, CURR, HUF, MF)
+        const best = candidatePfs.find((p: any) => 
+          /inv|eq|stock/i.test(p.investor_name) && !/fo|curr|huf|mf/i.test(p.investor_name)
+        ) || candidatePfs.find((p: any) => 
+          (p.pfolio_type === 0 || p.pfolio_type === 1) && !/fo|curr|huf/i.test(p.investor_name)
+        ) || candidatePfs[0];
+        
+        const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(best.id));
+        return {
+          portfolioId: String(best.id),
+          portfolioName: best.investor_name || best.full_name || `Portfolio ${best.id}`,
+          accountId: link ? String(link.acid) : '31'
+        };
+      }
+    }
+
+    // 2. Try matching by Client Name
+    if (normName) {
+      const cleanNorm = normName.replace(/[^A-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const tokens = cleanNorm.split(' ').filter(w => w.length > 1);
+
+      const activeList = (state.portfolios || []).filter(isActPf);
+      const matchByName = activeList.find((p: any) => {
+        const pFull = (p.full_name || '').toUpperCase().trim();
+        const pInv = (p.investor_name || '').toUpperCase().trim();
+        if (!pFull && !pInv) return false;
+
+        // Exact matches
+        if (pFull === cleanNorm || pInv === cleanNorm) return true;
+
+        // Substring match
+        if (cleanNorm.includes(pFull) || (pFull && cleanNorm.includes(pFull))) return true;
+
+        // Token overlap match
+        const pTokens = `${pFull} ${pInv}`.replace(/[^A-Z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+        const common = tokens.filter(t => pTokens.includes(t));
+        if (tokens.length >= 2 && pTokens.includes(tokens[0]) && pTokens.includes(tokens[tokens.length - 1])) {
+          return true;
+        }
+        return common.length >= 2;
+      });
+
+      if (matchByName) {
+        if (normPan && (!matchByName.pan || matchByName.pan.trim().toUpperCase() !== normPan)) {
+          matchByName.pan = normPan;
+          if (await isSupabaseReachable()) {
+            await supabase.from('portfolios').update({ pan: normPan }).eq('id', matchByName.id);
+          }
+        }
+        const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(matchByName.id));
+        return {
+          portfolioId: String(matchByName.id),
+          portfolioName: matchByName.investor_name || matchByName.full_name || `Portfolio ${matchByName.id}`,
+          accountId: link ? String(link.acid) : '31'
+        };
+      }
+    }
+
+    // 3. Auto-Create New Portfolio in the Individual's Name!
+    const finalName = clientName.trim() || (normPan ? `Investor (${normPan})` : `Client ${Date.now()}`);
+    console.log(`[CN Import] Auto-creating new portfolio for individual: "${finalName}", PAN: ${normPan}`);
+
+    let nextPfid = 101;
+    const existingIds = (state.portfolios || []).map((p: any) => Number(p.id)).filter((n: number) => !isNaN(n));
+    if (existingIds.length > 0) {
+      nextPfid = Math.max(...existingIds) + 1;
+    }
+
+    const newPfRow = {
+      id: nextPfid,
+      client_id: 1,
+      investor_name: finalName,
+      full_name: clientName.trim() || finalName,
+      pan: normPan || null,
+      is_group: false,
+      pfolio_type: 0,
+      exit_status: 1
+    };
+
+    if (await isSupabaseReachable()) {
+      const { error: insErr } = await supabase.from('portfolios').insert(newPfRow);
+      if (insErr) {
+        console.error('[CN Import] Error auto-creating portfolio:', insErr);
+      }
+    }
+    state.portfolios.push(newPfRow);
+
+    const linkRow = { pfid: nextPfid, acid: 31, client_id: 1 };
+    if (await isSupabaseReachable()) {
+      await supabase.from('acc_pflink').insert(linkRow);
+    }
+    state.accPflink.push(linkRow);
+
+    const updatedPorts = getStoredPortfolios();
+    setPortfolios(updatedPorts);
+
+    return {
+      portfolioId: String(nextPfid),
+      portfolioName: finalName,
+      accountId: '31'
+    };
+  };
+
   // ── Unified Contract Note ingestion pipeline ───────────────────────────
   const ingestParsedCnResult = async (result: any) => {
     let nextId = Date.now();
     const newTrades: any[] = [];
 
-    // Auto-detect portfolio from PAN
-    let autoSelectedPortfolio = selectedPortfolio;
-    if (result.pan) {
-      const pan = result.pan.toUpperCase();
-      const matchedPf = state.portfolios.find((p: any) => p.pan && p.pan.toUpperCase() === pan);
-      if (matchedPf) {
-        autoSelectedPortfolio = String(matchedPf.id);
-        setSelectedPortfolio(autoSelectedPortfolio);
-      }
+    // 1. Auto-detect & auto-resolve Portfolio / Individual
+    const resolvedPf = await resolveOrCreatePortfolio(result.pan || '', result.clientName || '', result.ucc || '');
+    const autoSelectedPortfolio = resolvedPf.portfolioId;
+    setSelectedPortfolio(autoSelectedPortfolio);
+
+    // 2. Auto-detect broker & auto-select Broker Ledger
+    const detectedBroker = result.broker && result.broker !== 'auto' ? result.broker : 'zerodha';
+    setSelectedBroker(detectedBroker);
+
+    const targetAcid = Number(resolvedPf.accountId) || 31;
+    const allLedgers = getStoredLedgers(targetAcid);
+    const brokerLedgersList = allLedgers.filter(l => l.groupId === '75' || l.groupId === '90' || (l as any).parent_id === 75 || (l as any).parent_id === 90);
+
+    const matchKeys = BROKER_MATCHERS[detectedBroker] || [detectedBroker];
+    let matchedLedger = brokerLedgersList.find(b => {
+      const bName = b.name.toLowerCase();
+      return matchKeys.some(k => bName.includes(k.toLowerCase()));
+    });
+
+    if (!matchedLedger && brokerLedgersList.length > 0) {
+      matchedLedger = brokerLedgersList[0];
     }
+
+    if (!matchedLedger) {
+      const displayName = BROKER_NAMES[detectedBroker] || 'Zerodha';
+      const created = await ensureLedgerExists(displayName, 'sundry_creditors', targetAcid);
+      if (created) {
+        setSelectedBrokerLedger(String(created.id));
+        setBrokerLedgers([created]);
+      }
+    } else {
+      setSelectedBrokerLedger(String(matchedLedger.id));
+      setBrokerLedgers(brokerLedgersList);
+    }
+
+    setAutoDetectedInfo({
+      individual: resolvedPf.portfolioName,
+      broker: detectedBroker,
+      pan: result.pan
+    });
 
     // Set CN date from parsed file (fallback to today)
     const parsedDate = result.cnDate || cnDate;
@@ -1675,11 +1870,6 @@ function ImportPageInner() {
 
     // Set CN number from parsed file
     if (result.cnNo) setCnNo(result.cnNo);
-
-    // Auto-detect broker
-    if (result.broker && result.broker !== selectedBroker) {
-      setSelectedBroker(result.broker);
-    }
 
     for (const t of (result.trades || [])) {
        const isin = (t.isin || '').toUpperCase().trim();
@@ -1876,15 +2066,19 @@ function ImportPageInner() {
 
         // Saved passwords in localStorage
         try {
-          const brokerSaved = localStorage.getItem(`wealthcore_cn_password_${selectedBroker}`);
-          if (brokerSaved && !candidatePasswords.includes(brokerSaved)) candidatePasswords.push(brokerSaved);
-
-          const defaultSaved = localStorage.getItem('wealthcore_cn_password');
-          if (defaultSaved && !candidatePasswords.includes(defaultSaved)) candidatePasswords.push(defaultSaved);
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('wealthcore_cn_password')) {
+              const v = localStorage.getItem(k);
+              if (v && !candidatePasswords.includes(v)) candidatePasswords.push(v);
+              if (v && !candidatePasswords.includes(v.toUpperCase())) candidatePasswords.push(v.toUpperCase());
+            }
+          }
 
           const savedList: string[] = JSON.parse(localStorage.getItem('wealthcore_saved_passwords') || '[]');
           for (const s of savedList) {
             if (s && !candidatePasswords.includes(s)) candidatePasswords.push(s);
+            if (s && !candidatePasswords.includes(s.toUpperCase())) candidatePasswords.push(s.toUpperCase());
           }
         } catch {}
 
@@ -1895,19 +2089,29 @@ function ImportPageInner() {
             if (cleanPan && !candidatePasswords.includes(cleanPan)) {
               candidatePasswords.push(cleanPan);
             }
+            if (cleanPan && !candidatePasswords.includes(cleanPan.toLowerCase())) {
+              candidatePasswords.push(cleanPan.toLowerCase());
+            }
           }
         });
+
+        // Tokens from file name (e.g. VQ6949, CGTPS8217E)
+        const fnTokens = (file.name.match(/[A-Za-z0-9]{4,12}/g) || []);
+        for (const tok of fnTokens) {
+          const u = tok.toUpperCase();
+          if (!candidatePasswords.includes(u)) candidatePasswords.push(u);
+        }
 
         // Try decrypting with each candidate password in background
         for (const candPwd of candidatePasswords) {
           try {
-            const clientRes = await parseContractNoteClientPdf(buffer, candPwd, selectedBroker);
+            const clientRes = await parseContractNoteClientPdf(buffer, candPwd, 'auto');
             if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
               // Successfully decrypted and parsed! Save password permanently
               if (candPwd) {
                 try {
                   localStorage.setItem('wealthcore_cn_password', candPwd);
-                  localStorage.setItem(`wealthcore_cn_password_${selectedBroker}`, candPwd);
+                  localStorage.setItem(`wealthcore_cn_password_${clientRes.broker}`, candPwd);
                   if (clientRes.pan) {
                     localStorage.setItem(`wealthcore_cn_password_pan_${clientRes.pan.toUpperCase()}`, candPwd);
                   }
@@ -1965,7 +2169,7 @@ function ImportPageInner() {
         const text = await file.text();
         
         // 1. In-browser client-side text parse
-        const clientRes = parseContractNoteClientText(text, file.name, selectedBroker);
+        const clientRes = parseContractNoteClientText(text, file.name, 'auto');
         if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
           await ingestParsedCnResult(clientRes);
           e.target.value = '';
@@ -2055,13 +2259,13 @@ function ImportPageInner() {
 
       // 1. Primary engine: In-browser client-side decryption (works on Vercel & localhost)
       try {
-        const clientRes = await parseContractNoteClientPdf(buffer, pwd, selectedBroker);
+        const clientRes = await parseContractNoteClientPdf(buffer, pwd, 'auto');
         if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
           // Persist password permanently across all brokers & sessions
           if (pwd) {
             try {
               localStorage.setItem('wealthcore_cn_password', pwd);
-              localStorage.setItem(`wealthcore_cn_password_${selectedBroker}`, pwd);
+              localStorage.setItem(`wealthcore_cn_password_${clientRes.broker}`, pwd);
               if (clientRes.pan) {
                 localStorage.setItem(`wealthcore_cn_password_pan_${clientRes.pan.toUpperCase()}`, pwd);
               }
@@ -2487,38 +2691,70 @@ function ImportPageInner() {
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 6px 0' }}>
             📄 Broker Contract Note Importer
           </h1>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 28px 0' }}>
-            Upload a broker contract note PDF. Trades will auto-populate below for review before committing.
+          <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 20px 0' }}>
+            Upload a broker contract note PDF. The individual and broker will be automatically parsed and selected.
           </p>
+
+          {autoDetectedInfo && (
+            <div style={{
+              marginBottom: '20px',
+              padding: '12px 18px',
+              background: '#f0fdf4',
+              border: '1px solid #86efac',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px',
+              fontSize: '13px',
+              color: '#166534',
+              fontWeight: 600
+            }}>
+              <span style={{ fontSize: '16px' }}>⚡</span>
+              <span>Auto-Detected & Configured:</span>
+              <span style={{ background: '#dcfce7', padding: '3px 10px', borderRadius: '6px' }}>
+                Individual: <strong>{autoDetectedInfo.individual}</strong> {autoDetectedInfo.pan ? `(${autoDetectedInfo.pan})` : ''}
+              </span>
+              <span style={{ background: '#dcfce7', padding: '3px 10px', borderRadius: '6px' }}>
+                Broker: <strong>{BROKER_NAMES[autoDetectedInfo.broker] || autoDetectedInfo.broker}</strong>
+              </span>
+            </div>
+          )}
 
           {/* ── Row 1: Selectors ── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
             <div>
-              <label style={labelStyle}>Portfolio</label>
+              <label style={labelStyle}>Portfolio / Individual (Auto)</label>
               <select value={selectedPortfolio} onChange={e => setSelectedPortfolio(e.target.value)} style={selectStyle}>
                 <option value="">Select Portfolio...</option>
                 {portfolios.map((p: any) => <option key={p.id} value={p.id}>{p.portfolioName || p.name}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Broker Ledger</label>
+              <label style={labelStyle}>Broker Ledger (Auto)</label>
               <select value={selectedBrokerLedger} onChange={e => setSelectedBrokerLedger(e.target.value)} style={selectStyle}>
                 <option value="">Select Ledger...</option>
                 {brokerLedgers.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Broker Format</label>
+              <label style={labelStyle}>Broker (Auto-Detected)</label>
               <select value={selectedBroker} onChange={e => setSelectedBroker(e.target.value)} style={selectStyle}>
-                <option value="zerodha">Zerodha (PDF)</option>
-                <option value="groww">Groww (PDF / CSV)</option>
-                <option value="icici">ICICI Direct (PDF / CSV)</option>
-                <option value="kotak">Kotak Securities (PDF / CSV)</option>
-                <option value="hdfc">HDFC Securities (PDF / CSV)</option>
-                <option value="motilal">Motilal Oswal (PDF)</option>
-                <option value="dhan">Dhan (PDF)</option>
-                <option value="mirae">MStock / Mirae Asset (PDF)</option>
-                <option value="rk_global">R K Global (HTML / CSV)</option>
+                <option value="auto">⚡ Auto-Detect Broker (Default)</option>
+                <option value="zerodha">Zerodha</option>
+                <option value="groww">Groww</option>
+                <option value="icici">ICICI Direct</option>
+                <option value="kotak">Kotak Securities</option>
+                <option value="hdfc">HDFC Securities</option>
+                <option value="motilal">Motilal Oswal</option>
+                <option value="dhan">Dhan</option>
+                <option value="mirae">MStock / Mirae Asset</option>
+                <option value="rk_global">R K Global</option>
+                <option value="upstox">Upstox</option>
+                <option value="angel">Angel One</option>
+                <option value="sharekhan">Sharekhan</option>
+                <option value="axis">Axis Securities</option>
+                <option value="5paisa">5Paisa</option>
               </select>
             </div>
             <div>

@@ -97,10 +97,11 @@ export default function PMSTransactionModal({
   const availableBrokers = React.useMemo(() => {
     const creditors = ledgers.filter(l => {
       const g = groups.find(g => String(g.id) === String(l.groupId));
-      return g && (String(g.id) === '75' || String(g.id) === 'sundry_creditors');
+      const gId = String(g?.id || l.groupId || (l as any).parent_id || '');
+      return gId === '75' || gId === '90' || gId === 'sundry_creditors';
     });
     const names = creditors.map(c => c.name.replace(/\s+A\/c$/i, '').trim());
-    const defaults = ['Raise Securities', 'Zerodha', 'Upstox', 'MStock', 'R K Global', 'RKSV', 'Kotak Securities Ltd'];
+    const defaults = ['Raise Securities', 'Zerodha', 'Upstox', 'MStock', 'R K Global', 'RKSV', 'Kotak Securities Ltd', 'Groww', 'ICICI Direct', 'HDFC Securities', 'Motilal Oswal', 'Dhan'];
     return Array.from(new Set([...names, ...defaults]));
   }, [ledgers, groups]);
 
@@ -278,10 +279,10 @@ export default function PMSTransactionModal({
               if (!isNaN(parsedP) && parsedP > 0 && tPrice === 0) tPrice = parsedP;
             }
 
-            const isAsset = Number(ledgerId) >= 100000 || 
+            const isAsset = (Number(ledgerId) >= 200000 && !isBrokerOrBankOrCash(ledger)) || 
                             tQty > 0 || tPrice > 0 || match !== null ||
-                            (ledger && assetGroupIds.includes(Number(ledger.groupId))) ||
-                            (!ledger && !ledgerName.includes('broker') && !ledgerName.includes('bank') && !ledgerName.includes('cash') && !ledgerName.includes('stt') && !ledgerName.includes('stamp') && !ledgerName.includes('gst') && !ledgerName.includes('charge') && !ledgerName.includes('brokerage'));
+                            (ledger && assetGroupIds.includes(Number(ledger.groupId)) && !isBrokerOrBankOrCash(ledger)) ||
+                            (!ledger && !ledgerName.includes('broker') && !ledgerName.includes('bank') && !ledgerName.includes('cash') && !ledgerName.includes('stt') && !ledgerName.includes('stamp') && !ledgerName.includes('gst') && !ledgerName.includes('charge') && !ledgerName.includes('brokerage') && !availableBrokers.some(b => ledgerName.includes(b.toLowerCase())));
             
             if (isAsset) {
               const tradeVal = tQty > 0 && tPrice > 0 ? tQty * tPrice : lAmt;

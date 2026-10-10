@@ -42,6 +42,8 @@ export interface ParsedContractNote {
   cnNo: string;
   cnDate: string;
   pan: string;
+  clientName?: string;
+  ucc?: string;
   trades: ParsedTrade[];
   charges: ParsedCharges;
   finalNet?: number | null;
@@ -90,7 +92,7 @@ function parseDateStr(text: string): string | null {
   return null;
 }
 
-function detectBroker(text: string, filename = ''): string {
+export function detectBroker(text: string, filename = ''): string {
   const t = (text + ' ' + filename).toLowerCase();
   if (t.includes('nextbillion') || t.includes('groww')) return 'groww';
   if (t.includes('icici securities') || t.includes('icicidirect') || t.includes('icici')) return 'icici';
@@ -100,8 +102,56 @@ function detectBroker(text: string, filename = ''): string {
   if (t.includes('moneylicious') || t.includes('dhan')) return 'dhan';
   if (t.includes('mirae asset') || t.includes('mstock') || t.includes('m.stock')) return 'mirae';
   if (t.includes('r k global') || t.includes('r.k. global') || t.includes('rkglobal')) return 'rk_global';
+  if (t.includes('upstox') || t.includes('rksv')) return 'upstox';
+  if (t.includes('angel one') || t.includes('angel broking') || t.includes('angelone')) return 'angel';
+  if (t.includes('sharekhan')) return 'sharekhan';
+  if (t.includes('axis securities') || t.includes('axis direct')) return 'axis';
+  if (t.includes('5paisa') || t.includes('five paisa')) return '5paisa';
   if (t.includes('zerodha')) return 'zerodha';
-  return 'zerodha';
+  return '';
+}
+
+export function extractClientName(text: string, lines: string[] = []): string {
+  // 1. "Dear <Name>,"
+  const dearMatch = text.match(/Dear\s+([A-Za-z\s.]{3,60})[,:\n]/i);
+  if (dearMatch) {
+    const n = dearMatch[1].trim().replace(/\s+/g, ' ');
+    if (n.length >= 3 && !/sir|madam|investor|client|customer|user/i.test(n)) {
+      return n.toUpperCase();
+    }
+  }
+
+  // 2. Explicit labels: "Client Name : <NAME>", "Name of Client : <NAME>", etc.
+  const nameLabelMatch = text.match(/(?:Client\s+Name|Name\s+of\s+(?:the\s+)?Client|Name\s+of\s+Constituent|Constituent\s+Name|Investor\s+Name)[\s:/-]+([A-Za-z\s.]{3,60})(?:\r?\n|$|[,\t])/i);
+  if (nameLabelMatch) {
+    const n = nameLabelMatch[1].trim().replace(/\s+/g, ' ');
+    if (n.length >= 3 && !/address|pan|ucc|trade|date|contract|tax\s+invoice/i.test(n)) {
+      return n.toUpperCase();
+    }
+  }
+
+  // 3. Line preceding "Address" or following UCC
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim();
+    if (/^Address\b/i.test(l) && i > 0) {
+      const prev = lines[i - 1].trim();
+      if (/^[A-Za-z\s.]{3,50}$/.test(prev) && !/contract|invoice|trade|settlement|officer|limited|zerodha|groww|securities|broking/i.test(prev)) {
+        return prev.toUpperCase();
+      }
+    }
+    const uccName = l.match(/^[A-Z0-9]{4,10}\s+([A-Za-z\s.]{3,50})$/);
+    if (uccName && !/contract|invoice|settlement|limited|broking|securities/i.test(uccName[1])) {
+      return uccName[1].trim().toUpperCase();
+    }
+  }
+
+  return '';
+}
+
+export function extractUcc(text: string): string {
+  const m = text.match(/(?:UCC|Client\s*Code|Trading\s*Code|Client\s*Id)[\s:/-]*([A-Za-z0-9]{4,15})/i);
+  if (m) return m[1].trim().toUpperCase();
+  return '';
 }
 
 function extractPan(text: string): string {
@@ -246,8 +296,11 @@ export async function parseContractNoteClientPdf(
 
   let pdfDoc: any;
   try {
+    const byteArr = (buffer as any)?.buffer
+      ? new Uint8Array((buffer as any).buffer, (buffer as any).byteOffset || 0, (buffer as any).byteLength || buffer.byteLength)
+      : (buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer));
     const loadingTask = pdfjs.getDocument({
-      data: buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer),
+      data: byteArr,
       password: password || undefined
     });
     pdfDoc = await loadingTask.promise;
@@ -301,8 +354,11 @@ export async function parseContractNoteClientPdf(
     }
   }
 
-  const detected = brokerHint !== 'auto' && brokerHint ? brokerHint : detectBroker(fullText);
+  const autoBroker = detectBroker(fullText);
+  const detected = autoBroker || (brokerHint !== 'auto' && brokerHint ? brokerHint : 'zerodha');
   const pan = extractPan(fullText);
+  const clientName = extractClientName(fullText, lines);
+  const ucc = extractUcc(fullText);
   const cnNo = extractCnNumber(fullText);
   const cnDate = parseDateStr(fullText) || new Date().toISOString().slice(0, 10);
   const charges = extractCharges(fullText);
@@ -442,6 +498,8 @@ export async function parseContractNoteClientPdf(
     cnNo,
     cnDate,
     pan,
+    clientName,
+    ucc,
     trades: finalTrades,
     charges,
     finalNet: finalNet !== null ? finalNet : undefined
@@ -455,8 +513,11 @@ export function parseContractNoteClientText(
   brokerHint = 'auto'
 ): ParsedContractNote {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const detected = brokerHint !== 'auto' && brokerHint ? brokerHint : detectBroker(text, filename);
+  const autoBroker = detectBroker(text, filename);
+  const detected = autoBroker || (brokerHint !== 'auto' && brokerHint ? brokerHint : 'zerodha');
   const pan = extractPan(text);
+  const clientName = extractClientName(text, lines);
+  const ucc = extractUcc(text);
   const cnNo = extractCnNumber(text);
   const cnDate = parseDateStr(text) || new Date().toISOString().slice(0, 10);
   const charges = extractCharges(text);
@@ -521,6 +582,8 @@ export function parseContractNoteClientText(
     cnNo,
     cnDate,
     pan,
+    clientName,
+    ucc,
     trades: Array.from(tradeMap.values()),
     charges,
     finalNet: finalNet !== null ? finalNet : undefined
