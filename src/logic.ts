@@ -851,7 +851,7 @@ export async function importStagedTablesLocally(stagedFiles: Record<string, { ro
   // Recalculate currv on state.sumTable so all summary calculations match authoritative prices
   (state.sumTable || []).forEach((s: any) => {
     const p = state.priceMap[s.amid];
-    if (p && p.curr > 0 && Number(s.qnt) > 0) {
+    if (p && p.curr > 0 && Number(s.qnt) !== 0) {
       s.currv = Number(s.qnt) * p.curr;
     }
   });
@@ -1361,7 +1361,7 @@ export function getHoldings(
   const rows = state.sumTable.filter((s: any) => 
     pSet.has(Number(s.pfolio_id)) && 
     Number(s.amid) !== 1490 &&
-    (includeZeroQty || Number(s.qnt) > 0.0001 || Number(s.currv) > 0.01)
+    (includeZeroQty || Math.abs(Number(s.qnt)) > 0.0001 || Math.abs(Number(s.currv)) > 0.01)
   );
 
   // 2. Pre-resolve asset types for all active rows
@@ -4188,7 +4188,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // 1. Collect all unique active amids (quantity > 0 or current value > 0)
     const amids = Array.from(new Set(
       state.sumTable
-        .filter((s: any) => Number(s.qnt) > 0.0001 || Number(s.currv) > 0.01)
+        .filter((s: any) => Math.abs(Number(s.qnt)) > 0.0001 || Math.abs(Number(s.currv)) > 0.01)
         .map((s: any) => Number(s.amid))
         .filter((id: number) => !!id && !isNaN(id))
     ));
@@ -4326,7 +4326,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // Recalculate currv on state.sumTable so all summary calculations match new prices
     state.sumTable.forEach((s: any) => {
       const p = state.priceMap[s.amid];
-      if (p && p.curr > 0 && Number(s.qnt) > 0) {
+      if (p && p.curr > 0 && Number(s.qnt) !== 0) {
         s.currv = Number(s.qnt) * p.curr;
       }
     });
