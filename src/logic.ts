@@ -3079,7 +3079,8 @@ export function getVoucherById(id: string | number) {
       portfolioId: v.pfid ? String(v.pfid) : (state.bs1.find((t: any) => Number(t.acvch) === v.vid)?.pfid ? String(state.bs1.find((t: any) => Number(t.acvch) === v.vid).pfid) : undefined),
       lines: effectiveLegs
         .map((e: any) => {
-          const isAsset = Number(e.maid) >= 100000;
+          // Broker and bank ledgers are in 100001-100099; assets in acmac1 are 200000+ or 500000+
+          const isAsset = Number(e.maid) >= 200000;
           let bsTx = null;
           if (isAsset) {
             const ledgerObj = state.acmac1.find((l: any) => l.id === Number(e.maid));

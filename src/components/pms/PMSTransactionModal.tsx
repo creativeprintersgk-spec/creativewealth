@@ -105,6 +105,14 @@ export default function PMSTransactionModal({
   }, [ledgers, groups]);
 
   const isBrokerOrBankOrCash = React.useCallback((l: any) => {
+    if (!l) return false;
+    const lIdNum = Number(l.id);
+    const lNameLower = (l.name || '').toLowerCase().trim();
+    // In MProfit, counter ledgers (Bank, Cash, Broker) are in groups 60, 75, 90 or IDs 100001-100099
+    if (lIdNum >= 100001 && lIdNum <= 100099) return true;
+    if (availableBrokers.some(b => b.toLowerCase() === lNameLower || lNameLower.includes(b.toLowerCase()))) return true;
+    if (/^(zerodha|upstox|groww|motilal|kotak|hdfc|icici|mstock|r\s*k\s*global|dhan|angel|sharekhan|nuvama|karvy)/i.test(lNameLower)) return true;
+
     const g = groups.find(g => String(g.id) === String(l.groupId));
     if (!g) return false;
     const gIdStr = String(g.id);
@@ -112,6 +120,7 @@ export default function PMSTransactionModal({
     return (
       gIdStr === '75' ||
       gIdStr === '60' ||
+      gIdStr === '90' ||
       gIdStr === 'sundry_creditors' ||
       gIdStr === 'bank' ||
       gIdStr === 'cash' ||
@@ -120,7 +129,7 @@ export default function PMSTransactionModal({
       gNameLower.includes('bank') ||
       gNameLower.includes('cash')
     );
-  }, [groups]);
+  }, [groups, availableBrokers]);
 
   useEffect(() => {
     if (voucherId === 'new') {
@@ -239,11 +248,17 @@ export default function PMSTransactionModal({
             extractedBrokerage += (l.debit || l.credit || 0);
           } else if (ledgerName.includes('gain') || ledgerName.includes('loss') || ledgerName.includes('stcg') || ledgerName.includes('ltcg')) {
             // Ignore capital gains
-          } else if (isSyntheticBrokerMaid || (ledger && isBrokerOrBankOrCash(ledger)) || (!ledger && (ledgerName.includes('broker') || ledgerName.includes('bank') || ledgerName.includes('cash')))) {
+          } else if (
+            isSyntheticBrokerMaid ||
+            (ledger && isBrokerOrBankOrCash(ledger)) ||
+            (!ledger && (ledgerName.includes('broker') || ledgerName.includes('bank') || ledgerName.includes('cash') || availableBrokers.some(b => ledgerName.includes(b.toLowerCase())) || /zerodha|upstox|groww|motilal|kotak|hdfc|icici/i.test(ledgerName)))
+          ) {
             // This is the broker/bank counter ledger
             // For real ledgers, record the ID so the broker dropdown is pre-selected
             if (ledger) {
               extractedCounterId = ledgerId;
+              const matchedBroker = availableBrokers.find(b => ledgerName.includes(b.toLowerCase())) || (ledger.name ? ledger.name.replace(/\s+A\/c$/i, '').trim() : '');
+              if (matchedBroker) setBroker(matchedBroker);
             }
             // For synthetic MProfit maid IDs, broker name is shown via getVoucherById's formatting
           } else {
