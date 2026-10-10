@@ -10,6 +10,7 @@ import isinDictionary from "../services/isinDictionary.json";
 import { MfCasTab } from "./MfCasTab";
 import { EcasTab } from "./EcasTab";
 import { parseFnoSymbol } from "../utils/fnoUtils";
+import { parseContractNoteClientPdf, parseContractNoteClientText } from "../services/contractNoteClientParser";
 
 import standardMprofitGroups from "../standard_mprofit_groups.json";
 
@@ -1835,26 +1836,46 @@ function ImportPageInner() {
     if (!file) return;
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
-      // First attempt to parse directly with empty password in case PDF is not password protected
       try {
         const buffer = await file.arrayBuffer();
-        const response = await fetch('/api/parse-cn', {
-          method: 'POST',
-          headers: {
-            'x-cn-password': '',
-            'x-cn-broker': selectedBroker,
-            'Content-Type': 'application/pdf'
-          },
-          body: buffer
-        });
+        
+        // 1. In-browser client-side parse (works on Vercel & localhost with zero server dependency)
+        const clientRes = await parseContractNoteClientPdf(buffer, '', selectedBroker);
+        if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
+          await ingestParsedCnResult(clientRes);
+          e.target.value = '';
+          return;
+        }
 
-        if (response.ok) {
-          const result = await response.json();
-          if (result.status === 'ok' && result.trades && result.trades.length > 0) {
-            await ingestParsedCnResult(result);
-            e.target.value = '';
-            return;
+        // If client reported password required, open modal
+        if (clientRes.status === 'error' && (clientRes.message || '').toLowerCase().includes('password')) {
+          setPendingFile(file);
+          setPasswordPromptOpen(true);
+          return;
+        }
+
+        // 2. Fallback: try local server /api/parse-cn if available
+        try {
+          const response = await fetch('/api/parse-cn', {
+            method: 'POST',
+            headers: {
+              'x-cn-password': '',
+              'x-cn-broker': selectedBroker,
+              'Content-Type': 'application/pdf'
+            },
+            body: buffer
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.status === 'ok' && result.trades && result.trades.length > 0) {
+              await ingestParsedCnResult(result);
+              e.target.value = '';
+              return;
+            }
           }
+        } catch (serverErr) {
+          // Server endpoint not reachable (e.g. on Vercel), continue to prompt
         }
       } catch (directErr) {
         // Direct parse failed (e.g. password required), fallback to modal
@@ -1865,6 +1886,17 @@ function ImportPageInner() {
     } else {
       // CSV / HTML / TXT file
       try {
+        const text = await file.text();
+        
+        // 1. In-browser client-side text parse
+        const clientRes = parseContractNoteClientText(text, file.name, selectedBroker);
+        if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
+          await ingestParsedCnResult(clientRes);
+          e.target.value = '';
+          return;
+        }
+
+        // 2. Fallback: try local server /api/parse-cn
         const buffer = await file.arrayBuffer();
         const contentType = file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm')
           ? 'text/html'
@@ -1940,13 +1972,39 @@ function ImportPageInner() {
   // ── Password prompt (for encrypted PDFs) ─────────────────────────────────
   const handlePasswordSubmit = async () => {
     if (!pendingFile) return;
+    const pwd = (tempPassword || '').trim();
+
     try {
       const buffer = await pendingFile.arrayBuffer();
-      
+
+      // 1. Primary engine: In-browser client-side decryption (works on Vercel & localhost)
+      try {
+        const clientRes = await parseContractNoteClientPdf(buffer, pwd, selectedBroker);
+        if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
+          await ingestParsedCnResult(clientRes);
+          setPasswordPromptOpen(false);
+          setTempPassword('');
+          setPasswordError('');
+          return;
+        }
+
+        if (clientRes.status === 'error') {
+          setPasswordError(clientRes.message || 'Incorrect password for PDF. Please re-enter your PAN in uppercase.');
+          return;
+        }
+      } catch (clientErr: any) {
+        console.warn('Client-side CN parse error, attempting backend fallback:', clientErr);
+        if ((clientErr?.message || '').toLowerCase().includes('password')) {
+          setPasswordError('Incorrect password for PDF. Please re-enter your PAN in uppercase.');
+          return;
+        }
+      }
+
+      // 2. Secondary fallback: Local python backend /api/parse-cn (if available)
       const response = await fetch('/api/parse-cn', {
         method: 'POST',
         headers: {
-          'x-cn-password': tempPassword,
+          'x-cn-password': pwd,
           'x-cn-broker': selectedBroker,
           'Content-Type': 'application/pdf'
         },
@@ -1954,7 +2012,7 @@ function ImportPageInner() {
       });
 
       if (!response.ok) {
-         let errMsg = "Failed to parse Contract Note";
+         let errMsg = "Failed to decrypt PDF. Please check your PAN/password.";
          try {
            const errData = await response.json();
            if (errData.error) errMsg = errData.error;
