@@ -52,67 +52,54 @@ function AppContent() {
 
   if (isSimulator) {
     return (
-      <TestModeProvider>
-        <FamilyProvider>
-          <ThemeProvider>
-            <Routes>
-              <Route path="/simulator" element={<SimulatorDashboard />} />
-              <Route path="/simulator/dashboard" element={<SimulatorDashboard />} />
-            </Routes>
-          </ThemeProvider>
-        </FamilyProvider>
-      </TestModeProvider>
+      <Routes>
+        <Route path="/simulator" element={<SimulatorDashboard />} />
+        <Route path="/simulator/dashboard" element={<SimulatorDashboard />} />
+      </Routes>
     );
   }
 
   return (
-    <TestModeProvider>
-    <FamilyProvider>
-      <ThemeProvider>
-      <SidebarProvider>
-      <AppShell>
-        <div className="app-layout">
-          <Sidebar />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-            <main 
-              className={isPms || isDashboard ? "" : "main-content"} 
-              style={{ 
-                flex: 1, 
-                overflowY: isPms ? 'hidden' : 'auto',
-                padding: (isPms || isDashboard) ? 0 : undefined 
-              }}
-            >
-              <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/executive-overview" element={<><TopNavbar /><ExecutiveOverviewPage /></>} />
-                <Route path="/portfolio-analysis" element={<PortfolioAnalysisPage />} />
-                <Route path="/pms" element={<PMSWorkspace />} />
-                {/* Accounting routes - we will add TopNavbar here or in the components */}
-                <Route path="/ledger" element={<><TopNavbar /><LedgerPage /></>} />
-                <Route path="/ledger/:ledgerId" element={<><TopNavbar /><LedgerPage /></>} />
-                <Route path="/balance-sheet" element={<><TopNavbar /><BalanceSheet /></>} />
-                <Route path="/profit-loss" element={<><TopNavbar /><ProfitLoss /></>} />
-                <Route path="/trial-balance" element={<><TopNavbar /><TrialBalance /></>} />
-                <Route path="/reports" element={<><TopNavbar /><ReportPrinting /></>} />
-                <Route path="/ledger-printing" element={<><TopNavbar /><ReportPrinting /></>} />
-                <Route path="/group/:groupId" element={<><TopNavbar /><GroupPage /></>} />
-                <Route path="/coa" element={<><TopNavbar /><ChartOfAccounts /></>} />
-                <Route path="/capital-gains" element={<><TopNavbar /><CapitalGainsPage /></>} />
-                <Route path="/master-entry" element={<MasterEntry />} />
-                <Route path="/import" element={<><TopNavbar /><ImportPage /></>} />
-                <Route path="/dividend-reconciliation" element={<><TopNavbar /><DividendReconciliation /></>} />
-                <Route path="/tax-loss-harvesting" element={<><TopNavbar /><TaxLossHarvesting /></>} />
-                <Route path="/backup" element={<><TopNavbar /><BackupRestorePage /></>} />
-                <Route path="/simulator" element={<SimulatorDashboard />} />
-                <Route path="/simulator/dashboard" element={<SimulatorDashboard />} />
-              </Routes>
-            </main>
-          </div>
+    <AppShell>
+      <div className="app-layout">
+        <Sidebar />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+          <main 
+            className={isPms || isDashboard ? "" : "main-content"} 
+            style={{ 
+              flex: 1, 
+              overflowY: isPms ? 'hidden' : 'auto',
+              padding: (isPms || isDashboard) ? 0 : undefined 
+            }}
+          >
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/executive-overview" element={<><TopNavbar /><ExecutiveOverviewPage /></>} />
+              <Route path="/portfolio-analysis" element={<PortfolioAnalysisPage />} />
+              <Route path="/pms" element={<PMSWorkspace />} />
+              {/* Accounting routes - we will add TopNavbar here or in the components */}
+              <Route path="/ledger" element={<><TopNavbar /><LedgerPage /></>} />
+              <Route path="/ledger/:ledgerId" element={<><TopNavbar /><LedgerPage /></>} />
+              <Route path="/balance-sheet" element={<><TopNavbar /><BalanceSheet /></>} />
+              <Route path="/profit-loss" element={<><TopNavbar /><ProfitLoss /></>} />
+              <Route path="/trial-balance" element={<><TopNavbar /><TrialBalance /></>} />
+              <Route path="/reports" element={<><TopNavbar /><ReportPrinting /></>} />
+              <Route path="/ledger-printing" element={<><TopNavbar /><ReportPrinting /></>} />
+              <Route path="/group/:groupId" element={<><TopNavbar /><GroupPage /></>} />
+              <Route path="/coa" element={<><TopNavbar /><ChartOfAccounts /></>} />
+              <Route path="/capital-gains" element={<><TopNavbar /><CapitalGainsPage /></>} />
+              <Route path="/master-entry" element={<MasterEntry />} />
+              <Route path="/import" element={<><TopNavbar /><ImportPage /></>} />
+              <Route path="/dividend-reconciliation" element={<><TopNavbar /><DividendReconciliation /></>} />
+              <Route path="/tax-loss-harvesting" element={<><TopNavbar /><TaxLossHarvesting /></>} />
+              <Route path="/backup" element={<><TopNavbar /><BackupRestorePage /></>} />
+              <Route path="/simulator" element={<SimulatorDashboard />} />
+              <Route path="/simulator/dashboard" element={<SimulatorDashboard />} />
+            </Routes>
+          </main>
         </div>
-      </AppShell>
-      </SidebarProvider>
-      </ThemeProvider>
+      </div>
       {isGlobalLoading && (
         <div style={{
           position: 'fixed',
@@ -142,8 +129,7 @@ function AppContent() {
           Refreshing database...
         </div>
       )}
-    </FamilyProvider>
-    </TestModeProvider>
+    </AppShell>
   );
 }
 
@@ -151,9 +137,17 @@ export default function App() {
   return (
     <AuthGate>
       <FYProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
+        <TestModeProvider>
+          <FamilyProvider>
+            <ThemeProvider>
+              <SidebarProvider>
+                <BrowserRouter>
+                  <AppContent />
+                </BrowserRouter>
+              </SidebarProvider>
+            </ThemeProvider>
+          </FamilyProvider>
+        </TestModeProvider>
       </FYProvider>
     </AuthGate>
   );

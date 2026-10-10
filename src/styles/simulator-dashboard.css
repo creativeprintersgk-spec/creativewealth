@@ -1585,3 +1585,184 @@
     margin-top: 2px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CAPITAL GAINS & TAX BIFURCATION (Wirely Luxe Fintech Theme Synced)
+   Relevant Capital Gains architecture + Luxury Wirely Theme
+   ══════════════════════════════════════════════════════════════════════════ */
+.wirely-cg-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 8px 2px;
+  margin: 2px 0;
+  scrollbar-width: none;
+  width: 100%;
+  flex-shrink: 0;
+}
+.wirely-cg-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+.wirely-cg-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(214, 228, 246, 0.95);
+  border-radius: 9999px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  user-select: none;
+}
+.wirely-cg-filter-chip:hover {
+  background: #ffffff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.12);
+}
+.wirely-cg-filter-chip.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.32);
+}
+.wirely-cg-filter-chip.active .chip-sub {
+  color: #bfdbfe !important;
+}
+
+.wirely-cg-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  width: 100%;
+}
+@media (max-width: 1200px) {
+  .wirely-cg-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .wirely-cg-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wirely-cg-kpi-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(220, 230, 242, 0.95);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.03);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.wirely-cg-kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+.wirely-cg-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.06);
+  border-color: rgba(186, 210, 238, 1);
+}
+
+.wirely-cg-dark-kpi-card {
+  background: linear-gradient(135deg, #0f172a 0%, #162032 50%, #1e293b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3), 0 0 20px rgba(59, 130, 246, 0.1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.wirely-cg-dark-kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #d97706, #f59e0b, #38bdf8);
+}
+.wirely-cg-dark-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px -5px rgba(15, 23, 42, 0.42), 0 0 25px rgba(59, 130, 246, 0.2);
+  border-color: rgba(255, 255, 255, 0.26);
+}
+
+.wirely-cg-section-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(220, 230, 242, 0.95);
+  border-radius: 18px;
+  padding: 18px 20px;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.wirely-cg-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wirely-cg-section-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wirely-cg-icon-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wirely-cg-section-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.wirely-cg-section-sub {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  margin-top: 1px;
+}

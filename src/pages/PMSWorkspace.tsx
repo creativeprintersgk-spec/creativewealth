@@ -327,9 +327,14 @@ export default function PMSWorkspace() {
       });
   };
 
-  // Sync immediately on mount
+  // Sync on mount only if stale (>15 mins) and market is open
   useEffect(() => {
-    runSync('Syncing prices...');
+    const lastSync = Number(localStorage.getItem('last_price_sync_time') || '0');
+    const isStale = Date.now() - lastSync > 15 * 60 * 1000;
+    if (isStale && isMarketOpen()) {
+      runSync('Syncing prices...');
+      localStorage.setItem('last_price_sync_time', String(Date.now()));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

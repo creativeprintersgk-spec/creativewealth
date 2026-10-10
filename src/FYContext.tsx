@@ -72,15 +72,14 @@ export function FYProvider({ children }: { children: React.ReactNode }) {
       }
     };
     checkFYs();
-    const interval = setInterval(checkFYs, 1000);
 
     const handleSyncComplete = () => {
+      checkFYs();
       setGlobalRefreshTrigger(prev => prev + 1);
     };
     window.addEventListener('wealthcore-sync-complete', handleSyncComplete);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener('wealthcore-sync-complete', handleSyncComplete);
     };
   }, []);
