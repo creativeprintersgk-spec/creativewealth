@@ -1452,24 +1452,40 @@ function ImportPageInner() {
           }
         }
 
-        // Add proportional charges
-        const c = groupCharges;
-        const combinedOther = Number((c.other || 0).toFixed(2));
-        
-        // Find or create STT and Trans. Charges ledgers dynamically
+        // Add proportional individual charges under that person's exact MProfit heads
         const pf = portfolios.find((p: any) => String(p.id) === String(pId));
         const acid = pf ? Number(pf.accountId) : 31;
-        
-        const finalSttLedger = await ensureLedgerExists("STT - Equity", "stt", acid);
-        const finalOtherLedger = await ensureLedgerExists("Trans. Charges - Equity", "stt", acid);
-        
-        const finalSttLedgerId = finalSttLedger ? finalSttLedger.id : 0;
-        const finalOtherLedgerId = finalOtherLedger ? finalOtherLedger.id : 0;
 
-        if (c.stt > 0 && finalSttLedgerId) mappedLines.push({ ledgerId: Number(finalSttLedgerId), debit: c.stt, credit: 0 });
-        if (combinedOther > 0 && finalOtherLedgerId) mappedLines.push({ ledgerId: Number(finalOtherLedgerId), debit: combinedOther, credit: 0 });
+        const groupStt = Number(((cnCharges.stt || 0) / numGroups).toFixed(2));
+        const groupBrok = Number(((cnCharges.brokerage || 0) / numGroups).toFixed(2));
+        const groupGst = Number(((cnCharges.gst || 0) / numGroups).toFixed(2));
+        const groupStamp = Number(((cnCharges.stamp || 0) / numGroups).toFixed(2));
+        const groupTrans = Number((((cnCharges.transCharges || 0) + (cnCharges.other || 0)) / numGroups).toFixed(2));
 
-        const sumCharges = c.stt + combinedOther;
+        if (groupStt > 0) {
+          const l = await ensureLedgerExists("STT - Equity", "stt", acid);
+          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupStt, credit: 0 });
+        }
+        if (groupBrok > 0) {
+          const l = await ensureLedgerExists("Share Transaction Charges", "share_txn_charges", acid)
+                 || await ensureLedgerExists("Brokerage - Equity", "share_txn_charges", acid);
+          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupBrok, credit: 0 });
+        }
+        if (groupGst > 0) {
+          const l = await ensureLedgerExists("GST - Equity", "tax_charges_stocks", acid);
+          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupGst, credit: 0 });
+        }
+        if (groupStamp > 0) {
+          const l = await ensureLedgerExists("Stamp Charges - Equity", "tax_charges_stocks", acid);
+          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupStamp, credit: 0 });
+        }
+        if (groupTrans > 0) {
+          const l = await ensureLedgerExists("Trans. Charges - Equity(T)", "tax_charges_stocks", acid)
+                 || await ensureLedgerExists("Trans. Charges - Equity", "share_txn_charges", acid);
+          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupTrans, credit: 0 });
+        }
+
+        const sumCharges = groupStt + groupBrok + groupGst + groupStamp + groupTrans;
         const netPayable = (totalBuys + sumCharges) - totalSells;
 
         if (netPayable > 0) {
