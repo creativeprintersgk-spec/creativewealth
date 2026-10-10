@@ -55,7 +55,7 @@ export default function SimulatorDashboard() {
 
   // Simulator Display Controls
   const [viewMode, setViewMode] = useState<'3d' | 'front' | 'edge'>('edge');
-  const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
+  const [isFamilyMenuOpen, setIsFamilyMenuOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
@@ -101,27 +101,17 @@ export default function SimulatorDashboard() {
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // FX Conversion
-  const fxRate = 83.92;
+  // Formatting in INR
   const formatMoney = (inrVal: number) => {
-    const val = currency === 'USD' ? inrVal / fxRate : inrVal;
-    const currCode = currency === 'USD' ? 'USD' : 'INR';
-    const locale = currency === 'USD' ? 'en-US' : 'en-IN';
-    return new Intl.NumberFormat(locale, {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: currCode,
-      minimumFractionDigits: currency === 'USD' ? 2 : 0,
-      maximumFractionDigits: currency === 'USD' ? 2 : 0,
-    }).format(val || 0);
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(inrVal || 0);
   };
 
   const formatCompact = (inrVal: number) => {
-    if (currency === 'USD') {
-      const usdVal = inrVal / fxRate;
-      if (Math.abs(usdVal) >= 1000000) return `$${(usdVal / 1000000).toFixed(2)}M`;
-      if (Math.abs(usdVal) >= 1000) return `$${(usdVal / 1000).toFixed(1)}k`;
-      return `$${usdVal.toFixed(0)}`;
-    }
     if (Math.abs(inrVal) >= 10000000) return `₹${(inrVal / 10000000).toFixed(2)} Cr`;
     if (Math.abs(inrVal) >= 100000) return `₹${(inrVal / 100000).toFixed(2)} L`;
     return formatMoney(inrVal);
@@ -134,15 +124,20 @@ export default function SimulatorDashboard() {
     return () => window.removeEventListener('wealthcore-sync-complete', handleSync);
   }, []);
 
-  const handleManualSync = () => {
+  const handleManualSync = async () => {
     if (syncStatus) return;
     setSyncStatus('Syncing prices...');
-    syncLivePrices((msg) => setSyncStatus(msg), true)
-      .catch(console.warn)
-      .finally(() => {
-        setSyncStatus(null);
-        setTick(t => t + 1);
-      });
+    try {
+      await syncLivePrices((msg) => setSyncStatus(msg), true);
+      setSyncStatus('Updated!');
+      setTimeout(() => setSyncStatus(null), 2500);
+    } catch (e) {
+      console.warn('Sync error:', e);
+      setSyncStatus('Sync failed');
+      setTimeout(() => setSyncStatus(null), 2500);
+    } finally {
+      setTick(t => t + 1);
+    }
   };
 
   // Real Database Queries
@@ -751,22 +746,6 @@ export default function SimulatorDashboard() {
             {isFullscreen ? 'Exit Fullscreen' : 'Laptop Fullscreen'}
           </button>
 
-          {/* Currency Switcher */}
-          <div className="sim-btn-group">
-            <button 
-              className={currency === 'INR' ? 'active' : ''} 
-              onClick={() => setCurrency('INR')}
-            >
-              ₹ INR
-            </button>
-            <button 
-              className={currency === 'USD' ? 'active' : ''} 
-              onClick={() => setCurrency('USD')}
-            >
-              $ USD
-            </button>
-          </div>
-
           {/* Family Switcher */}
           <select 
             value={activeFamily?.id || '1'}
@@ -877,84 +856,104 @@ export default function SimulatorDashboard() {
           </div>
 
           <div className="wirely-top-actions">
-            {/* Currency Switcher (Standalone Dashboard Mode) */}
-            {!isSimulator && (
-              <div className="sim-btn-group" style={{ margin: 0 }}>
-                <button 
-                  className={currency === 'INR' ? 'active' : ''} 
-                  onClick={() => setCurrency('INR')}
-                  style={{ padding: '3px 8px', fontSize: '11px' }}
-                >
-                  ₹ INR
-                </button>
-                <button 
-                  className={currency === 'USD' ? 'active' : ''} 
-                  onClick={() => setCurrency('USD')}
-                  style={{ padding: '3px 8px', fontSize: '11px' }}
-                >
-                  $ USD
-                </button>
-              </div>
-            )}
-
-            {/* Family Switcher Dropdown (Standalone Dashboard Mode) */}
-            {!isSimulator && (
-              <select 
-                value={activeFamily?.id || '1'}
-                onChange={(e) => setActiveFamilyId(e.target.value)}
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid rgba(220, 230, 242, 0.95)',
-                  color: '#1e293b',
-                  fontSize: '11px',
-                  fontWeight: 650,
-                  padding: '4px 10px',
-                  borderRadius: '9999px',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)'
-                }}
-              >
-                {allFamilies.map(f => (
-                  <option key={f.id} value={f.id}>
-                    {f.familyName}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* Fullscreen Button (Standalone Dashboard Mode) */}
-            {!isSimulator && (
-              <div 
-                className="wirely-nav-icon-pill"
-                onClick={toggleFullscreen}
-                title={isFullscreen ? "Exit Fullscreen" : "Fill screen (Fullscreen)"}
-              >
-                <Maximize2 size={13} />
-              </div>
-            )}
-
-            <div 
-              className="wirely-nav-icon-pill" 
+            {/* Live Quotes Sync */}
+            <button 
               onClick={handleManualSync}
-              title="Sync market quotes"
+              disabled={!!syncStatus}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#ffffff',
+                border: '1px solid rgba(220, 230, 242, 0.95)',
+                padding: '5px 12px',
+                borderRadius: '9999px',
+                fontSize: '11px',
+                fontWeight: 650,
+                color: syncStatus ? '#2563eb' : '#334155',
+                cursor: syncStatus ? 'wait' : 'pointer',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                transition: 'all 0.15s ease'
+              }}
+              title="Sync market quotes from Yahoo, MFAPI and IBJA"
             >
-              <RefreshCw size={14} className={syncStatus ? 'animate-spin' : ''} />
-            </div>
+              <RefreshCw size={12} className={syncStatus ? 'animate-spin' : ''} color={syncStatus ? '#2563eb' : '#64748b'} />
+              <span>{syncStatus || 'Sync Quotes'}</span>
+            </button>
 
-            <div className="wirely-profile-pill">
-              <div className="wirely-avatar-img">
-                {activeFamily?.familyName ? activeFamily.familyName.charAt(0) : 'P'}
+            {/* Unified Working Family Selector Pill (replaces duplicate dropdown & inactive profile pill) */}
+            <div style={{ position: 'relative' }}>
+              <div 
+                className="wirely-profile-pill" 
+                onClick={() => setIsFamilyMenuOpen(!isFamilyMenuOpen)}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                title="Click to switch Family Office"
+              >
+                <div className="wirely-avatar-img">
+                  {activeFamily?.familyName ? activeFamily.familyName.charAt(0) : 'P'}
+                </div>
+                <div className="wirely-profile-info">
+                  <span className="wirely-profile-name">
+                    {activeFamily?.familyName || 'Pramesh R Shah Family'}
+                  </span>
+                  <span className="wirely-profile-sub">
+                    Family Wealth Pool
+                  </span>
+                </div>
+                <ChevronDown size={13} color="#64748b" style={{ marginLeft: '2px', transform: isFamilyMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
               </div>
-              <div className="wirely-profile-info">
-                <span className="wirely-profile-name">
-                  {selectedAccount ? selectedAccount.accountName : (activeFamily?.familyName || 'Pramesh R Shah Family')}
-                </span>
-                <span className="wirely-profile-sub">
-                  {selectedAccount ? 'Individual Portfolio' : 'Family Wealth Pool'}
-                </span>
-              </div>
-              <ChevronDown size={13} color="#64748b" style={{ marginLeft: '2px' }} />
+
+              {isFamilyMenuOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.15)',
+                  minWidth: '220px',
+                  padding: '6px',
+                  zIndex: 1000
+                }}>
+                  <div style={{ padding: '6px 8px 4px 8px', fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Select Family Context
+                  </div>
+                  {allFamilies.map(f => {
+                    const isCurrent = String(f.id) === String(activeFamily?.id);
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          setActiveFamilyId(String(f.id));
+                          setSelectedAccountId(null);
+                          setIsFamilyMenuOpen(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '7px 10px',
+                          border: 'none',
+                          background: isCurrent ? '#eff6ff' : 'transparent',
+                          color: isCurrent ? '#1d4ed8' : '#334155',
+                          fontWeight: isCurrent ? 700 : 500,
+                          fontSize: '11.5px',
+                          borderRadius: '7px',
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                        onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = '#f8fafc'; }}
+                        onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <span>{f.familyName}</span>
+                        {isCurrent && <CheckCircle2 size={13} color="#2563eb" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1287,12 +1286,19 @@ export default function SimulatorDashboard() {
                   
                   <div style={{ margin: '4px 0 2px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <div className="wirely-op-amt-light" style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                        +{formatMoney(periodData.gain)}
+                      <div className="wirely-op-amt-light" style={{ fontSize: '18px', fontWeight: 700, color: periodData.gain >= 0 ? '#0f172a' : '#b91c1c' }}>
+                        {periodData.gain > 0 ? `+${formatMoney(periodData.gain)}` : formatMoney(periodData.gain)}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
-                        <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#16a34a', background: 'rgba(22, 163, 74, 0.12)', padding: '1px 5px', borderRadius: '4px' }}>
-                          +{periodData.gainPct.toFixed(1)}% Return
+                        <span style={{ 
+                          fontSize: '10.5px', 
+                          fontWeight: 700, 
+                          color: periodData.gainPct >= 0 ? '#16a34a' : '#dc2626', 
+                          background: periodData.gainPct >= 0 ? 'rgba(22, 163, 74, 0.12)' : 'rgba(239, 68, 68, 0.12)', 
+                          padding: '1px 5px', 
+                          borderRadius: '4px' 
+                        }}>
+                          {periodData.gainPct > 0 ? `+${periodData.gainPct.toFixed(1)}%` : `${periodData.gainPct.toFixed(1)}%`} Return
                         </span>
                         {periodData.xirr && (
                           <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#0284c7', background: 'rgba(2, 132, 199, 0.12)', padding: '1px 5px', borderRadius: '4px' }} title="Annualised Internal Rate of Return (XIRR)">
@@ -1305,7 +1311,7 @@ export default function SimulatorDashboard() {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid rgba(220, 235, 252, 0.7)' }}>
                     <div className="wirely-op-sub-light" style={{ fontSize: '9.5px', color: '#64748b' }}>
-                      Unrealised: <strong style={{ color: '#16a34a' }}>+{formatCompact(summary.overallGain)}</strong> • Realised FY: <strong style={{ color: '#0f172a' }}>+{formatCompact((taxOverview?.realizedSTCG || 0) + (taxOverview?.realizedLTCG || 0))}</strong>
+                      Unrealised: <strong style={{ color: summary.overallGain >= 0 ? '#16a34a' : '#dc2626' }}>{summary.overallGain > 0 ? `+${formatCompact(summary.overallGain)}` : formatCompact(summary.overallGain)}</strong> • Realised FY: <strong style={{ color: '#0f172a' }}>{((taxOverview?.realizedSTCG || 0) + (taxOverview?.realizedLTCG || 0)) > 0 ? `+${formatCompact((taxOverview?.realizedSTCG || 0) + (taxOverview?.realizedLTCG || 0))}` : formatCompact((taxOverview?.realizedSTCG || 0) + (taxOverview?.realizedLTCG || 0))}</strong>
                     </div>
                     <span 
                       onClick={() => navigate('/pms')}
@@ -1322,8 +1328,16 @@ export default function SimulatorDashboard() {
                       Today's Movement
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#ffffff', background: 'rgba(74, 222, 128, 0.25)', border: '1px solid rgba(74, 222, 128, 0.4)', padding: '1px 6px', borderRadius: '6px' }}>
-                        +{summary.todaysGainPct.toFixed(2)}% Today
+                      <span style={{ 
+                        fontSize: '10.5px', 
+                        fontWeight: 800, 
+                        color: '#ffffff', 
+                        background: summary.todaysGain >= 0 ? 'rgba(74, 222, 128, 0.25)' : 'rgba(239, 68, 68, 0.25)', 
+                        border: `1px solid ${summary.todaysGain >= 0 ? 'rgba(74, 222, 128, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`, 
+                        padding: '1px 6px', 
+                        borderRadius: '6px' 
+                      }}>
+                        {summary.todaysGain > 0 ? `+${summary.todaysGainPct.toFixed(2)}%` : `${summary.todaysGainPct.toFixed(2)}%`} Today
                       </span>
                       <CheckCircle2 size={13} color="#ffffff" />
                     </div>
@@ -1331,7 +1345,7 @@ export default function SimulatorDashboard() {
 
                   <div style={{ margin: '4px 0 2px 0' }}>
                     <div className="wirely-op-amt-dark" style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>
-                      +{formatMoney(summary.todaysGain)}
+                      {summary.todaysGain > 0 ? `+${formatMoney(summary.todaysGain)}` : formatMoney(summary.todaysGain)}
                     </div>
                   </div>
 

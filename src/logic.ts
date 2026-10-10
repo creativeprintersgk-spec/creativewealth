@@ -1617,7 +1617,14 @@ export function getHoldings(
     }
     h.currentValue = h.quantity > 0 ? h.quantity * h.currentPrice : (h.amtInvested > 0 ? h.amtInvested : 0);
     h.overallGain = h.currentValue > 0 ? h.currentValue - h.amtInvested : 0;
-    h.overallGainPct = h.amtInvested > 0 && h.currentValue > 0 ? (h.overallGain / h.amtInvested) * 100 : 0;
+    // Sanity safeguard: if ratio is > 5x (e.g. data entry typo or unit mismatch like per-gram vs per-10g),
+    // prevent phantom single-day spikes from corrupting the daily movement
+    if (h.prevPrice > 0 && h.currentPrice > 0) {
+      const ratio = h.currentPrice / h.prevPrice;
+      if (ratio > 5 || ratio < 0.2) {
+        h.prevPrice = h.currentPrice;
+      }
+    }
     h.todaysGain = h.prevPrice > 0 ? h.quantity * (h.currentPrice - h.prevPrice) : 0;
     h.todaysGainPct = h.prevPrice > 0 ? ((h.currentPrice - h.prevPrice) / h.prevPrice) * 100 : 0;
     return h;
