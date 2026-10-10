@@ -119,7 +119,7 @@ const CATEGORY_LABELS: Record<number, string> = {
 };
 
 const ATTY_MAP: Record<string, number[] | undefined> = {
-  stocks:             [50, 51],
+  stocks:             [50, 51, 10],
   fno:                [30, 31, 32, 33, 81, 82],
   mf_eq:              [60, 66],
   mf_debt:            [61],

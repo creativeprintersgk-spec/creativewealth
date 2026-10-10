@@ -1045,6 +1045,7 @@ function ImportPageInner() {
     other: 0
   });
   const [pdfFinalNet, setPdfFinalNet] = useState<number | null>(null);
+  const [lastCommittedInfo, setLastCommittedInfo] = useState<any>(null);
 
   // Initialize DB data for selectors
   useEffect(() => {
@@ -1544,6 +1545,21 @@ function ImportPageInner() {
       syncLivePrices(() => {}, true).catch(console.warn);
 
       setOverallMessage("✅ Contract note trades successfully imported!");
+      setLastCommittedInfo({
+        portfolioId: selectedPortfolio,
+        portfolioName: portfolios.find(p => String(p.id) === String(selectedPortfolio))?.portfolioName || "Portfolio",
+        brokerLedgerId: selectedBrokerLedger,
+        brokerName: brokerLedgers.find(b => String(b.id) === String(selectedBrokerLedger))?.name || "Broker",
+        cnNo,
+        trades: selectedTrades.map(t => ({
+          type: t.type,
+          assetName: t.assetName,
+          quantity: t.quantity,
+          price: t.price,
+          gross: Number(t.gross) || (Number(t.quantity || 0) * Number(t.price || 0))
+        })),
+        charges: { ...cnCharges }
+      });
       setCnCharges({
         stt: 0,
         brokerage: 0,
@@ -2798,7 +2814,83 @@ function ImportPageInner() {
             </div>
           )}
 
-          {overallMessage && cnTrades.length === 0 && (
+          {lastCommittedInfo && cnTrades.length === 0 && (
+            <div style={{ marginTop: '20px', padding: '24px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '14px', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontWeight: 'bold' }}>✓</div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Trades Successfully Committed & Balanced!</h3>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+                      Posted to Portfolio: <strong style={{ color: '#0f172a' }}>{lastCommittedInfo.portfolioName}</strong> | Broker: <strong style={{ color: '#0f172a' }}>{lastCommittedInfo.brokerName}</strong> {lastCommittedInfo.cnNo ? `| CN: ${lastCommittedInfo.cnNo}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setLastCommittedInfo(null)}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '18px' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Trade breakdown */}
+              <div style={{ overflowX: 'auto', marginBottom: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '8px 12px', textAlign: 'left' }}>Action</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left' }}>Asset Name</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Quantity</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Price</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Gross ₹</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lastCommittedInfo.trades.map((t: any, idx: number) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f8fafc' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: t.type === 'Buy' ? '#16a34a' : '#ea580c' }}>{t.type}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#1e293b' }}>{t.assetName}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{t.quantity}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>₹{Number(t.price).toFixed(2)}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>₹{Number(t.gross).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Navigation buttons */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => navigate('/pms')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                >
+                  View Holdings in PMS Workspace →
+                </button>
+                <button
+                  onClick={() => navigate('/ledger/' + lastCommittedInfo.brokerLedgerId)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px', background: '#fff', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}
+                >
+                  View Broker Ledger →
+                </button>
+                <button
+                  onClick={() => navigate('/capital-gains')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px', background: '#fff', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}
+                >
+                  View Capital Gains →
+                </button>
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px', background: '#fff', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}
+                >
+                  View Dashboard →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {overallMessage && !lastCommittedInfo && cnTrades.length === 0 && (
             <div style={{ padding: '14px 18px', background: overallMessage.includes('✅') ? '#f0fdf4' : '#fef2f2', border: `1px solid ${overallMessage.includes('✅') ? '#bbf7d0' : '#fca5a5'}`, borderRadius: '10px', color: overallMessage.includes('✅') ? '#166534' : '#991b1b', fontWeight: 600, fontSize: '14px' }}>
               {overallMessage}
             </div>

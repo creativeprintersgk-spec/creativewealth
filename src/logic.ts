@@ -60,6 +60,7 @@ export type Entry = {
 
 // ── ASSET TYPE MAPS ───────────────────────────────────────────────────────────
 export const ASSET_TYPE_MAP: Record<number, string> = {
+  10: 'Stocks',
   50: 'Stocks',
   51: 'Stocks',
   60: 'Mutual Funds (Equity)',
@@ -1211,7 +1212,7 @@ function _resolveAssetTypeInner(pfid: number, amidNum: number, defaultAtty?: num
   const am = assetMasterByAmidMap.get(amidNum) || state.assetMaster.find((a: any) => a.amid === amidNum);
   if (am && am.asset_type) {
     const amType = Number(am.asset_type);
-    if (amType === 50) return 50; // Stocks
+    if (amType === 50 || amType === 10) return 50; // Stocks
     // Do not let legacy MProfit asset_type 75 or 150 force a Mutual Fund into Gold
     if (isMutualFund && (amType === 75 || amType === 150)) {
       resolvedAtty = 60;
@@ -4545,8 +4546,12 @@ export async function forceRefreshDatabase() {
   state.initialized = false;
   state.priceMap = {};
   state.assetNameMap = {};
+  isBackgroundSyncing = false;
   await performBackgroundSync();
   state.initialized = true;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('wealthcore-sync-complete'));
+  }
 }
 
 export async function togglePortfolioStatus(portfolioId: string, isActive: boolean) {
