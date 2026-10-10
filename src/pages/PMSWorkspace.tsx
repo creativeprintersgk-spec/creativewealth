@@ -49,6 +49,8 @@ import PMSNCDBondModal from '../components/pms/PMSNCDBondModal';
 import PMSGoldSilverModal from '../components/pms/PMSGoldSilverModal';
 import PMSULIPModal from '../components/pms/PMSULIPModal';
 import CorporateActionNotificationBanner from '../components/pms/CorporateActionNotificationBanner';
+import { PanelLeftOpen } from 'lucide-react';
+import { useSidebar } from '../contexts/SidebarContext';
 
 // Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
 const ASSET_TYPE_TABS = [
@@ -181,6 +183,7 @@ export default function PMSWorkspace() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { activeFamily } = useFamily();
+  const { isCollapsed, setIsCollapsed } = useSidebar();
   const { customRange, triggerGlobalRefresh, globalRefreshTrigger } = useFY();
   const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('pms_activeTab') || 'all');
   const queryAssetType = searchParams.get('assetType');
@@ -444,6 +447,17 @@ export default function PMSWorkspace() {
       <div style={{ height: '60px', background: 'var(--bbg-surface)', borderBottom: '1px solid var(--bbg-border)', display: 'flex', alignItems: 'center', padding: '0 40px', justifyContent: 'space-between', flexShrink: 0, zIndex: 9999, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {isCollapsed && (
+              <button 
+                onClick={() => setIsCollapsed(false)}
+                className="wirely-sidebar-expand-btn"
+                title="Slide navigation menu out"
+                style={{ height: '34px', padding: '0 12px', margin: 0 }}
+              >
+                <PanelLeftOpen size={14} color="#ffffff" />
+                <span>Menu</span>
+              </button>
+            )}
             <button onClick={() => setIsSelectorOpen('port')} className="btn-primary" style={{ height: '34px', padding: '0 14px', fontSize: '12px', gap: '6px' }}>
               <FolderOpen size={14} /> Open Portfolio
             </button>

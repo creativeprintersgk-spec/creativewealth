@@ -27,6 +27,7 @@ import TopNavbar from "./TopNavbar"
 import AppShell from "./AppShell"
 import AuthGate from "./AuthGate"
 import { ThemeProvider } from "./contexts/ThemeContext"
+import { SidebarProvider } from "./contexts/SidebarContext"
 
 function AppContent() {
   const [ready, setReady] = React.useState(false);
@@ -68,6 +69,7 @@ function AppContent() {
     <TestModeProvider>
     <FamilyProvider>
       <ThemeProvider>
+      <SidebarProvider>
       <AppShell>
         <div className="app-layout">
           <Sidebar />
@@ -109,6 +111,7 @@ function AppContent() {
           </div>
         </div>
       </AppShell>
+      </SidebarProvider>
       </ThemeProvider>
       {isGlobalLoading && (
         <div style={{

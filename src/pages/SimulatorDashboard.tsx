@@ -29,7 +29,8 @@ import {
   Users,
   Calculator,
   Landmark,
-  Coins
+  Coins,
+  PanelLeftOpen
 } from 'lucide-react';
 import { 
   getStoredPortfolios, 
@@ -46,6 +47,7 @@ import { computeXIRR } from '../services/xirrEngine';
 import { getTaxLossHarvestingData } from '../services/taxLossHarvestingService';
 import { useFamily } from '../contexts/FamilyContext';
 import { useFY } from '../FYContext';
+import { useSidebar } from '../contexts/SidebarContext';
 import '../styles/simulator-dashboard.css';
 
 export default function SimulatorDashboard() {
@@ -54,6 +56,7 @@ export default function SimulatorDashboard() {
   const isSimulator = location.pathname.startsWith('/simulator');
   const { activeFamily, setActiveFamilyId } = useFamily();
   const { selectedAccountId, setSelectedAccountId, globalRefreshTrigger } = useFY();
+  const { isCollapsed, setIsCollapsed } = useSidebar();
 
   // Simulator Display Controls
   const [viewMode, setViewMode] = useState<'3d' | 'front' | 'edge'>('edge');
@@ -914,6 +917,16 @@ export default function SimulatorDashboard() {
         {/* ── 1. TOP HEADER / BRAND / USER ── */}
         <div className="wirely-top-nav">
           <div className="wirely-brand-group">
+            {isCollapsed && (
+              <button 
+                onClick={() => setIsCollapsed(false)}
+                className="wirely-sidebar-expand-btn"
+                title="Slide navigation menu out"
+              >
+                <PanelLeftOpen size={14} color="#ffffff" />
+                <span>Menu</span>
+              </button>
+            )}
             <div className="wirely-dot-grid">
               <span></span><span></span><span></span>
               <span></span><span></span><span></span>

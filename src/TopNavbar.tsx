@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Plus, RefreshCw, FileDown, FileUp, Calendar, FileText, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Plus, RefreshCw, FileDown, FileUp, Calendar, FileText, ShieldCheck, PanelLeftOpen } from 'lucide-react';
 import { useFY } from './FYContext';
+import { useSidebar } from './contexts/SidebarContext';
 import { handleYearClose, getStoredVouchers, getStoredEntries, getStoredLedgers, getStoredAccounts, getStoredPortfolios } from './logic';
 // import { save as dbSave } from './db/helpers';
 import VoucherModal from './VoucherModal';
@@ -11,6 +12,7 @@ import YearEndCloseModal from './components/YearEndCloseModal';
 export default function TopNavbar() {
   const navigate = useNavigate();
   const { selectedFY, setSelectedFY, reportFilter, setReportFilter, customRange, setCustomRange, selectedAccountId, setSelectedAccountId, triggerGlobalRefresh } = useFY();
+  const { isCollapsed, setIsCollapsed } = useSidebar();
   
   const [showActions, setShowActions] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
@@ -71,7 +73,19 @@ export default function TopNavbar() {
     <div className="print-hide" style={{ height: '60px', background: 'white', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', padding: '0 24px', justifyContent: 'space-between', zIndex: 10 }}>
       
       {/* Left spacer to keep Middle period engine centered */}
-      <div style={{ width: '200px' }}></div>
+      <div style={{ width: '200px', display: 'flex', alignItems: 'center' }}>
+        {isCollapsed && (
+          <button 
+            onClick={() => setIsCollapsed(false)}
+            className="wirely-sidebar-expand-btn"
+            title="Slide navigation menu out"
+            style={{ margin: 0 }}
+          >
+            <PanelLeftOpen size={14} color="#ffffff" />
+            <span>Menu</span>
+          </button>
+        )}
+      </div>
 
       {/* Middle: Period Engine */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>

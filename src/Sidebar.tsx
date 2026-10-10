@@ -6,6 +6,7 @@ import { getStoredFamilies } from './logic';
 import { useTestMode } from './contexts/TestModeContext';
 import { useFamily } from './contexts/FamilyContext';
 import { useAuth } from './AuthGate';
+import { useSidebar } from './contexts/SidebarContext';
 
 function getRefreshInterval(): number {
   const now = new Date()
@@ -55,48 +56,25 @@ export default function Sidebar() {
 
 
   const { signOut } = useAuth();
-
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem('sidebar_collapsed') === 'true';
-  });
-
-  const toggleSidebar = (collapsed: boolean) => {
-    setIsCollapsed(collapsed);
-    localStorage.setItem('sidebar_collapsed', String(collapsed));
-    setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
-    }, 320);
-  };
+  const { isCollapsed, setIsCollapsed } = useSidebar();
 
   return (
-    <>
-      {isCollapsed && (
-        <button
-          className="sidebar-floating-toggle"
-          onClick={() => toggleSidebar(false)}
-          title="Slide out navigation menu"
-        >
-          <PanelLeftOpen size={15} color="#ffffff" />
-          <span>Menu</span>
-        </button>
-      )}
-
-      <aside className={`sidebar print-hide ${isCollapsed ? 'collapsed' : ''}`}>
-        <div className="sidebar-logo">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className="sidebar-logo-icon">
-              <LayoutDashboard size={14} color="white" />
-            </div>
-            <span className="sidebar-logo-text">WealthCore</span>
+    <aside className={`sidebar print-hide ${isCollapsed ? 'collapsed' : ''}`}>
+      <div className="sidebar-logo">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="sidebar-logo-icon">
+            <LayoutDashboard size={14} color="white" />
           </div>
-          <button
-            className="sidebar-toggle-btn"
-            onClick={() => toggleSidebar(true)}
-            title="Slide navigation menu in"
-          >
-            <PanelLeftClose size={15} color="rgba(255, 255, 255, 0.9)" />
-          </button>
+          <span className="sidebar-logo-text">WealthCore</span>
         </div>
+        <button
+          className="sidebar-toggle-btn"
+          onClick={() => setIsCollapsed(true)}
+          title="Slide navigation menu in"
+        >
+          <PanelLeftClose size={15} color="rgba(255, 255, 255, 0.9)" />
+        </button>
+      </div>
 
       <nav className="sidebar-nav">
         {/* WEALTH WORKSPACE */}
@@ -313,6 +291,5 @@ export default function Sidebar() {
         .sidebar-action-btn:hover { background: rgba(255,255,255,0.28); color: #fff; border-color: rgba(255,255,255,0.45); }
       `}</style>
     </aside>
-    </>
   );
 }
