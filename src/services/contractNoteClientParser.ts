@@ -130,6 +130,27 @@ function extractCnNumber(text: string): string {
   return `CN-${ymd}`;
 }
 
+function extractChargeVal(line: string): number {
+  // First look for amount numbers with 2 decimals in parentheses: (43.00), (1.32), (0.25), (3.00), (0.01), (0.04)
+  const parenMatches: number[] = [];
+  const re = /\(([0-9,]+\.[0-9]{2,4})\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(line)) !== null) {
+    const v = parseFloat(m[1].replace(/,/g, ''));
+    if (!isNaN(v) && v > 0) parenMatches.push(v);
+  }
+  if (parenMatches.length > 0) return parenMatches[0];
+
+  // If no parenthesized decimal, look for trailing plain decimal numbers (e.g. Groww/ICICI where charges are written without parentheses)
+  const trailingMatches = line.match(/\b([0-9,]+\.[0-9]{2})\b/g);
+  if (trailingMatches && trailingMatches.length > 0) {
+    const v = parseFloat(trailingMatches[trailingMatches.length - 1].replace(/,/g, ''));
+    if (!isNaN(v) && v > 0) return v;
+  }
+
+  return 0;
+}
+
 function extractCharges(text: string): ParsedCharges {
   const charges: ParsedCharges = {
     stt: 0,
@@ -140,36 +161,54 @@ function extractCharges(text: string): ParsedCharges {
     other: 0
   };
 
-  const stt = text.match(/(?:Securities\s+Transaction\s+Tax|STT|CTT)[\s:=-]+([0-9,]+\.?[0-9]*)/i);
-  if (stt) charges.stt = cleanNum(stt[1]);
-
-  const brok = text.match(/(?:Total\s+brokerage|Taxable\s+value\s+of\s+supply|Brokerage)[\s:=-]+([0-9,]+\.?[0-9]*)/i);
-  if (brok) charges.brokerage = cleanNum(brok[1]);
-
-  const cgst = cleanNum((text.match(/CGST[\s:=-]+([0-9,]+\.?[0-9]*)/i) || [])[1]);
-  const sgst = cleanNum((text.match(/SGST[\s:=-]+([0-9,]+\.?[0-9]*)/i) || [])[1]);
-  const igst = cleanNum((text.match(/IGST[\s:=-]+([0-9,]+\.?[0-9]*)/i) || [])[1]);
-  const gstTot = cleanNum((text.match(/(?:Total\s+GST|GST)[\s:=-]+([0-9,]+\.?[0-9]*)/i) || [])[1]);
-  charges.gst = (cgst || sgst || igst) ? Number((cgst + sgst + igst).toFixed(2)) : gstTot;
-
-  const stamp = text.match(/Stamp\s+Duty[\s:=-]+([0-9,]+\.?[0-9]*)/i);
-  if (stamp) charges.stamp = cleanNum(stamp[1]);
-
-  const trans = text.match(/(?:Exchange\s+Transaction\s+Charges?|Trans(?:action)?\s+charges?)[\s:=-]+([0-9,]+\.?[0-9]*)/i);
-  if (trans) charges.transCharges = cleanNum(trans[1]);
-
-  const sebi = cleanNum((text.match(/(?:SEBI\s+Turnover|SEBI\s+Fees?)[\s:=-]+([0-9,]+\.?[0-9]*)/i) || [])[1]);
-  const clearing = cleanNum((text.match(/(?:Clearing\s+Charges?)[\s:=-]+([0-9,]+\.?[0-9]*)/i) || [])[1]);
-  charges.other = Number((sebi + clearing).toFixed(2));
+  const lines = text.split('\n');
+  for (const line of lines) {
+    // 1. Securities Transaction Tax (STT / CTT)
+    if (/Securities\s+transaction\s+tax|\bSTT\b|\bCTT\b/i.test(line)) {
+      const v = extractChargeVal(line);
+      if (v > 0) charges.stt = v;
+    }
+    // 2. Stamp Duty
+    else if (/Stamp\s+duty/i.test(line)) {
+      const v = extractChargeVal(line);
+      if (v > 0) charges.stamp = v;
+    }
+    // 3. Exchange / Transaction charges
+    else if (/Exchange\s+transaction\s+charges|Trans(?:action)?\s+charges/i.test(line)) {
+      const v = extractChargeVal(line);
+      if (v > 0) charges.transCharges = v;
+    }
+    // 4. Brokerage (Taxable value of supply)
+    else if ((/Taxable\s+value\s+of\s+Supply|Brokerage/i.test(line)) && !/of\s+Brok/i.test(line)) {
+      const v = extractChargeVal(line);
+      if (v > 0) charges.brokerage = v;
+    }
+    // 5. GST (IGST, CGST, SGST)
+    else if (/\b(IGST|CGST|SGST)\b/i.test(line) || /Total\s+GST/i.test(line)) {
+      const v = extractChargeVal(line);
+      if (v > 0) charges.gst = Number((charges.gst + v).toFixed(2));
+    }
+    // 6. SEBI / Clearing charges / Other
+    else if (/SEBI\s+turnover|SEBI\s+fees|Clearing\s+charges/i.test(line)) {
+      const v = extractChargeVal(line);
+      if (v > 0) charges.other = Number((charges.other + v).toFixed(2));
+    }
+  }
 
   return charges;
 }
 
 function extractFinalNet(text: string): number | null {
-  const m = text.match(/(?:Net\s+amount\s+receivable\s*\/\s*\(payable[^\)]*\)|Net\s+Payable\s*\/\s*\(Receivable\)|Net\s+Amount\s+Payable|Net\s+Payable|Net\s+Amount)[^\d\-+]*([0-9,]+\.?[0-9]*)/i);
-  if (m) {
-    const val = cleanNum(m[1]);
-    if (val > 0) return val;
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (/Net\s+amount\s+receivable|Net\s+Payable/i.test(line)) {
+      let clean = line.replace(/\(\s*₹\s*\)[0-9]*/gi, '').replace(/\(₹\)[0-9]*/gi, '');
+      const decMatches = clean.match(/[-+]?[0-9,]+\.[0-9]{2,4}/g);
+      if (decMatches && decMatches.length > 0) {
+        const val = cleanNum(decMatches[0]);
+        if (val > 0) return val;
+      }
+    }
   }
   return null;
 }
