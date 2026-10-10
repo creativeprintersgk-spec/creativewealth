@@ -244,8 +244,10 @@ function extractCharges(text: string): ParsedCharges {
 
   const lines = text.split('\n');
   for (const line of lines) {
+    if (/Notes:/i.test(line)) continue;
+
     // 1. Securities Transaction Tax (STT / CTT)
-    if (/Securities\s+transaction\s+tax|\bSTT\b|\bCTT\b/i.test(line)) {
+    if (/Securities\s+transactions?\s+tax|\bSTT\b|\bCTT\b/i.test(line)) {
       const v = extractChargeVal(line);
       if (v > 0) charges.stt = v;
     }
@@ -254,18 +256,18 @@ function extractCharges(text: string): ParsedCharges {
       const v = extractChargeVal(line);
       if (v > 0) charges.stamp = v;
     }
-    // 3. Exchange / Transaction charges
-    else if (/(?:NSE|BSE)?\s*Transaction\s+charges|Exchange\s+transaction\s+charges|Trans(?:action)?\s+charges/i.test(line)) {
+    // 3. Exchange / Transaction charges (skip Total Taxable Value lines)
+    else if (/(?:NSE|BSE)?\s*Transaction\s+charges|Exchange\s+transaction\s+charges|Trans(?:action)?\s+charges/i.test(line) && !/Total/i.test(line)) {
       const v = extractChargeVal(line);
       if (v > 0) charges.transCharges = v;
     }
-    // 4. Brokerage (Taxable value of supply)
-    else if ((/Taxable\s+value\s+of\s+Supply|Brokerage/i.test(line)) && !/of\s+Brok/i.test(line) && !/Charges|Fees|GST/i.test(line)) {
+    // 4. Brokerage (Taxable value of supply - must not match Total Taxable Value of Supply)
+    else if ((/Brokerage|\bTaxable\s+value\s+of\s+Supply\s*\(\s*Brokerage\s*\)/i.test(line)) && !/of\s+Brok/i.test(line) && !/Charges|Fees|GST|Total/i.test(line)) {
       const v = extractChargeVal(line);
       if (v > 0) charges.brokerage = v;
     }
     // 5. GST (IGST, CGST, SGST)
-    else if (/\b(IGST|CGST|SGST)\b/i.test(line) || /Total\s+GST/i.test(line)) {
+    else if ((/\b(IGST|CGST|SGST)\b/i.test(line) || /Total\s+GST/i.test(line)) && !/is\s+calculated/i.test(line)) {
       const v = extractChargeVal(line);
       if (v > 0) charges.gst = Number((charges.gst + v).toFixed(2));
     }
@@ -282,12 +284,16 @@ function extractCharges(text: string): ParsedCharges {
 function extractFinalNet(text: string): number | null {
   const lines = text.split('\n');
   for (const line of lines) {
-    if (/Net\s+amount\s+receivable|Net\s+Payable/i.test(line)) {
+    if (/Net\s+amount\s+receivable|Net\s+Payable/i.test(line) && !/Notes:/i.test(line)) {
+      const isCr = /\bCR\b|Receivable/i.test(line);
       let clean = line.replace(/\(\s*₹\s*\)[0-9]*/gi, '').replace(/\(₹\)[0-9]*/gi, '');
       const decMatches = clean.match(/[-+]?[0-9,]+\.[0-9]{2,4}/g);
       if (decMatches && decMatches.length > 0) {
-        const val = cleanNum(decMatches[0]);
-        if (val > 0) return val;
+        const nonZero = decMatches.map(cleanNum).filter(n => Math.abs(n) > 0);
+        if (nonZero.length > 0) {
+          const val = nonZero[nonZero.length - 1];
+          return isCr ? -Math.abs(val) : Math.abs(val);
+        }
       }
     }
   }

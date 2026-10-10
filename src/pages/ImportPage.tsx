@@ -3083,14 +3083,36 @@ function ImportPageInner() {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Net Payable</div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                    ₹{(
-                      cnTrades.filter(t => t.type === 'Buy').reduce((s: number, t: any) => s + (Number(t.gross) || 0), 0)
-                      + (Object.values(cnCharges) as number[]).reduce((s, v) => s + (Number(v) || 0), 0)
-                      - cnTrades.filter(t => t.type === 'Sell').reduce((s: number, t: any) => s + (Number(t.gross) || 0), 0)
-                    ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </div>
+                  {(() => {
+                    const buyTotal = cnTrades.filter(t => t.type === 'Buy').reduce((s: number, t: any) => s + (Number(t.gross) || 0), 0);
+                    const sellTotal = cnTrades.filter(t => t.type === 'Sell').reduce((s: number, t: any) => s + (Number(t.gross) || 0), 0);
+                    const chargesTotal = (Object.values(cnCharges) as number[]).reduce((s, v) => s + (Number(v) || 0), 0);
+                    const computedNet = (buyTotal + chargesTotal) - sellTotal;
+                    const isCredit = computedNet < 0;
+                    const absNet = Math.abs(computedNet);
+                    const matchesCn = pdfFinalNet !== null && Math.abs(absNet - Math.abs(pdfFinalNet)) < 0.05;
+
+                    return (
+                      <>
+                        <div style={{ fontSize: '12px', color: isCredit ? '#16a34a' : '#64748b', fontWeight: 700 }}>
+                          {isCredit ? 'Net Receivable (CR)' : 'Net Payable (DR)'}
+                        </div>
+                        <div style={{ fontSize: '18px', fontWeight: 800, color: isCredit ? '#16a34a' : '#0f172a' }}>
+                          ₹{absNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {isCredit ? 'CR' : 'DR'}
+                        </div>
+                        {matchesCn && (
+                          <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, marginTop: '2px' }}>
+                            ✓ Matches Contract Note: ₹{Math.abs(pdfFinalNet!).toLocaleString(undefined, { minimumFractionDigits: 2 })} {isCredit ? 'CR' : 'DR'}
+                          </div>
+                        )}
+                        {!matchesCn && pdfFinalNet !== null && (
+                          <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 700, marginTop: '2px' }}>
+                            ⚠ CN Net: ₹{Math.abs(pdfFinalNet).toLocaleString(undefined, { minimumFractionDigits: 2 })} {pdfFinalNet < 0 ? 'CR' : 'DR'}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
