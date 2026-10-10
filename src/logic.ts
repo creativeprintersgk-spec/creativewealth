@@ -64,9 +64,9 @@ export const ASSET_TYPE_MAP: Record<number, string> = {
   51: 'Stocks',
   60: 'Mutual Funds (Equity)',
   61: 'Mutual Funds (Debt)',
-  62: 'Mutual Funds (Other)',
+  62: 'Mutual Funds (Hybrid)',
   70: 'NCD / Debentures',
-  75: 'Mutual Funds (Other)',
+  75: 'Mutual Funds (Hybrid)',
   77: 'Silver',
   80: 'Insurance',
   90: 'Fixed Deposits',
@@ -1253,14 +1253,14 @@ function _resolveAssetTypeInner(pfid: number, amidNum: number, defaultAtty?: num
     return 51;
   }
 
-  // ── AMFI / SEBI: Multi Asset Allocation Funds ──────────────────────────────
-  // Multi Asset Allocation is a SEBI Hybrid scheme investing in >= 3 asset classes (min 10% each).
-  // In MProfit Desktop (and accounting classification), Multi Asset Allocation is grouped under Mutual Funds (Debt / Hybrid, atty 61).
-  if (/\b(multi.?asset(\s+allocation)?(\s+fund)?)\b/i.test(cleanTargetName)) {
-    return 61;
-  }
+  
 
   // ── AMFI / SEBI: Other Hybrid Schemes (Equity-Oriented) ───────────────────
+  // Multi Asset, Aggressive Hybrid, Balanced Advantage, Dynamic Asset Allocation, Equity Savings, Arbitrage
+  if (/\b(multi.?asset|balanced.?advantage|dynamic.?asset.?allocation|equity.?savings|aggressive.?hybrid|equity.?hybrid|balanced.?hybrid|arbitrage)\b/i.test(cleanTargetName)) {
+    return 62;
+  }
+
   // Aggressive Hybrid, Balanced Advantage, Dynamic Asset Allocation, Equity Savings, Arbitrage
   if (/\b(balanced.?advantage|dynamic.?asset.?allocation|equity.?savings|aggressive.?hybrid|equity.?hybrid|balanced.?hybrid|arbitrage)\b/i.test(cleanTargetName)) {
     return 60;

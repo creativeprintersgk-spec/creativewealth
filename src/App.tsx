@@ -18,6 +18,7 @@ import DividendReconciliation from "./pages/DividendReconciliation"
 import TaxLossHarvesting from "./pages/TaxLossHarvesting"
 import ExecutiveOverviewPage from "./pages/ExecutiveOverviewPage"
 import PortfolioAnalysisPage from "./pages/PortfolioAnalysisPage"
+import SimulatorDashboard from "./pages/SimulatorDashboard"
 import { initDatabase, getStoredGroups, getStoredLedgers, getStoredVouchers } from "./logic"
 import { FYProvider, useFY } from "./FYContext"
 import { FamilyProvider, useFamily } from "./contexts/FamilyContext"
@@ -38,6 +39,8 @@ function AppContent() {
 
   const location = useLocation();
   const isPms = location.pathname === "/pms";
+  const isDashboard = location.pathname === "/dashboard" || location.pathname === "/";
+  const isSimulator = location.pathname.startsWith("/simulator");
 
   if (!ready) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bbg-text-main)', color: 'var(--bbg-text-muted)', fontSize: '14px', gap: '12px' }}>
@@ -45,6 +48,21 @@ function AppContent() {
       Initializing WealthCore...
     </div>
   );
+
+  if (isSimulator) {
+    return (
+      <TestModeProvider>
+        <FamilyProvider>
+          <ThemeProvider>
+            <Routes>
+              <Route path="/simulator" element={<SimulatorDashboard />} />
+              <Route path="/simulator/dashboard" element={<SimulatorDashboard />} />
+            </Routes>
+          </ThemeProvider>
+        </FamilyProvider>
+      </TestModeProvider>
+    );
+  }
 
   return (
     <TestModeProvider>
@@ -55,16 +73,16 @@ function AppContent() {
           <Sidebar />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
             <main 
-              className={isPms ? "" : "main-content"} 
+              className={isPms || isDashboard ? "" : "main-content"} 
               style={{ 
                 flex: 1, 
                 overflowY: isPms ? 'hidden' : 'auto',
-                padding: isPms ? 0 : undefined 
+                padding: (isPms || isDashboard) ? 0 : undefined 
               }}
             >
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<><TopNavbar /><Dashboard /></>} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/executive-overview" element={<><TopNavbar /><ExecutiveOverviewPage /></>} />
                 <Route path="/portfolio-analysis" element={<PortfolioAnalysisPage />} />
                 <Route path="/pms" element={<PMSWorkspace />} />
@@ -84,6 +102,8 @@ function AppContent() {
                 <Route path="/dividend-reconciliation" element={<><TopNavbar /><DividendReconciliation /></>} />
                 <Route path="/tax-loss-harvesting" element={<><TopNavbar /><TaxLossHarvesting /></>} />
                 <Route path="/backup" element={<><TopNavbar /><BackupRestorePage /></>} />
+                <Route path="/simulator" element={<SimulatorDashboard />} />
+                <Route path="/simulator/dashboard" element={<SimulatorDashboard />} />
               </Routes>
             </main>
           </div>

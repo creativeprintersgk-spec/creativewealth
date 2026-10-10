@@ -32,7 +32,7 @@ export interface LivePrice {
   change: number;       // absolute change
   change_pct: number;   // % change
   as_of: string;        // date string
-  source: 'mfapi' | 'yahoo' | 'cached' | 'nse_bhavcopy' | 'sgb_benchmark';
+  source: 'mfapi' | 'yahoo' | 'cached' | 'nse_bhavcopy' | 'sgb_benchmark' | 'ibjarates.com';
 }
 
 // In-memory price cache (resets on page refresh — OK for a session)
@@ -844,6 +844,46 @@ export async function resolveAndSyncNewScript(identifier: string): Promise<{
   };
 }
 
+let ibjaCache: { gold995: number; silver999: number } | null = null;
+let ibjaCacheTime = 0;
+async function fetchIBJARates() {
+  if (ibjaCache && Date.now() - ibjaCacheTime < 3600000) return ibjaCache;
+  try {
+    const res = await fetch('https://ibjarates.com/', { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const text = await res.text();
+    let gold995 = 0;
+    let silver999 = 0;
+    
+    // Parse Gold 995
+    const goldMatch = text.match(/<span[^>]*id="GoldRatesCompare995"[^>]*>([0-9.]+)<\/span>/i);
+    if (goldMatch) gold995 = parseFloat(goldMatch[1]);
+    
+    // Parse Silver 999 (from the table)
+    const tr = text.indexOf('Silver 999');
+    if (tr > -1) {
+      const tablePart = text.substring(tr, tr + 1500);
+      const tbody = tablePart.substring(tablePart.indexOf('<tbody'));
+      const rows = tbody.split(/<tr[^>]*>/i);
+      if (rows.length > 1) {
+         const cells = rows[1].match(/<td[^>]*>([\s\S]*?)<\/td>/gi);
+         if (cells && cells.length >= 7) {
+           const silverText = cells[6].replace(/<[^>]+>/g, '').trim();
+           silver999 = parseFloat(silverText);
+         }
+      }
+    }
+    
+    if (gold995 > 0 && silver999 > 0) {
+       ibjaCache = { gold995, silver999 };
+       ibjaCacheTime = Date.now();
+       return ibjaCache;
+    }
+  } catch(e) {
+    console.error('IBJA fetch error', e);
+  }
+  return null;
+}
+
 /**
  * Get live price for any asset (stocks + MF + bonds)
  * Automatically routes to the right API based on ISIN, ticker, or asset_type.
@@ -880,6 +920,28 @@ export async function getLivePrice(asset: AssetMaster): Promise<LivePrice | null
   let nseSymbol = isin ? BOND_ISIN_TO_NSE_SYMBOL[isin] : null;
   
   const cleanName = asset.name?.toUpperCase() || '';
+  
+  // 1A. Physical Gold (150) and Silver (151/77) from IBJA
+  const isPhysicalGold = asset.asset_type === 150 || cleanName === 'GOLD' || cleanName === 'GOLD R';
+  const isPhysicalSilver = asset.asset_type === 151 || asset.asset_type === 77 || cleanName === 'SILVER' || cleanName === 'SILVER R';
+  if (isPhysicalGold || isPhysicalSilver) {
+    const rates = await fetchIBJARates();
+    if (rates) {
+      const price = isPhysicalGold ? rates.gold995 : rates.silver999;
+      result = {
+        amid: asset.amid,
+        name: asset.name,
+        price: price,
+        change: 0,
+        change_pct: 0,
+        as_of: new Date().toISOString().slice(0, 10),
+        source: 'ibjarates.com'
+      };
+      priceCache.set(asset.amid, { price: result as LivePrice, fetchedAt: Date.now() });
+      return result;
+    }
+  }
+
   const isBondOrSGB = cleanName.includes('SOVEREIGN') || cleanName.includes('SGB') || cleanName.includes('G-SEC') || cleanName.includes('GS') || asset.asset_type === 100 || asset.asset_type === 70 || asset.asset_type === 40;
   
   if (isBondOrSGB) {

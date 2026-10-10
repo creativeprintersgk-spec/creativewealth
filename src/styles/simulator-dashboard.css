@@ -1,0 +1,1573 @@
+/* ==========================================================================
+   WIRELY LUXE FINTECH THEME & MONITOR SIMULATOR STYLES
+   Full Screen Laptop Layout + All Real Assets in Dark Allocation Hub
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
+/* Force Plus Jakarta Sans across all elements inside the Wirely Simulator */
+.wirely-simulator-root,
+.wirely-simulator-root *,
+.wirely-simulator-root button,
+.wirely-simulator-root input,
+.wirely-simulator-root select,
+.wirely-simulator-root textarea,
+.wirely-simulator-root h1,
+.wirely-simulator-root h2,
+.wirely-simulator-root h3,
+.wirely-simulator-root h4,
+.wirely-simulator-root h5,
+.wirely-simulator-root h6,
+.wirely-simulator-root p,
+.wirely-simulator-root span,
+.wirely-simulator-root a,
+.wirely-simulator-root table,
+.wirely-simulator-root th,
+.wirely-simulator-root td {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.wirely-simulator-root {
+  height: 100vh;
+  width: 100vw;
+  background: #0d1117;
+  color: #1e293b;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── SIMULATOR TOP CONTROL BAR ── */
+.sim-toolbar {
+  height: 42px;
+  background: rgba(13, 17, 23, 0.96);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 100;
+  position: sticky;
+  top: 0;
+  color: #e2e8f0;
+  width: 100%;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 1440px) {
+  .sim-toolbar-subtitle {
+    display: none !important;
+  }
+}
+
+.sim-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sim-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sim-btn-group {
+  display: flex;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sim-btn-group button {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sim-btn-group button.active {
+  background: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+}
+
+.sim-btn-group button:hover:not(.active) {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sim-icon-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.sim-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+/* ── SIMULATOR STAGE / WORKSPACE ── */
+.sim-stage-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 20px 48px 20px;
+  background: radial-gradient(circle at 50% 20%, #1e293b 0%, #0f172a 60%, #090d16 100%);
+  min-height: calc(100vh - 48px);
+  overflow-y: auto;
+  perspective: 1800px;
+  width: 100%;
+}
+
+/* FULL SCREEN LAPTOP EDGE-TO-EDGE MODE (NO RESTRICTIVE MAX-WIDTH!) */
+.sim-stage-container.edge-to-edge {
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  min-height: calc(100vh - 48px);
+  align-items: stretch;
+  background: #dfe8f5;
+}
+
+.sim-stage-container.edge-to-edge .sim-monitor-wrapper {
+  max-width: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 100%;
+}
+
+/* ── 3D & FLAT MONITOR FRAMES ── */
+.sim-monitor-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 1680px;
+  width: 96%;
+}
+
+.sim-monitor-wrapper.angle-3d {
+  transform: perspective(1800px) rotateY(16deg) rotateX(3deg) rotateZ(1.5deg) scale(0.93);
+  transform-style: preserve-3d;
+  filter: drop-shadow(-30px 40px 60px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 45px rgba(59, 130, 246, 0.18));
+}
+
+.sim-monitor-wrapper.flat-front {
+  transform: none;
+  filter: drop-shadow(0 25px 50px rgba(0, 0, 0, 0.55));
+}
+
+.sim-monitor-bezel {
+  width: 100%;
+  background: #11141a;
+  border-radius: 24px;
+  padding: 14px 14px 18px 14px;
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.2),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.8),
+    0 0 0 1px #222734,
+    0 20px 40px rgba(0, 0, 0, 0.7);
+  position: relative;
+}
+
+.sim-monitor-bezel::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  background: #1e2530;
+  border-radius: 50%;
+}
+
+.sim-monitor-stand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: -6px;
+  z-index: -1;
+}
+
+.sim-stand-neck {
+  width: 100px;
+  height: 60px;
+  background: linear-gradient(180deg, #181d26 0%, #0d1016 100%);
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sim-stand-base {
+  width: 260px;
+  height: 12px;
+  background: linear-gradient(180deg, #252c38 0%, #151a22 100%);
+  border-radius: 8px 8px 3px 3px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.sim-monitor-screen {
+  background: #dbe6f4;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.25);
+  width: 100%;
+}
+
+/* ── WIRELY LUXE DASHBOARD CANVAS ── */
+.wirely-canvas {
+  width: 100%;
+  min-height: calc(100vh - 48px);
+  background: 
+    radial-gradient(circle at 12% 15%, rgba(214, 231, 253, 0.7) 0%, transparent 55%),
+    radial-gradient(circle at 88% 25%, rgba(200, 223, 251, 0.55) 0%, transparent 50%),
+    linear-gradient(140deg, #e1ebf6 0%, #edf3fb 50%, #e0e9f5 100%);
+  color: #1a2233;
+  padding: 18px 28px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* ── 1. WIRELY TOP HEADER ── */
+.wirely-top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 2px;
+}
+
+.wirely-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wirely-dot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 3px);
+  gap: 3px;
+  padding: 5px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.wirely-dot-grid span {
+  width: 3px;
+  height: 3px;
+  background: #334155;
+  border-radius: 50%;
+}
+
+.wirely-logo-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+.wirely-logo-icon {
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.wirely-breadcrumbs {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+.wirely-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wirely-nav-icon-pill {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+}
+
+.wirely-nav-icon-pill:hover {
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.wirely-profile-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  padding: 3px 12px 3px 4px;
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+.wirely-avatar-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wirely-profile-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.wirely-profile-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.1;
+}
+
+.wirely-profile-sub {
+  font-size: 9px;
+  color: #64748b;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   2. TIER 1: UPPER HERO & ANALYTICS TIER (NET WORTH + KPIS + ARC GAUGE)
+   ══════════════════════════════════════════════════════════════════════════ */
+.wirely-hero-analytics-tier {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  border-radius: 20px;
+  border: 1px solid rgba(214, 228, 246, 0.85);
+  box-shadow: 0 8px 24px -4px rgba(22, 45, 78, 0.05), 0 2px 6px -2px rgba(22, 45, 78, 0.03);
+  padding: 20px 24px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.wirely-hero-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.wirely-hero-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  background: rgba(238, 245, 253, 0.85);
+  border: 1px solid rgba(210, 226, 246, 0.85);
+  padding: 3px 10px;
+  border-radius: 9999px;
+}
+
+.wirely-main-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.025em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.wirely-hero-val-num {
+  font-size: 38px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-top: 2px;
+  font-feature-settings: 'tnum' 1;
+}
+
+.wirely-hero-val-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Horizontal Accounts Slider (Directly Under Portfolio Value) */
+.wirely-accounts-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 6px;
+}
+
+.wirely-accounts-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 4px 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex: 1;
+}
+
+.wirely-accounts-slider::-webkit-scrollbar {
+  display: none;
+}
+
+.wirely-slider-arrow-btn {
+  background: #ffffff;
+  border: 1px solid rgba(220, 230, 242, 0.95);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+}
+
+.wirely-slider-arrow-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
+}
+
+.wirely-pill-tab {
+  background: #ffffff;
+  border: 1px solid rgba(220, 230, 242, 0.95);
+  border-radius: 9999px;
+  padding: 5px 13px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+}
+
+.wirely-pill-tab:hover {
+  background: #ffffff;
+  border-color: #94a3b8;
+  color: #0f172a;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+.wirely-pill-tab.active {
+  background: #ffffff;
+  border: 1.5px solid #2563eb;
+  color: #1d4ed8;
+  font-weight: 750;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.14);
+}
+
+.wirely-pill-tab .pill-val {
+  color: #64748b;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.wirely-pill-tab.active .pill-val {
+  color: #2563eb;
+  font-weight: 750;
+}
+
+.wirely-pill-add {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid rgba(220, 230, 242, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+}
+
+.wirely-pill-add:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  transform: scale(1.05);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   3. TIER 2: THE TWO BOTTOM CARDS (BALANCED WIDTH, MATCHING HEIGHT)
+   ══════════════════════════════════════════════════════════════════════════ */
+.wirely-bottom-cards-row {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 16px;
+  align-items: stretch;
+  width: 100%;
+}
+
+/* Card 1: Frosted Light Operations & Holdings Card */
+.wirely-ops-card {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  border-radius: 20px;
+  border: 1px solid rgba(214, 228, 246, 0.85);
+  box-shadow: 0 8px 24px -4px rgba(22, 45, 78, 0.05), 0 2px 6px -2px rgba(22, 45, 78, 0.03);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.wirely-ops-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.wirely-card-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.wirely-subtabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wirely-subtab-btn {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.wirely-subtab-btn.active {
+  font-weight: 800;
+  color: #1e293b;
+}
+
+/* Period Return Selector */
+.wirely-period-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(226, 238, 252, 0.7);
+  padding: 2px 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 220, 245, 0.6);
+}
+
+.wirely-period-btn {
+  background: transparent;
+  border: none;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #64748b;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wirely-period-btn:hover {
+  color: #1e293b;
+}
+
+.wirely-period-btn.active {
+  background: #ffffff;
+  color: #2563eb;
+  font-weight: 750;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Upcoming Actions Card Rows */
+.wirely-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 10px;
+  transition: all 0.15s ease;
+}
+
+.wirely-action-row:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.wirely-action-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.wirely-ops-inner-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.wirely-pills-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.wirely-op-pill-light {
+  background: rgba(238, 245, 253, 0.85);
+  border: 1px solid rgba(210, 226, 246, 0.85);
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.wirely-op-pill-light:hover {
+  background: rgba(230, 240, 252, 0.95);
+  transform: translateY(-1px);
+}
+
+.wirely-op-pill-dark {
+  background: 
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, #7491b0 0%, #5c7b9e 48%, #48678c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 14px;
+  padding: 10px 14px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 4px 14px -2px rgba(40, 65, 95, 0.22);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.wirely-op-pill-dark:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 6px 18px -2px rgba(40, 65, 95, 0.28);
+}
+
+.wirely-op-amt-light {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.wirely-op-amt-dark {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.wirely-op-sub-light {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.wirely-op-sub-dark {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.wirely-op-meta-light {
+  font-size: 10px;
+  color: #94a3b8;
+  text-align: right;
+}
+
+.wirely-op-meta-dark {
+  font-size: 10px;
+  color: #cbd5e1;
+  text-align: right;
+}
+
+/* Directory / Holdings Col (Tight top-aligned list without empty gaps) */
+.wirely-directory-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.wirely-search-input-box {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.wirely-search-input-box input {
+  width: 100%;
+  height: 32px;
+  background: rgba(238, 245, 253, 0.75);
+  border: 1px solid rgba(210, 226, 246, 0.85);
+  border-radius: 9999px;
+  padding: 0 32px 0 12px;
+  font-size: 11px;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.wirely-search-input-box input:focus {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.wirely-search-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.wirely-member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(226, 236, 248, 0.8);
+}
+
+.wirely-member-row:last-child {
+  border-bottom: none;
+}
+
+.wirely-member-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wirely-member-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.wirely-member-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.1;
+}
+
+.wirely-member-detail {
+  font-size: 9px;
+  color: #64748b;
+}
+
+.wirely-member-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wirely-member-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 3px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.wirely-member-btn:hover {
+  color: #2563eb;
+}
+
+.wirely-view-all-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  cursor: pointer;
+  margin-top: 4px;
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CARD 2: SIGNATURE FROSTED SLATE-BLUE ALLOCATION HUB (MATCHING WIRELY REF!)
+   ══════════════════════════════════════════════════════════════════════════ */
+.wirely-dark-ops-card {
+  background: 
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, #7491b0 0%, #5c7b9e 48%, #48678c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 20px;
+  padding: 18px 20px;
+  color: #ffffff;
+  box-shadow: 0 16px 36px -6px rgba(40, 65, 95, 0.28), 0 4px 12px -2px rgba(40, 65, 95, 0.12);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wirely-dark-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wirely-dark-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.wirely-dark-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wirely-dark-icon-btn {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wirely-dark-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.wirely-dark-balance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 28px;
+}
+
+.wirely-dark-portfolio-total-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 8px;
+  padding: 3.5px 11px;
+  box-shadow: 0 2px 8px rgba(15, 30, 55, 0.16);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+.wirely-dark-portfolio-label {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.wirely-dark-portfolio-value {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.wirely-dark-risk-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.wirely-dark-concentration-badge {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-weight: 750;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.wirely-dark-assets-badge {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 700;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 3px 8px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+/* All 6 Asset Classes Grid */
+.wirely-asset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.wirely-asset-card {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wirely-asset-card:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.42);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(25, 45, 75, 0.12);
+}
+
+.wirely-asset-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wirely-asset-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.wirely-asset-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wirely-asset-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wirely-asset-pct {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+.wirely-asset-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.wirely-asset-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.wirely-asset-count {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 600;
+}
+
+/* Multi-Segment Allocation Bar */
+.wirely-allocation-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wirely-multi-seg-bar {
+  height: 7px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.wirely-liquidity-status {
+  margin-top: 4px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.12) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-shadow: 0 2px 10px rgba(15, 30, 55, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+
+.wirely-liquidity-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.wirely-liquidity-icon {
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.wirely-liquidity-title {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.wirely-liquidity-value {
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.wirely-liquidity-count {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  padding: 1.5px 7px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wirely-liquidity-btn {
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 750;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.wirely-liquidity-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.55);
+  transform: translateY(-1px);
+}
+
+.wirely-sync-freshness {
+  margin-top: 4px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9.5px;
+  flex-shrink: 0;
+}
+
+.wirely-dark-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.wirely-preset-pills {
+  display: flex;
+  gap: 5px;
+}
+
+.wirely-preset-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  border-radius: 9999px;
+  padding: 4px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wirely-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.wirely-review-btn {
+  background: #ffffff;
+  color: #1e293b;
+  border: none;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.wirely-review-btn:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   4. TIER 3: COLLAPSIBLE LEADERBOARD ACCORDION
+   ══════════════════════════════════════════════════════════════════════════ */
+.wirely-leaderboard-accordion {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  border-radius: 18px;
+  border: 1px solid rgba(214, 228, 246, 0.85);
+  box-shadow: 0 4px 16px rgba(22, 45, 78, 0.03);
+  overflow: hidden;
+  transition: all 0.25s ease;
+  width: 100%;
+}
+
+.wirely-accordion-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wirely-accordion-bar:hover {
+  background: rgba(241, 246, 254, 0.7);
+}
+
+.wirely-accordion-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wirely-accordion-content {
+  padding: 0 18px 16px 18px;
+}
+
+.wirely-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.wirely-table th {
+  padding: 8px 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-align: left;
+  border-bottom: 1.5px solid #e2e8f0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wirely-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(226, 236, 248, 0.7);
+  color: #1e293b;
+}
+
+.wirely-table tr:hover td {
+  background: rgba(235, 244, 253, 0.7);
+}
+
+/* ── MODALS ── */
+.wirely-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.wirely-modal-box {
+  background: #ffffff;
+  border-radius: 20px;
+  max-width: 540px;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  padding: 22px;
+  animation: wirelyFadeIn 0.2s ease-out;
+}
+
+@keyframes wirelyFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 1100px) {
+  .wirely-hero-analytics-tier {
+    grid-template-columns: 1fr;
+  }
+  .wirely-bottom-cards-row {
+    grid-template-columns: 1fr;
+  }
+  .wirely-ops-inner-grid {
+    grid-template-columns: 1fr;
+  }
+  .wirely-asset-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wirely-family-stake-ribbon {
+  background: rgba(240, 246, 254, 0.75);
+  border: 1px solid rgba(214, 228, 246, 0.9);
+  border-radius: 13px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-shadow: 0 1px 3px rgba(22, 45, 78, 0.02);
+}
+
+/* ── LAPTOP COMPACT VIEWPORT OPTIMIZATIONS (Height <= 950px) ── */
+@media (max-height: 950px) {
+  .wirely-canvas {
+    padding: 8px 18px 12px 18px;
+    gap: 8px;
+  }
+  .wirely-top-nav {
+    padding: 6px 18px;
+  }
+  .wirely-hero-analytics-tier {
+    padding: 10px 16px;
+    gap: 4px;
+  }
+  .wirely-hero-top-bar {
+    margin-bottom: 0px;
+  }
+  .wirely-hero-val-num {
+    font-size: 25px;
+    line-height: 1.1;
+    margin-bottom: 1px;
+  }
+  .wirely-hero-val-label {
+    font-size: 10.5px;
+    margin-bottom: 2px;
+  }
+  .wirely-accounts-slider-wrap {
+    padding: 2px 4px;
+    margin-top: 2px;
+  }
+  .wirely-pill-tab {
+    padding: 3px 9px;
+    font-size: 10.5px;
+  }
+  .wirely-family-stake-ribbon {
+    margin-top: 4px;
+    padding: 6px 10px;
+  }
+  .wirely-ops-card, .wirely-dark-ops-card {
+    padding: 10px 14px;
+    border-radius: 16px;
+    gap: 6px;
+  }
+  .wirely-dark-balance-row {
+    margin-bottom: 0px;
+  }
+  .wirely-dark-portfolio-total-badge {
+    padding: 2.5px 9px;
+  }
+  .wirely-dark-portfolio-label {
+    font-size: 11px;
+  }
+  .wirely-dark-portfolio-value {
+    font-size: 14px;
+  }
+  .wirely-asset-grid {
+    gap: 4px;
+  }
+  .wirely-asset-card {
+    padding: 4.5px 7.5px;
+    border-radius: 9px;
+    gap: 2px;
+  }
+  .wirely-asset-name {
+    font-size: 10px;
+  }
+  .wirely-asset-pct {
+    font-size: 9px;
+    padding: 1px 4.5px;
+  }
+  .wirely-asset-val {
+    font-size: 11px;
+  }
+  .wirely-asset-count {
+    font-size: 8px;
+  }
+  .wirely-allocation-bar-wrap {
+    gap: 4px;
+  }
+  .wirely-multi-seg-bar {
+    height: 5px;
+  }
+  .wirely-liquidity-status {
+    padding: 5px 10px;
+    margin-top: 2px;
+  }
+  .wirely-liquidity-value {
+    font-size: 12.5px;
+  }
+  .wirely-sync-freshness {
+    padding: 3px 8px;
+    margin-top: 2px;
+    font-size: 9px;
+  }
+  .wirely-op-pill-light, .wirely-op-pill-dark {
+    padding: 7px 9px;
+  }
+  .wirely-op-amt-light, .wirely-op-amt-dark {
+    font-size: 15px;
+  }
+  .wirely-holding-row {
+    padding: 4px 6px;
+  }
+  .wirely-member-row {
+    padding: 4px 6px;
+  }
+  .wirely-movement-card {
+    padding: 7px 11px;
+    gap: 3px;
+  }
+}
+
+/* ── SMALL LAPTOP VIEWPORT (Height <= 820px, e.g. 1366x768 with browser UI or 720p) ── */
+@media (max-height: 820px) {
+  .sim-toolbar {
+    height: 38px;
+    padding: 0 12px;
+  }
+  .wirely-canvas {
+    padding: 6px 14px 8px 14px;
+    gap: 6px;
+  }
+  .wirely-top-nav {
+    padding: 4px 14px;
+  }
+  .wirely-hero-analytics-tier {
+    padding: 6px 14px;
+    gap: 3px;
+  }
+  .wirely-hero-val-num {
+    font-size: 22px;
+  }
+  .wirely-family-stake-ribbon {
+    margin-top: 3px;
+    padding: 5px 8px;
+  }
+  .wirely-ops-card, .wirely-dark-ops-card {
+    padding: 8px 12px;
+    gap: 5px;
+  }
+  .wirely-asset-grid {
+    gap: 3px;
+  }
+  .wirely-asset-card {
+    padding: 3.5px 6.5px;
+  }
+  .wirely-asset-val {
+    font-size: 10.5px;
+  }
+  .wirely-liquidity-status {
+    padding: 4px 8px;
+    margin-top: 2px;
+  }
+  .wirely-liquidity-value {
+    font-size: 12px;
+  }
+  .wirely-sync-freshness {
+    padding: 2px 6px;
+    margin-top: 2px;
+  }
+}

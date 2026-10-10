@@ -52,7 +52,7 @@ import CorporateActionNotificationBanner from '../components/pms/CorporateAction
 
 // Keys must match ATTY_MAP in logic.ts (atty numeric IDs in sum_table)
 const ASSET_TYPE_TABS = [
-  'dashboard', 'all', 'stocks', 'fno', 'mf_eq', 'mf_debt', 'nps', 'insurance', 'private_equity',
+  'dashboard', 'all', 'stocks', 'fno', 'mf_eq', 'mf_debt', 'mf_hybrid', 'nps', 'insurance', 'private_equity',
   'fds', 'bonds', 'ncd', 'deposits_loans', 'ppf',
   'gold', 'silver', 'jewellery', 'properties', 'aif', 'loans'
 ] as const;
@@ -64,6 +64,7 @@ const ASSET_TAB_LABELS: Record<string, string> = {
   fno:              'F&O / Derivatives',
   mf_eq:            'MF Eq',
   mf_debt:          'MF Debt',
+    mf_hybrid:        'MF Hybrid',
   nps:              'NPS / ULiP',
   insurance:        'Insurance',
   fds:              'Fixed Deposits',
@@ -118,8 +119,9 @@ const CATEGORY_LABELS: Record<number, string> = {
 const ATTY_MAP: Record<string, number[] | undefined> = {
   stocks:             [50, 51],
   fno:                [30, 31, 32, 33, 81, 82],
-  mf_eq:              [60, 62, 66, 75],
+  mf_eq:              [60, 66],
   mf_debt:            [61],
+    mf_hybrid:          [62, 75],
   nps:                [95],
   insurance:          [80],
   fds:                [90],
