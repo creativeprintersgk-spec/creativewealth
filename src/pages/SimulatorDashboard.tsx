@@ -18,11 +18,9 @@ import {
   TrendingUp, 
   TrendingDown, 
   Bell, 
-  Sliders, 
   Sparkles, 
   X, 
   FileText, 
-  ShieldCheck,
   Calendar,
   Zap,
   Clock,
@@ -61,8 +59,7 @@ export default function SimulatorDashboard() {
   const [tick, setTick] = useState(0);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
   
-  // Modals & Sub-tabs
-  const [showPlanModal, setShowPlanModal] = useState(false);
+  // Sub-tabs & Expand State
   const [isHoldingsExpanded, setIsHoldingsExpanded] = useState(false);
   const [isFamilyExpanded, setIsFamilyExpanded] = useState(false);
   const [isAccountsSliderExpanded, setIsAccountsSliderExpanded] = useState(() => {
@@ -642,87 +639,11 @@ export default function SimulatorDashboard() {
     return { bg: 'linear-gradient(135deg, #64748b 0%, #475569 100%)', label: 'EQ', color: '#fff' };
   };
 
-  function renderPlanModal() {
-    return (
-      <div className="wirely-modal-backdrop" onClick={() => setShowPlanModal(false)}>
-        <div className="wirely-modal-box" onClick={e => e.stopPropagation()}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShieldCheck color="#2563eb" size={20} />
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                Strategic Model Allocation Adherence
-              </h3>
-            </div>
-            <button 
-              onClick={() => setShowPlanModal(false)}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <p style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5, margin: '0 0 14px 0' }}>
-            The <strong>88%</strong> score reflects your portfolio’s alignment with your family office’s target risk-weighted asset allocation strategy.
-            Drift is currently within the optimal safe tolerance band <strong>(±2.8%)</strong>.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Traded Bonds & G-Secs</span>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#3b82f6' }}>Target 35% • Current 33.1% (Optimal)</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Direct Equity Exposure</span>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#16a34a' }}>Target 20% • Current 15.2% (Accumulate)</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Precious Metals (Gold)</span>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#f59e0b' }}>Target 12% • Current 13.4% (Hedged)</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Mutual Funds</span>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#8b5cf6' }}>Target 15% • Current 12.9% (Balanced)</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Liquid Reserves & Cash</span>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#06b6d4' }}>Target 8% • Current 5.4% (Ready)</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => {
-              setShowPlanModal(false);
-              navigate('/pms');
-            }}
-            style={{
-              width: '100%',
-              background: '#2563eb',
-              color: '#ffffff',
-              border: 'none',
-              padding: '10px',
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '12px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px'
-            }}
-          >
-            Open Full Rebalancing Engine in PMS <ArrowUpRight size={14} />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // ── Standalone Mode for /dashboard ──
   if (!isSimulator) {
     return (
       <div className="wirely-standalone-root" style={{ width: '100%', minHeight: '100%', background: '#dbe6f4', overflowX: 'hidden' }}>
         {renderDashboardCanvas()}
-        {showPlanModal && renderPlanModal()}
       </div>
     );
   }
@@ -861,9 +782,6 @@ export default function SimulatorDashboard() {
         </div>
 
       </div>
-
-      {/* ── POPUP: STRATEGIC ALLOCATION PLAN MODAL ── */}
-      {showPlanModal && renderPlanModal()}
 
     </div>
   );
@@ -1688,24 +1606,14 @@ export default function SimulatorDashboard() {
                 <span className="wirely-dark-title">Asset Allocation & Capital Mix</span>
               </div>
               <div className="wirely-dark-header-actions">
-                <button className="wirely-dark-icon-btn" title="Rebalance Model" onClick={() => setShowPlanModal(true)}>
-                  <Sliders size={12} />
-                </button>
-                <button className="wirely-dark-icon-btn" title="View Full Breakdown" onClick={() => navigate('/pms')}>
+                <button className="wirely-dark-icon-btn" title="View Full Breakdown in PMS" onClick={() => navigate('/pms')}>
                   <ExternalLink size={12} />
                 </button>
               </div>
             </div>
 
-            {/* High-level Portfolio Capital Balance & Risk Concentration */}
-            <div className="wirely-dark-balance-row">
-              <div 
-                className="wirely-dark-portfolio-total-badge"
-                title={`Consolidated Portfolio Capital: ${formatMoney(summary.currentValue)}`}
-              >
-                <span className="wirely-dark-portfolio-label">Total Portfolio:</span>
-                <span className="wirely-dark-portfolio-value">{formatCompact(summary.currentValue)}</span>
-              </div>
+            {/* High-level Risk Concentration */}
+            <div className="wirely-dark-balance-row" style={{ justifyContent: 'flex-end' }}>
               <div className="wirely-dark-risk-stats">
                 <span 
                   className="wirely-dark-concentration-badge" 
