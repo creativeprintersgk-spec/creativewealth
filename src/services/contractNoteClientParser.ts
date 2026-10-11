@@ -68,18 +68,22 @@ function cleanNum(val: any): number {
 }
 
 function parseDateStr(text: string): string | null {
+  // Prioritize explicit Trade Date label first (avoids picking up Settlement Date or registration dates)
+  const tradeDateLine = text.match(/Trade\s*Date[\s:./-]*(\d{2}[/-]\d{2}[/-]\d{4}|\d{4}[/-]\d{2}[/-]\d{2}|\d{1,2}\s+[A-Za-z]{3,9}[\s,-]+\d{4})/i);
+  const target = tradeDateLine ? tradeDateLine[1] : text;
+
   // DD/MM/YYYY or DD-MM-YYYY
-  const m1 = text.match(/\b(\d{2})[/-](\d{2})[/-](\d{4})\b/);
+  const m1 = target.match(/\b(\d{2})[/-](\d{2})[/-](\d{4})\b/);
   if (m1) {
     return `${m1[3]}-${m1[2]}-${m1[1]}`;
   }
   // YYYY-MM-DD
-  const m2 = text.match(/\b(\d{4})[/-](\d{2})[/-](\d{2})\b/);
+  const m2 = target.match(/\b(\d{4})[/-](\d{2})[/-](\d{2})\b/);
   if (m2) {
     return `${m2[1]}-${m2[2]}-${m2[3]}`;
   }
   // DD Mon YYYY
-  const m3 = text.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]+(\d{4})\b/i);
+  const m3 = target.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]+(\d{4})\b/i);
   if (m3) {
     const months: Record<string, string> = {
       jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
@@ -94,14 +98,14 @@ function parseDateStr(text: string): string | null {
 
 export function detectBroker(text: string, filename = ''): string {
   const t = (text + ' ' + filename).toLowerCase();
-  if (t.includes('nextbillion') || t.includes('groww')) return 'groww';
-  if (t.includes('icici securities') || t.includes('icicidirect') || t.includes('icici')) return 'icici';
-  if (t.includes('kotak securities') || t.includes('kotak')) return 'kotak';
-  if (t.includes('hdfc securities') || t.includes('hdfcsec') || t.includes('hdfc')) return 'hdfc';
-  if (t.includes('motilal oswal') || t.includes('mofsl') || t.includes('motilal')) return 'motilal';
-  if (t.includes('raise securities') || t.includes('moneylicious') || t.includes('dhan')) return 'dhan';
-  if (t.includes('mirae asset') || t.includes('mstock') || t.includes('m.stock')) return 'mirae';
   if (t.includes('r k global') || t.includes('r.k. global') || t.includes('rkglobal')) return 'rk_global';
+  if (t.includes('nextbillion') || /\bgroww\b/.test(t)) return 'groww';
+  if (t.includes('icici securities') || t.includes('icicidirect') || /\bicici\b/.test(t)) return 'icici';
+  if (t.includes('kotak securities') || /\bkotak\b/.test(t)) return 'kotak';
+  if (t.includes('hdfc securities') || t.includes('hdfcsec') || /\bhdfc\b/.test(t)) return 'hdfc';
+  if (t.includes('motilal oswal') || t.includes('mofsl') || /\bmotilal\b/.test(t)) return 'motilal';
+  if (t.includes('raise securities') || t.includes('moneylicious') || /\bdhan\b/.test(t)) return 'dhan';
+  if (t.includes('mirae asset') || t.includes('mstock') || t.includes('m.stock')) return 'mirae';
   if (t.includes('upstox') || t.includes('rksv')) return 'upstox';
   if (t.includes('angel one') || t.includes('angel broking') || t.includes('angelone')) return 'angel';
   if (t.includes('sharekhan')) return 'sharekhan';
@@ -121,8 +125,8 @@ export function extractClientName(text: string, lines: string[] = []): string {
     }
   }
 
-  // 2. Explicit labels: "Client Name : <NAME>", "Name of Client : <NAME>", etc.
-  const nameLabelMatch = text.match(/(?:Client\s+Name|Name\s+of\s+(?:the\s+)?Client|Name\s+of\s+Constituent|Constituent\s+Name|Investor\s+Name)[\s:/-]+([A-Za-z\s.]{3,60})(?:\r?\n|$|[,\t])/i);
+  // 2. Explicit labels: "Client Name : <NAME>", "Name of the Client :- <NAME>", etc.
+  const nameLabelMatch = text.match(/(?:Client\s+Name|Name\s+of\s+(?:the\s+)?Client|Name\s+of\s+Constituent|Constituent\s+Name|Investor\s+Name)[\s:./-]+([A-Za-z\s.]{3,60})(?:\r?\n|$|[,\t])/i);
   if (nameLabelMatch) {
     const n = nameLabelMatch[1].trim().replace(/\s+/g, ' ');
     if (n.length >= 3 && !/address|pan|ucc|trade|date|contract|tax\s+invoice/i.test(n)) {
@@ -149,7 +153,7 @@ export function extractClientName(text: string, lines: string[] = []): string {
 }
 
 export function extractUcc(text: string): string {
-  const m = text.match(/(?:UCC|Client\s*Code|Trading\s*Code|Client\s*Id)[\s:/-]*([A-Za-z0-9]{4,15})/i);
+  const m = text.match(/(?:UCC(?:\s+of\s+(?:the\s+)?Client)?|Client\s*Code|Trading\s*(?:Back\s*Office\s*)?Code|Client\s*Id)[\s:./-]*((?=[A-Za-z0-9]*\d)[A-Za-z0-9]{4,15})/i);
   if (m) return m[1].trim().toUpperCase();
   return '';
 }
@@ -160,29 +164,36 @@ function extractPan(text: string, passwordHint = ''): string {
     return passwordHint.trim().toUpperCase();
   }
 
-  // Look for client PAN near Client Code / Address, avoiding "Trading Member" or broker PAN
-  const clientPanMatch = text.match(/(?:Client\s+PAN|Constituent\s+PAN|PAN\s*:\s*)([A-Z]{5}[0-9]{4}[A-Z]{1})/i);
-  if (clientPanMatch && !/trading\s*member/i.test(clientPanMatch[0])) {
-    return clientPanMatch[1].toUpperCase();
+  // 1. Look for explicit Client PAN label (supports both full PAN and partially masked PAN like CGTPS8XXXX or AB******9L)
+  const clientPanMatch = text.match(/(?:PAN\s+of\s+(?:the\s+)?Client|Client\s+PAN|Constituent\s+PAN)[\s:./-]*([A-Z]{2,5}[0-9*xX]{4,7}[A-Z0-9*xX]{1})/i);
+  if (clientPanMatch) {
+    const found = clientPanMatch[1].toUpperCase();
+    if (passwordHint && found.length === 10) {
+      const cleanPwd = passwordHint.trim().toUpperCase();
+      if (cleanPwd.length === 10 && cleanPwd.startsWith(found.slice(0, 2))) {
+        return cleanPwd;
+      }
+    }
+    return found;
   }
 
-  // Check for masked PAN: e.g. AB******9L with password hint
-  const maskedPan = text.match(/\b([A-Z]{2})[*xX]{6}([0-9][A-Z])\b/);
+  // 2. Check for masked PAN: e.g. AB******9L or CGTPS8XXXX with password hint
+  const maskedPan = text.match(/\b([A-Z]{2,5})[0-9*xX]{4,7}([0-9*xX][A-Z*xX])\b/);
   if (maskedPan && passwordHint) {
     const cleanPwd = passwordHint.trim().toUpperCase();
-    if (cleanPwd.startsWith(maskedPan[1]) && cleanPwd.endsWith(maskedPan[2])) {
+    if (cleanPwd.startsWith(maskedPan[1])) {
       return cleanPwd;
     }
   }
 
-  const kwMatch = text.match(/(?:PAN|Permanent\s+Account\s+Number)[\s:/-]*([A-Z]{5}[0-9]{4}[A-Z]{1})/i);
-  if (kwMatch && !/trading\s*member/i.test(kwMatch[0])) return kwMatch[1].toUpperCase();
-
-  const all = text.match(PAN_REGEX);
-  if (all && all.length > 0) {
-    const nonBroker = all.find(p => !text.includes(`PAN of Trading Member   ${p}`) && !text.includes(`Member PAN   ${p}`));
-    return (nonBroker || all[0]).toUpperCase();
+  // 3. Scan line-by-line for unmasked PAN, strictly excluding Broker / Trading Member PAN lines
+  const brokerLineRe = /Trading\s*Member|Member\s*PAN|Broker|For\s*:|R\s*K\s*GLOBAL|ZERODHA|GROWW|NEXTBILLION|MONEYLICIOUS|RAISE\s*SECURITIES|MOTILAL|KOTAK|ICICI|HDFC|MIRAE/i;
+  for (const line of text.split('\n')) {
+    if (brokerLineRe.test(line)) continue;
+    const m = line.match(/\b([A-Z]{5}[0-9]{4}[A-Z]{1})\b/);
+    if (m) return m[1].toUpperCase();
   }
+
   return '';
 }
 
@@ -196,7 +207,7 @@ function extractCnNumber(text: string): string {
     const m = text.match(pat);
     if (m) {
       const res = (m[1] || m[0]).trim();
-      if (res.length >= 4 && !res.toLowerCase().startsWith('date')) return res;
+      if (res.length >= 4 && !res.toLowerCase().startsWith('date') && !res.toLowerCase().startsWith('cum')) return res;
     }
   }
   const now = new Date();
@@ -284,14 +295,23 @@ function extractCharges(text: string): ParsedCharges {
 function extractFinalNet(text: string): number | null {
   const lines = text.split('\n');
   for (const line of lines) {
-    if (/Net\s+amount\s+receivable|Net\s+Payable/i.test(line) && !/Notes:/i.test(line)) {
-      const isCr = /\bCR\b|Receivable/i.test(line);
+    if (/Net\s+amount\s+receivable|Net\s+Payable|Receivable\s*\(\+\)\s*\/\s*Payable\s*\(-\)/i.test(line) && !/Notes:/i.test(line)) {
       let clean = line.replace(/\(\s*₹\s*\)[0-9]*/gi, '').replace(/\(₹\)[0-9]*/gi, '');
       const decMatches = clean.match(/[-+]?[0-9,]+\.[0-9]{2,4}/g);
       if (decMatches && decMatches.length > 0) {
         const nonZero = decMatches.map(cleanNum).filter(n => Math.abs(n) > 0);
         if (nonZero.length > 0) {
           const val = nonZero[nonZero.length - 1];
+          let isCr = false;
+          if (/\bCR\b|\d\s*CR\b/i.test(line)) {
+            isCr = true;
+          } else if (/\bDR\b|\d\s*DR\b/i.test(line)) {
+            isCr = false;
+          } else if (/Receivable\s*\(\+\)\s*\/\s*Payable\s*\(-\)/i.test(line)) {
+            isCr = val > 0;
+          } else {
+            isCr = /Receivable/i.test(line) && !/Payable/i.test(line);
+          }
           return isCr ? -Math.abs(val) : Math.abs(val);
         }
       }
@@ -636,55 +656,191 @@ export function parseContractNoteClientText(
   filename = '',
   brokerHint = 'auto'
 ): ParsedContractNote {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const autoBroker = detectBroker(text, filename);
+  const isHtml = /<table|<tr|<td|<html/i.test(text) || /\.(?:htm|html)$/i.test(filename);
+
+  // Convert HTML into structured single-line rows so key-value pairs in adjacent <td> cells stay on the same line
+  const normalizedText = isHtml
+    ? text
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<\/t[dh]>/gi, '   ')
+        .replace(/<(?:\/tr|\/thead|\/table|\/div|\/p|br\s*\/?|\/br)\b[^>]*>/gi, '\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .split('\n')
+        .map(l => l.replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .join('\n')
+        .replace(/(:\s*-?|\.\s*-)\n+/g, '$1 ')
+    : text;
+
+  const lines = normalizedText.split('\n').map(l => l.trim()).filter(Boolean);
+  const autoBroker = detectBroker(normalizedText, filename);
   const detected = autoBroker || (brokerHint !== 'auto' && brokerHint ? brokerHint : 'zerodha');
-  const pan = extractPan(text);
-  const clientName = extractClientName(text, lines);
-  const ucc = extractUcc(text);
-  const cnNo = extractCnNumber(text);
-  const cnDate = parseDateStr(text) || new Date().toISOString().slice(0, 10);
-  const charges = extractCharges(text);
-  const finalNet = extractFinalNet(text);
+  const pan = extractPan(normalizedText);
+  const clientName = extractClientName(normalizedText, lines);
+  const ucc = extractUcc(normalizedText);
+  const cnNo = extractCnNumber(normalizedText);
+  const cnDate = parseDateStr(normalizedText) || new Date().toISOString().slice(0, 10);
+  const charges = extractCharges(normalizedText);
+  let finalNet = extractFinalNet(normalizedText);
 
   const rawTrades: ParsedTrade[] = [];
 
-  for (const line of lines) {
-    const isinM = line.match(ISIN_REGEX);
-    if (!isinM) continue;
-    const isin = isinM[1].toUpperCase();
+  if (isHtml) {
+    const cleanCell = (s: string) =>
+      s
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-    const isBuy = /\b(BUY|B)\b/i.test(line);
-    const isSell = /\b(SELL|S)\b/i.test(line);
+    // Extract leaf rows (<thead...> or <tr...> that do not contain nested <table)
+    const htmlRows: string[][] = [];
+    const rowRe = /<(?:tr|thead)\b[^>]*>([\s\S]*?)<\/(?:tr|thead)>/gi;
+    let rm: RegExpExecArray | null;
+    while ((rm = rowRe.exec(text)) !== null) {
+      const inner = rm[1];
+      if (/<table\b/i.test(inner)) continue;
+      const cells = [...inner.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(c => cleanCell(c[1]));
+      if (cells.some(Boolean)) htmlRows.push(cells);
+    }
 
-    const parts = line.includes(',') ? line.split(',') : line.split(/\t|\s+/);
-    const nums = parts.map(p => cleanNum(p)).filter(n => Math.abs(n) > 0);
+    // 1. Parse HTML Summary Trade Rows (starts with ISIN in cell 0, Security Name in cell 1, and numeric columns)
+    const htmlSummaryTrades: ParsedTrade[] = [];
+    for (const cells of htmlRows) {
+      if (cells.length >= 8 && ISIN_REGEX.test(cells[0])) {
+        const isin = cells[0].match(ISIN_REGEX)![1].toUpperCase();
+        const symbol = cells[1] || 'STOCK';
+        const nums = cells.slice(2).map(cleanNum);
+        if (nums.length >= 6) {
+          const buyQty = nums[0] || 0;
+          const buyVal = nums[4] || Math.round(buyQty * (nums[3] || nums[1] || 0) * 100) / 100;
+          const buyWap = buyQty > 0 ? Number((buyVal / buyQty).toFixed(6)) : (nums[1] || 0);
 
-    const cleaned = line.replace(isin, '').replace(/\b(BUY|SELL|B|S|NSE|BSE|EQ)\b/gi, ' ');
-    const words = cleaned.split(/[,;\t\s]+/).filter(w => w.length > 1 && !/^\d+$/.test(w));
-    const symbol = words[0] ? words[0].toUpperCase() : 'STOCK';
+          const sellQty = nums[5] || 0;
+          const sellVal = nums[9] || Math.round(sellQty * (nums[8] || nums[6] || 0) * 100) / 100;
+          const sellWap = sellQty > 0 ? Number((sellVal / sellQty).toFixed(6)) : (nums[6] || 0);
 
-    if (nums.length >= 2 && (isBuy || isSell)) {
-      const qty = Math.floor(nums[0]);
-      const rate = nums[1] || 0;
-      const val = nums[2] || Math.round(qty * rate * 100) / 100;
+          if (buyQty > 0 || sellQty > 0) {
+            htmlSummaryTrades.push({
+              assetName: symbol,
+              isin,
+              buyQty,
+              buyWap,
+              buyVal: Math.abs(buyVal),
+              sellQty,
+              sellWap,
+              sellVal: Math.abs(sellVal)
+            });
+          }
+        }
+      }
+    }
 
-      rawTrades.push({
-        assetName: symbol,
-        isin,
-        buyQty: isBuy ? qty : 0,
-        buyWap: isBuy ? rate : 0,
-        buyVal: isBuy ? Math.abs(val) : 0,
-        sellQty: isSell ? qty : 0,
-        sellWap: isSell ? rate : 0,
-        sellVal: isSell ? Math.abs(val) : 0
-      });
+    if (htmlSummaryTrades.length > 0) {
+      rawTrades.push(...htmlSummaryTrades);
+    }
+
+    // 2. Parse Horizontal HTML Obligation Detail / Charges Table (e.g. R K Global)
+    for (let r = 0; r < htmlRows.length; r++) {
+      const hdr = htmlRows[r];
+      const hasObligationCols =
+        hdr.some(c => /Payin\s*\/\s*Payout|Obligation/i.test(c)) &&
+        hdr.some(c => /Securities\s*Transaction\s*Tax|Exchange\s*Transaction|Stamp\s*Duty/i.test(c));
+      if (!hasObligationCols) continue;
+
+      // Find the Totals row or data row immediately following the header
+      let targetRow: string[] | null = null;
+      for (let k = r + 1; k < Math.min(htmlRows.length, r + 8); k++) {
+        if (htmlRows[k].length === hdr.length) {
+          if (/^Totals?$/i.test(htmlRows[k][0])) {
+            targetRow = htmlRows[k];
+            break;
+          }
+          if (!targetRow) targetRow = htmlRows[k];
+        }
+      }
+
+      if (targetRow) {
+        let obligationVal = 0;
+        let netCellText = '';
+        for (let c = 0; c < hdr.length; c++) {
+          const h = hdr[c];
+          const valStr = targetRow[c] || '';
+          const v = Math.abs(cleanNum(valStr));
+          if (/Payin\s*\/\s*Payout\s*Obligation/i.test(h)) {
+            obligationVal = cleanNum(valStr);
+          } else if (/Securities\s*Transaction\s*Tax|\bSTT\b/i.test(h)) {
+            charges.stt = v;
+          } else if (/\b(?:IGST|CGST|SGST|UTT)\b/i.test(h)) {
+            charges.gst = Number((charges.gst + v).toFixed(2));
+          } else if (/Exchange\s*Transaction\s*Charges/i.test(h)) {
+            charges.transCharges = v;
+          } else if (/Stamp\s*Duty/i.test(h)) {
+            charges.stamp = v;
+          } else if (/Sebi\s*turnover|Clearing\s*Ch|Minimum\s*Charges|Demat\s*Chrg|OTHER\s*CHARGES|\bIPF\b/i.test(h)) {
+            charges.other = Number((charges.other + v).toFixed(2));
+          } else if (/Total\s*\(\s*Net\s*\)/i.test(h)) {
+            netCellText = valStr;
+          }
+        }
+
+        if (finalNet === null && netCellText) {
+          const netVal = Math.abs(cleanNum(netCellText));
+          if (netVal > 0) {
+            const totalSells = rawTrades.reduce((s, t) => s + t.sellVal, 0);
+            const totalBuys = rawTrades.reduce((s, t) => s + t.buyVal, 0);
+            const isCr = /Cr\b/i.test(netCellText) || (totalSells > totalBuys && netVal < obligationVal);
+            finalNet = isCr ? -netVal : netVal;
+          }
+        }
+        break;
+      }
     }
   }
 
-  // F&O in text/CSV
+  // Fallback line-by-line trade parsing if no HTML summary trades found
+  if (rawTrades.length === 0) {
+    for (const line of lines) {
+      const isinM = line.match(ISIN_REGEX);
+      if (!isinM) continue;
+      const isin = isinM[1].toUpperCase();
+
+      const isBuy = /\b(BUY|B)\b/i.test(line);
+      const isSell = /\b(SELL|S)\b/i.test(line);
+
+      const parts = line.includes(',') ? line.split(',') : line.split(/\t|\s+/);
+      const nums = parts.map(p => cleanNum(p)).filter(n => Math.abs(n) > 0);
+
+      const cleaned = line.replace(isin, '').replace(/\b(BUY|SELL|B|S|NSE|BSE|EQ)\b/gi, ' ');
+      const words = cleaned.split(/[,;\t\s]+/).filter(w => w.length > 1 && !/^\d+$/.test(w));
+      const symbol = words[0] ? words[0].toUpperCase() : 'STOCK';
+
+      if (nums.length >= 2 && (isBuy || isSell)) {
+        const qty = Math.floor(nums[0]);
+        const rate = nums[1] || 0;
+        const val = nums[2] || Math.round(qty * rate * 100) / 100;
+
+        rawTrades.push({
+          assetName: symbol,
+          isin,
+          buyQty: isBuy ? qty : 0,
+          buyWap: isBuy ? rate : 0,
+          buyVal: isBuy ? Math.abs(val) : 0,
+          sellQty: isSell ? qty : 0,
+          sellWap: isSell ? rate : 0,
+          sellVal: isSell ? Math.abs(val) : 0
+        });
+      }
+    }
+  }
+
+  // F&O in text/CSV/HTML
   const fnoAnnexRegex = /\b(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Za-z0-9\s-]+?(?:CE|PE|FUT)(?:\s*-\s*[A-Z]+)?)\s+([BS])\s+(-?\d+)\s+([\d.,]+)\s+([\d.,]+)\s+([-\d.,]+)/gi;
-  for (const m of text.matchAll(fnoAnnexRegex)) {
+  for (const m of normalizedText.matchAll(fnoAnnexRegex)) {
     const rawSymbol = (m[1] + ' ' + m[2]).replace(/\s*-\s*(?:NSE|BSE)$/i, '').replace(/\s+/g, ' ').trim();
     const side = m[3].toUpperCase();
     const qty = Math.abs(parseInt(m[4], 10));
@@ -716,10 +872,10 @@ export function parseContractNoteClientText(
       const cur = tradeMap.get(key)!;
       cur.buyQty += t.buyQty;
       cur.buyVal += t.buyVal;
-      cur.buyWap = cur.buyQty > 0 ? Number((cur.buyVal / cur.buyQty).toFixed(2)) : 0;
+      cur.buyWap = cur.buyQty > 0 ? Number((cur.buyVal / cur.buyQty).toFixed(6)) : 0;
       cur.sellQty += t.sellQty;
       cur.sellVal += t.sellVal;
-      cur.sellWap = cur.sellQty > 0 ? Number((cur.sellVal / cur.sellQty).toFixed(2)) : 0;
+      cur.sellWap = cur.sellQty > 0 ? Number((cur.sellVal / cur.sellQty).toFixed(6)) : 0;
     }
   }
 

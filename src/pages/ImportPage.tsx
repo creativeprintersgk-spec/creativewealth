@@ -1054,6 +1054,7 @@ function ImportPageInner() {
   // Decryption States
   const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const pendingFilesQueueRef = useRef<File[]>([]);
   const [pdfPassword, setPdfPassword] = useState("");
   const [tempPassword, setTempPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -1063,13 +1064,14 @@ function ImportPageInner() {
   const [focusedRowId, setFocusedRowId] = useState<number | null>(null);
   const [searchSuggestions, setSearchSuggestions] = useState<any[]>([]);
 
-    // Broker Contract Note States
+  // Broker Contract Note States
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("");
   const [selectedBrokerLedger, setSelectedBrokerLedger] = useState<string>("");
   const [selectedBroker, setSelectedBroker] = useState<string>("auto");
   const [cnDate, setCnDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [cnNo, setCnNo] = useState<string>("");
   const [cnTrades, setCnTrades] = useState<any[]>([]);
+  const [cnBatches, setCnBatches] = useState<any[]>([]);
   const [hideDuplicatesCn, setHideDuplicatesCn] = useState<boolean>(false);
   const [cnCharges, setCnCharges] = useState({
     stt: 0,
@@ -1096,7 +1098,7 @@ function ImportPageInner() {
       
       const ports = getStoredPortfolios();
       setPortfolios(ports);
-      if (ports.length > 0) {
+      if (ports.length > 0 && !selectedPortfolio) {
         setSelectedPortfolio(String(ports[0].id));
       }
     }
@@ -1110,12 +1112,11 @@ function ImportPageInner() {
     const acid = pf ? pf.accountId : null;
     if (acid) {
       const ledgers = getStoredLedgers(acid);
-      const brokers = ledgers.filter(l => l.groupId === '75' || l.groupId === '90');
+      const brokers = ledgers.filter(l => l.groupId === '75' || l.groupId === '90' || (l as any).parent_id === 75 || (l as any).parent_id === 90);
       setBrokerLedgers(brokers);
       if (brokers.length > 0) {
-        // Try to match the selected broker parser to the ledger name (e.g. Zerodha, Groww, ICICI, Kotak, HDFC, Motilal, Dhan, Mirae, RK Global)
         const activeParser = selectedBroker.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const matchedLedger = brokers.find(b => {
+        const matchedLedger = activeParser && activeParser !== 'auto' ? brokers.find(b => {
           const nameLower = b.name.toLowerCase().replace(/[^a-z0-9]/g, "");
           if (activeParser === 'zerodha') return nameLower.includes('zerodha');
           if (activeParser === 'groww') return nameLower.includes('groww') || nameLower.includes('nextbillion');
@@ -1123,16 +1124,16 @@ function ImportPageInner() {
           if (activeParser === 'kotak') return nameLower.includes('kotak');
           if (activeParser === 'hdfc') return nameLower.includes('hdfc');
           if (activeParser === 'motilal') return nameLower.includes('motilal') || nameLower.includes('mosl');
-          if (activeParser === 'dhan') return nameLower.includes('dhan');
+          if (activeParser === 'dhan') return nameLower.includes('dhan') || nameLower.includes('raise');
           if (activeParser === 'mirae') return nameLower.includes('mirae') || nameLower.includes('mstock');
           if (activeParser === 'rkglobal') return nameLower.includes('global') || nameLower.includes('rk');
           return nameLower.includes(activeParser);
-        });
+        }) : null;
 
         if (matchedLedger) {
-          setSelectedBrokerLedger(matchedLedger.id);
+          setSelectedBrokerLedger(String(matchedLedger.id));
         } else if (!brokers.some(b => String(b.id) === String(selectedBrokerLedger))) {
-          setSelectedBrokerLedger(brokers[0].id);
+          setSelectedBrokerLedger(String(brokers[0].id));
         }
       } else {
         setSelectedBrokerLedger("");
@@ -1251,7 +1252,8 @@ function ImportPageInner() {
   const ensureAssetLedgerExists = async (amid: number, name: string, portfolioId: number | string, assetType: number): Promise<number> => {
     // Get active account ID for the portfolio — STRICT, no fallback cross-account
     const pf = portfolios.find((p: any) => String(p.id) === String(portfolioId));
-    const acid = pf ? Number(pf.accountId) : 31;
+    const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(portfolioId));
+    const acid = pf ? Number(pf.accountId) : (link ? Number(link.acid) : 31);
 
     // Helper to strip corporate suffixes, ISINs, and non-alphanumerics
     const cleanLedgerName = (n: string) => {
@@ -1269,7 +1271,7 @@ function ImportPageInner() {
     if (amid && amid > 0) {
       // Look up if this portfolio already has a sid assigned for this amid
       const bsMatch = (state.bs1 || []).find((b: any) => Number(b.pfid) === Number(portfolioId) && Number(b.amid) === Number(amid) && Number(b.sid) > 0);
-      const sumMatch = (state.sumTable || []).find((s: any) => Number(s.pfid) === Number(portfolioId) && Number(s.amid) === Number(amid) && Number(s.sid) > 0);
+      const sumMatch = (state.sumTable || []).find((s: any) => Number(s.pfolio_id ?? s.pfid) === Number(portfolioId) && Number(s.amid) === Number(amid) && Number(s.sid) > 0);
       const sid = bsMatch?.sid || sumMatch?.sid;
       if (sid && sid > 0) {
         const expectedLedgerId = 500000 + Number(sid);
@@ -1321,10 +1323,12 @@ function ImportPageInner() {
     const maxExistingId = state.acmac1.reduce((max, a) => Math.max(max, Number(a.id) || 0), 500000);
     const nextId = maxExistingId + 1;
 
-    const parentId = assetType === 60 ? 200061
-      : assetType === 61 ? 200062
+    const parentId = (assetType === 40 || assetType === 100) ? 200040
+      : (assetType === 70 || assetType === 110) ? 200070
+      : assetType === 60 ? 200061
+      : (assetType === 61 || assetType === 62) ? 200062
       : assetType === 80 ? 400000
-      : 200050; // default: Stocks
+      : 200050; // default: Stocks / Equity
 
     const newLedgerRow = {
       id: nextId,
@@ -1357,43 +1361,98 @@ function ImportPageInner() {
     setIsImporting(true);
     setOverallMessage("Committing contract note trades to ledger...");
     try {
-      if (isDuplicateCN) throw new Error(`CN No. ${cnNo} already exists in the database. Delete the existing voucher first before re-importing.`);
-      if (!selectedBrokerLedger) throw new Error("Please select a Broker Ledger before committing.");
-      
       const selectedTrades = cnTrades.filter((t: any) => t.selected && t.amid !== -1 && t.date);
       if (selectedTrades.length === 0) throw new Error("No valid trades selected.");
 
+      // Group trades by their isolated Contract Note batch (portfolioId + date + cnNo + brokerLedgerId)
       const grouped = selectedTrades.reduce((acc: any, t: any) => {
-        const rawPid = t.portfolioId || selectedPortfolio || topPortfolioId || 1;
+        const batch = cnBatches.find((b: any) => b.batchId === t.cnBatchId);
+        const rawPid = t.portfolioId || batch?.portfolioId || selectedPortfolio || topPortfolioId || 1;
         const pf = portfolios.find((p: any) => String(p.id) === String(rawPid));
         const pId = pf ? String(pf.id) : String(rawPid);
-        const groupDate = t.date || topCnDate || cnDate;
-        const key = `${pId}_${groupDate}`;
-        if (!acc[key]) acc[key] = { pId, groupDate, tradesInGroup: [] };
+        const groupDate = t.date || batch?.cnDate || topCnDate || cnDate;
+        const groupCnNo = (t.cnNo !== undefined ? t.cnNo : (batch?.cnNo ?? cnNo)) || '';
+        const groupBrokerLedgerId = String(t.brokerLedgerId || batch?.brokerLedgerId || selectedBrokerLedger || '');
+        const groupBrokerName = t.brokerLedgerName || batch?.brokerLedgerName || brokerLedgers.find(b => String(b.id) === groupBrokerLedgerId)?.name || BROKER_NAMES[t.broker || batch?.broker || selectedBroker] || "Broker";
+        const key = t.cnBatchId || `${pId}_${groupDate}_${groupCnNo}_${groupBrokerLedgerId}`;
+        if (!acc[key]) {
+          acc[key] = {
+            key,
+            batch,
+            pId,
+            groupDate,
+            groupCnNo,
+            groupBrokerLedgerId,
+            groupBrokerName,
+            tradesInGroup: []
+          };
+        }
         acc[key].tradesInGroup.push(t);
         return acc;
       }, {});
 
-      const numGroups = Object.keys(grouped).length;
+      const groupKeys = Object.keys(grouped);
+      const numGroups = groupKeys.length;
+      const committedSummaries: any[] = [];
 
-      for (const key of Object.keys(grouped)) {
-        const { pId, groupDate, tradesInGroup } = grouped[key];
+      for (const key of groupKeys) {
+        const { batch, pId, groupDate, groupCnNo, groupBrokerLedgerId, groupBrokerName, tradesInGroup } = grouped[key];
+
+        if (!groupBrokerLedgerId) {
+          throw new Error(`Please select a Broker Ledger for Contract Note ${groupCnNo || groupDate}.`);
+        }
+
+        // Check duplicate CN per Contract Note
+        if (groupCnNo) {
+          const dupScnote = state.scnote1?.some((s: any) => s.cnnum && s.cnnum.toLowerCase() === groupCnNo.toLowerCase());
+          const dupVoucher = getStoredVouchers().some((v: any) => {
+            const n = (v.narration || v.narr || '').toLowerCase();
+            return n.includes(`no: ${groupCnNo.toLowerCase()}`) || n.includes(groupCnNo.toLowerCase());
+          });
+          if (dupScnote || dupVoucher) {
+            if (numGroups === 1) {
+              throw new Error(`CN No. ${groupCnNo} already exists in the database. Delete the existing voucher first before re-importing.`);
+            } else {
+              console.warn(`[CN Commit] Skipping already-imported CN No. ${groupCnNo}`);
+              continue;
+            }
+          }
+        }
+
         const mappedLines: any[] = [];
-        
+
+        // Isolate statutory charges per Contract Note batch:
+        // If multiple batches exist, use each batch's own exact parsed charges; if a single CN is active, use cnCharges (allowing manual UI edits).
+        const rawBatchCharges = (cnBatches.length > 1 && batch?.charges)
+          ? batch.charges
+          : {
+              stt: (cnCharges.stt || 0) / numGroups,
+              brokerage: (cnCharges.brokerage || 0) / numGroups,
+              gst: (cnCharges.gst || 0) / numGroups,
+              stamp: (cnCharges.stamp || 0) / numGroups,
+              transCharges: (cnCharges.transCharges || 0) / numGroups,
+              other: (cnCharges.other || 0) / numGroups
+            };
+
+        const groupStt = Number((rawBatchCharges.stt || 0).toFixed(2));
+        const groupBrok = Number((rawBatchCharges.brokerage || 0).toFixed(2));
+        const groupGst = Number((rawBatchCharges.gst || 0).toFixed(2));
+        const groupStamp = Number((rawBatchCharges.stamp || 0).toFixed(2));
+        const groupTrans = Number(((rawBatchCharges.transCharges || 0) + (rawBatchCharges.other || 0)).toFixed(2));
+
         const groupCharges = {
-          stt: (cnCharges.stt || 0) / numGroups,
-          other: ((cnCharges.brokerage || 0) + (cnCharges.gst || 0) + (cnCharges.stamp || 0) + (cnCharges.transCharges || 0) + (cnCharges.other || 0)) / numGroups
+          stt: groupStt,
+          other: Number((groupBrok + groupGst + groupStamp + groupTrans).toFixed(2))
         };
 
         let totalBuys = 0;
         let totalSells = 0;
 
-        // Helper: buy transaction type codes from bs1
-        const isBuyTrty = (trty: number) => [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(trty);
-
         for (const t of tradesInGroup) {
-          const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, 50);
-          const gross = t.quantity * t.price;
+          const assetObj = state.assetMaster.find((a: any) => Number(a.amid) === Number(t.amid));
+          const resolvedAssetType = assetObj?.asset_type || (parseFnoSymbol(t.assetName) ? 30 : 50);
+          const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, resolvedAssetType);
+          const gross = Number(t.gross) ? Number(Number(t.gross).toFixed(2)) : Number((t.quantity * t.price).toFixed(2));
 
           if (t.type === "Buy") {
             totalBuys += gross;
@@ -1418,7 +1477,7 @@ function ImportPageInner() {
                 Number(r.pfid) === Number(pId) && 
                 Number(r.amid) === Number(t.amid) && 
                 (r.dt || '') <= (t.date || '') && 
-                (!cnNo || !String(r.narr || '').includes(cnNo)) &&
+                (!groupCnNo || !String(r.narr || '').includes(groupCnNo)) &&
                 (FIFO_BUY_TRTY.has(Number(r.trty)) || FIFO_SELL_TRTY.has(Number(r.trty)) || [85, 45].includes(Number(r.trty)))
               )
               .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trty) - Number(b.trty)));
@@ -1429,7 +1488,7 @@ function ImportPageInner() {
             // Fallback 1: Check active holdings in sum_table if FIFO open lots was empty
             let derivedCost = fifoTotalCost;
             if (derivedCost <= 0) {
-              const holding = (state.sumTable || []).find((s: any) => Number(s.pfid) === Number(pId) && Number(s.amid) === Number(t.amid));
+              const holding = (state.sumTable || []).find((s: any) => Number(s.pfolio_id ?? s.pfid) === Number(pId) && Number(s.amid) === Number(t.amid));
               if (holding && Number(holding.qnt) > 0 && Number(holding.amtinv) > 0) {
                 const avgPrice = Number(holding.amtinv) / Number(holding.qnt);
                 derivedCost = avgPrice * t.quantity;
@@ -1439,9 +1498,9 @@ function ImportPageInner() {
             // Fallback 2: If still no buy history, cost = proceeds (zero gain)
             const finalCost = derivedCost > 0 ? derivedCost : saleProceeds;
             const costBasis = Number(finalCost.toFixed(2));
-            const capitalGain = Number((saleProceeds - costBasis).toFixed(2));
 
-            // Line 1: Cr Stock ledger at COST (removes investment from balance sheet)
+            // Line 1: Cr Stock/Bond ledger at COST (removes investment from balance sheet)
+            // Pass salePrice and saleAmount so bs1 records the true sale price and proceeds!
             mappedLines.push({
               ledgerId,
               amid: t.amid,
@@ -1449,7 +1508,9 @@ function ImportPageInner() {
               debit: 0,
               credit: costBasis,
               quantity: t.quantity,
-              price: t.quantity > 0 ? costBasis / t.quantity : 0
+              price: t.quantity > 0 ? costBasis / t.quantity : 0,
+              salePrice: t.price,
+              saleAmount: saleProceeds
             });
 
             // Exact ledger IDs from Chart of Accounts (Capital Gains group id=180)
@@ -1462,11 +1523,11 @@ function ImportPageInner() {
               LTCG_BONDS:  485,
             };
 
-            const bs1Asset = state.bs1.find((r: any) => Number(r.pfid) === Number(pId) && r.amid === t.amid);
-            const atyid = bs1Asset?.atyid || 50;
-            const EQUITY_GROUPS = new Set([200050, 200051, 200061, 50]);
-            const DEBT_GROUPS   = new Set([200062, 200058]);
-            const BOND_GROUPS   = new Set([200040, 200070]);
+            const bs1Asset = state.bs1.find((r: any) => Number(r.pfid) === Number(pId) && Number(r.amid) === Number(t.amid));
+            const atyid = bs1Asset?.atyid || resolvedAssetType || 50;
+            const EQUITY_GROUPS = new Set([200050, 200051, 200061, 30, 50, 60, 81]);
+            const DEBT_GROUPS   = new Set([200062, 200058, 61, 62]);
+            const BOND_GROUPS   = new Set([200040, 200070, 40, 70, 100, 110]);
 
             const getLotGainLedgerId = (lotDate: string): number => {
               const holdingDays = Math.abs((new Date(t.date).getTime() - new Date(lotDate).getTime()) / 86400000);
@@ -1535,15 +1596,10 @@ function ImportPageInner() {
           }
         }
 
-        // Add proportional individual charges under that person's exact MProfit heads
+        // Add individual charges under that exact person's MProfit heads (acid)
         const pf = portfolios.find((p: any) => String(p.id) === String(pId));
-        const acid = pf ? Number(pf.accountId) : 31;
-
-        const groupStt = Number(((cnCharges.stt || 0) / numGroups).toFixed(2));
-        const groupBrok = Number(((cnCharges.brokerage || 0) / numGroups).toFixed(2));
-        const groupGst = Number(((cnCharges.gst || 0) / numGroups).toFixed(2));
-        const groupStamp = Number(((cnCharges.stamp || 0) / numGroups).toFixed(2));
-        const groupTrans = Number((((cnCharges.transCharges || 0) + (cnCharges.other || 0)) / numGroups).toFixed(2));
+        const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(pId));
+        const acid = pf ? Number(pf.accountId) : (batch?.accountId || (link ? Number(link.acid) : 31));
 
         if (groupStt > 0) {
           const l = await ensureLedgerExists("STT - Equity", "stt", acid);
@@ -1568,18 +1624,18 @@ function ImportPageInner() {
           if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupTrans, credit: 0 });
         }
 
-        const sumCharges = groupStt + groupBrok + groupGst + groupStamp + groupTrans;
-        const netPayable = (totalBuys + sumCharges) - totalSells;
+        const sumCharges = Number((groupStt + groupBrok + groupGst + groupStamp + groupTrans).toFixed(2));
+        const netPayable = Number(((totalBuys + sumCharges) - totalSells).toFixed(2));
 
         if (netPayable > 0) {
           mappedLines.push({
-            ledgerId: Number(selectedBrokerLedger),
+            ledgerId: Number(groupBrokerLedgerId),
             debit: 0,
             credit: Number(netPayable.toFixed(2))
           });
         } else if (netPayable < 0) {
           mappedLines.push({
-            ledgerId: Number(selectedBrokerLedger),
+            ledgerId: Number(groupBrokerLedgerId),
             debit: Number(Math.abs(netPayable).toFixed(2)),
             credit: 0
           });
@@ -1591,33 +1647,42 @@ function ImportPageInner() {
         const diff = sumDebits - sumCredits;
         if (Math.abs(diff) > 0 && Math.abs(diff) < 1.0) {
           const lastLine = mappedLines[mappedLines.length - 1];
-                    if (lastLine.credit > 0) {
+          if (lastLine.credit > 0) {
             lastLine.credit = Number((lastLine.credit + diff).toFixed(2));
           } else {
             lastLine.debit = Number((lastLine.debit - diff).toFixed(2));
           }
         }
 
-        const brokerName = brokerLedgers.find(b => String(b.id) === String(selectedBrokerLedger))?.name || "Broker";
         const currentPf = portfolios.find(p => String(p.id) === String(pId));
-        const pName = currentPf?.name || currentPf?.portfolioName || `Portfolio ${pId}`;
+        const pName = currentPf?.name || currentPf?.portfolioName || batch?.portfolioName || `Portfolio ${pId}`;
         const dataPayload = {
-          accountId: currentPf?.accountId || 31,
+          accountId: acid,
           portfolioId: pId,
           date: groupDate,
-          narration: `Daily trades CN (${brokerName}) - ${pName}${cnNo ? ' No: ' + cnNo : ''}`,
+          narration: `Daily trades CN (${groupBrokerName}) - ${pName}${groupCnNo ? ' No: ' + groupCnNo : ''}`,
           type: "journal",
           lines: mappedLines,
           // Contract note metadata — required for scnote1 header creation
           isContractNote: true,
-          cnNo: cnNo || '',
-          brokerLedgerId: Number(selectedBrokerLedger),
+          cnNo: groupCnNo || '',
+          brokerLedgerId: Number(groupBrokerLedgerId),
           cnCharges: groupCharges,
           netPayable: Number(netPayable.toFixed(2))
         };
 
-        console.log(`Commiting contract note voucher for portfolio ${pName}:`, dataPayload);
+        console.log(`Committing contract note voucher for portfolio ${pName} (${groupBrokerName}):`, dataPayload);
         await createVoucher({ ...dataPayload, isTest: isTestMode });
+
+        committedSummaries.push({
+          portfolioId: pId,
+          portfolioName: pName,
+          brokerLedgerId: groupBrokerLedgerId,
+          brokerName: groupBrokerName,
+          cnNo: groupCnNo,
+          date: groupDate,
+          netPayable
+        });
       }
 
       await forceRefreshDatabase();
@@ -1627,18 +1692,27 @@ function ImportPageInner() {
       syncLivePrices(() => {}, true).catch(console.warn);
 
       setOverallMessage("✅ Contract note trades successfully imported!");
+      const firstSummary = committedSummaries[0] || {};
       setLastCommittedInfo({
-        portfolioId: selectedPortfolio,
-        portfolioName: portfolios.find(p => String(p.id) === String(selectedPortfolio))?.portfolioName || "Portfolio",
-        brokerLedgerId: selectedBrokerLedger,
-        brokerName: brokerLedgers.find(b => String(b.id) === String(selectedBrokerLedger))?.name || "Broker",
-        cnNo,
+        portfolioId: firstSummary.portfolioId || selectedPortfolio,
+        portfolioName: committedSummaries.length > 1
+          ? committedSummaries.map(s => s.portfolioName).filter((v, i, a) => a.indexOf(v) === i).join(', ')
+          : (firstSummary.portfolioName || portfolios.find(p => String(p.id) === String(selectedPortfolio))?.portfolioName || "Portfolio"),
+        brokerLedgerId: firstSummary.brokerLedgerId || selectedBrokerLedger,
+        brokerName: committedSummaries.length > 1
+          ? committedSummaries.map(s => s.brokerName).filter((v, i, a) => a.indexOf(v) === i).join(', ')
+          : (firstSummary.brokerName || brokerLedgers.find(b => String(b.id) === String(selectedBrokerLedger))?.name || "Broker"),
+        cnNo: committedSummaries.map(s => s.cnNo).filter(Boolean).join(', ') || cnNo,
+        batches: committedSummaries,
         trades: selectedTrades.map(t => ({
           type: t.type,
           assetName: t.assetName,
           quantity: t.quantity,
           price: t.price,
-          gross: Number(t.gross) || (Number(t.quantity || 0) * Number(t.price || 0))
+          gross: Number(t.gross) || (Number(t.quantity || 0) * Number(t.price || 0)),
+          portfolioName: t.portfolioName,
+          brokerName: t.brokerLedgerName || t.brokerName,
+          cnNo: t.cnNo
         })),
         charges: { ...cnCharges }
       });
@@ -1651,7 +1725,9 @@ function ImportPageInner() {
         other: 0
       });
       setCnTrades([]);
+      setCnBatches([]);
       setCnNo("");
+      setPdfFinalNet(null);
     } catch (err: any) {
       alert(`Failed to commit trades: ${err.message}`);
     } finally {
@@ -1744,7 +1820,24 @@ function ImportPageInner() {
   ): Promise<{ portfolioId: string; accountId: string; portfolioName: string }> => {
     const normPan = (pan || '').trim().toUpperCase();
     const normName = (clientName || '').trim().toUpperCase();
+    const isUnmaskedPan = /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(normPan);
     const isHuf = normName.includes('HUF') || (normPan.length === 10 && normPan[3] === 'H');
+
+    const panMatches = (portfolioPan: string, queryPan: string): boolean => {
+      const p = (portfolioPan || '').trim().toUpperCase();
+      const q = (queryPan || '').trim().toUpperCase();
+      if (!p || !q) return false;
+      if (p === q) return true;
+      // Support masked PANs like CGTPS8XXXX or AB******9L
+      if (p.length === 10 && q.length === 10 && (q.includes('*') || /X{2,}/i.test(q.slice(5, 10)))) {
+        for (let i = 0; i < 10; i++) {
+          if (q[i] === '*' || (i >= 5 && q[i] === 'X')) continue;
+          if (p[i] !== q[i]) return false;
+        }
+        return true;
+      }
+      return false;
+    };
 
     const isActPf = (p: any) => 
       !p.is_group && 
@@ -1772,10 +1865,10 @@ function ImportPageInner() {
       return candidates[0];
     };
 
-    // 1. Try matching by PAN first
+    // 1. Try matching by PAN first (including masked PAN prefix matching)
     if (normPan) {
       let candidatePfs = (state.portfolios || []).filter(
-        (p: any) => p.pan && p.pan.trim().toUpperCase() === normPan && isActPf(p)
+        (p: any) => p.pan && panMatches(p.pan, normPan) && isActPf(p)
       );
 
       // If client name is also provided, ensure candidate doesn't mismatch family member name
@@ -1827,7 +1920,7 @@ function ImportPageInner() {
 
       if (matches.length > 0) {
         const best = pickBestPf(matches);
-        if (normPan && (!best.pan || best.pan.trim().toUpperCase() !== normPan)) {
+        if (isUnmaskedPan && (!best.pan || best.pan.trim().toUpperCase() !== normPan)) {
           best.pan = normPan;
           if (await isSupabaseReachable()) {
             await supabase.from('portfolios').update({ pan: normPan }).eq('id', best.id);
@@ -1857,7 +1950,7 @@ function ImportPageInner() {
       client_id: 1,
       investor_name: finalName,
       full_name: clientName.trim() || finalName,
-      pan: normPan || null,
+      pan: isUnmaskedPan ? normPan : null,
       is_group: false,
       pfolio_type: isFno ? 5 : 0,
       exit_status: 1
@@ -1887,9 +1980,9 @@ function ImportPageInner() {
     };
   };
 
-  // ── Unified Contract Note ingestion pipeline ───────────────────────────
-  const ingestParsedCnResult = async (result: any) => {
-    let nextId = Date.now();
+  // ── Unified Contract Note ingestion pipeline (Supports Multi-CN & Multi-Broker) ──
+  const ingestParsedCnResult = async (result: any, fileName = '', appendBatch = true) => {
+    let nextId = Date.now() + Math.floor(Math.random() * 10000);
     const newTrades: any[] = [];
 
     // 1. Auto-detect & auto-resolve Portfolio / Individual
@@ -1898,7 +1991,7 @@ function ImportPageInner() {
     const autoSelectedPortfolio = resolvedPf.portfolioId;
     setSelectedPortfolio(autoSelectedPortfolio);
 
-    // 2. Auto-detect broker & auto-select Broker Ledger
+    // 2. Auto-detect broker & auto-select / auto-create the EXACT Broker Ledger for this individual's account (acid)
     const detectedBroker = result.broker && result.broker !== 'auto' ? result.broker : 'zerodha';
     setSelectedBroker(detectedBroker);
 
@@ -1912,19 +2005,27 @@ function ImportPageInner() {
       return matchKeys.some(k => bName.includes(k.toLowerCase()));
     });
 
-    if (!matchedLedger && brokerLedgersList.length > 0) {
-      matchedLedger = brokerLedgersList[0];
-    }
+    let resolvedBrokerLedgerId = '';
+    let resolvedBrokerLedgerName = BROKER_NAMES[detectedBroker] || 'Zerodha';
 
     if (!matchedLedger) {
       const displayName = BROKER_NAMES[detectedBroker] || 'Zerodha';
       const created = await ensureLedgerExists(displayName, 'sundry_creditors', targetAcid);
       if (created) {
-        setSelectedBrokerLedger(String(created.id));
-        setBrokerLedgers([created]);
+        resolvedBrokerLedgerId = String(created.id);
+        resolvedBrokerLedgerName = created.name || displayName;
+        setSelectedBrokerLedger(resolvedBrokerLedgerId);
+        setBrokerLedgers([...brokerLedgersList, created]);
+      } else if (brokerLedgersList.length > 0) {
+        resolvedBrokerLedgerId = String(brokerLedgersList[0].id);
+        resolvedBrokerLedgerName = brokerLedgersList[0].name;
+        setSelectedBrokerLedger(resolvedBrokerLedgerId);
+        setBrokerLedgers(brokerLedgersList);
       }
     } else {
-      setSelectedBrokerLedger(String(matchedLedger.id));
+      resolvedBrokerLedgerId = String(matchedLedger.id);
+      resolvedBrokerLedgerName = matchedLedger.name;
+      setSelectedBrokerLedger(resolvedBrokerLedgerId);
       setBrokerLedgers(brokerLedgersList);
     }
 
@@ -1939,7 +2040,10 @@ function ImportPageInner() {
     if (result.cnDate) setCnDate(result.cnDate);
 
     // Set CN number from parsed file
+    const parsedCnNo = result.cnNo || cnNo || `CN-${parsedDate.replace(/-/g, '')}`;
     if (result.cnNo) setCnNo(result.cnNo);
+
+    const batchId = `${autoSelectedPortfolio}_${parsedDate}_${parsedCnNo}_${resolvedBrokerLedgerId}`;
 
     for (const t of (result.trades || [])) {
        const isin = (t.isin || '').toUpperCase().trim();
@@ -1949,10 +2053,15 @@ function ImportPageInner() {
        let finalAssetName = symbol;
 
        // ── ISIN-FIRST MATCHING PIPELINE ─────────────────────────────────────────
-       // Step 1: DB lookup by ISIN (highest authority)
+       // Step 1: DB lookup by ISIN (highest authority — checks both a.isin and embedded ISIN in a.name)
        if (isin) {
-         const inMemory = state.assetMaster.find((a: any) => a.isin && a.isin.toUpperCase() === isin)
-           || state.sam.find((s: any) => s.isin && s.isin.toUpperCase() === isin);
+         const inMemory = state.assetMaster.find((a: any) =>
+           (a.isin && a.isin.toUpperCase() === isin) ||
+           (a.name && a.name.toUpperCase().includes(isin))
+         ) || state.sam.find((s: any) =>
+           (s.isin && s.isin.toUpperCase() === isin) ||
+           (s.anm && s.anm.toUpperCase().includes(isin))
+         );
          if (inMemory) {
            finalAmid = Number(inMemory.amid);
            finalAssetName = inMemory.name || inMemory.anm || finalAssetName;
@@ -1960,7 +2069,7 @@ function ImportPageInner() {
            const { data: byIsin } = await supabase
              .from('asset_master')
              .select('amid, name, nse_symbol, isin, asset_type')
-             .eq('isin', isin)
+             .or(`isin.eq.${isin},name.ilike.%${isin}%`)
              .limit(1);
            if (byIsin && byIsin.length > 0) {
              finalAmid = byIsin[0].amid;
@@ -1977,7 +2086,7 @@ function ImportPageInner() {
          const dictAmid = isinToAmidMap[isin];
          const { data: dictCheck } = await supabase
            .from('asset_master')
-           .select('amid, name, nse_symbol, isin')
+           .select('amid, name, nse_symbol, isin, asset_type')
            .eq('amid', dictAmid)
            .limit(1);
          if (dictCheck && dictCheck.length > 0) {
@@ -1995,32 +2104,20 @@ function ImportPageInner() {
          }
        }
 
-       // Step 3: NSE symbol lookup in DB
-       if (symbol) {
+       // Step 3: NSE symbol lookup in DB (only if ISIN lookup did not already resolve an asset)
+       if (finalAmid === -1 && symbol) {
          const { data: byNse } = await supabase
            .from('asset_master')
-           .select('amid, name, nse_symbol, isin')
+           .select('amid, name, nse_symbol, isin, asset_type')
            .eq('nse_symbol', symbol)
            .limit(2);
          
          if (byNse && byNse.length > 0) {
            const isinMatch = byNse.find((r: any) => r.isin && r.isin.toUpperCase() === isin);
            const best = isinMatch || byNse[0];
-
-           if (finalAmid === -1) {
-             finalAmid = best.amid;
-             finalAssetName = best.name;
-             if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) state.assetMaster.push(best);
-           } else if (best.amid !== finalAmid) {
-             console.log(`[CN Import] ISIN-DB conflict for ${symbol}: dict/ISIN-said amid=${finalAmid}, NSE-symbol-in-DB says amid=${best.amid}. Using DB record.`);
-             finalAmid = best.amid;
-             finalAssetName = best.name;
-             if (!best.isin && isin) {
-               await supabase.from('asset_master').update({ isin }).eq('amid', best.amid);
-               if (!state.assetMaster.find((a: any) => a.amid === best.amid)) state.assetMaster.push({ ...best, isin });
-               else state.assetMaster.forEach((a: any) => { if (a.amid === best.amid) a.isin = isin; });
-             }
-           }
+           finalAmid = best.amid;
+           finalAssetName = best.name;
+           if (!state.assetMaster.find((a: any) => a.amid === finalAmid)) state.assetMaster.push(best);
          }
        }
 
@@ -2046,13 +2143,14 @@ function ImportPageInner() {
          const { data: maxRow } = await supabase.from('asset_master').select('amid').order('amid', { ascending: false }).limit(1);
          const nextAmid = ((maxRow?.[0]?.amid || 500000) < 500000 ? 500000 : (maxRow?.[0]?.amid || 500000)) + 1;
          const fnoMatch = parseFnoSymbol(symbol);
-          const newAssetRow = {
+         const isBondIsin = isin.startsWith('IN00');
+         const newAssetRow = {
            amid: nextAmid,
            name: symbol,
            nse_symbol: symbol,
            isin: isin || null,
-           asset_type: fnoMatch ? (fnoMatch.optionType === 'FUT' ? 81 : 30) : 50,
-           asset_type_name: 'Stocks'
+           asset_type: fnoMatch ? (fnoMatch.optionType === 'FUT' ? 81 : 30) : (isBondIsin ? 40 : 50),
+           asset_type_name: isBondIsin ? 'Traded Bonds' : 'Stocks'
          };
          const { error: insertErr } = await supabase.from('asset_master').insert(newAssetRow);
          if (!insertErr) {
@@ -2062,6 +2160,20 @@ function ImportPageInner() {
            console.log(`[CN Import] Auto-created asset_master amid=${nextAmid} for ${symbol} ISIN=${isin}`);
          }
        }
+
+       const baseTradeMeta = {
+         cnBatchId: batchId,
+         cnNo: parsedCnNo,
+         date: parsedDate,
+         portfolioId: autoSelectedPortfolio,
+         portfolioName: resolvedPf.portfolioName,
+         accountId: targetAcid,
+         broker: detectedBroker,
+         brokerName: BROKER_NAMES[detectedBroker] || detectedBroker,
+         brokerLedgerId: resolvedBrokerLedgerId,
+         brokerLedgerName: resolvedBrokerLedgerName,
+         selected: true,
+       };
 
        if (t.buyQty > 0) {
          newTrades.push({
@@ -2074,9 +2186,7 @@ function ImportPageInner() {
            price: t.buyWap,
            gross: t.buyVal,
            brokerage: 0,
-           date: parsedDate,
-           portfolioId: autoSelectedPortfolio,
-           selected: true,
+           ...baseTradeMeta,
          });
        }
 
@@ -2091,40 +2201,73 @@ function ImportPageInner() {
            price: t.sellWap,
            gross: t.sellVal,
            brokerage: 0,
-           date: parsedDate,
-           portfolioId: autoSelectedPortfolio,
-           selected: true,
+           ...baseTradeMeta,
          });
        }
     }
 
-    if (newTrades.length > 0) {
-      setCnTrades(newTrades);
-    } else {
-      throw new Error("No trades were found in this file. Please verify it is a valid broker contract note or tradebook.");
+    if (newTrades.length === 0) {
+      throw new Error(`No trades were found in ${fileName || 'this file'}. Please verify it is a valid broker contract note or tradebook.`);
     }
 
-    if (result.charges) {
-      setCnCharges({
-        stt: Number(result.charges.stt) || 0,
-        brokerage: Number(result.charges.brokerage) || 0,
-        gst: Number(result.charges.gst) || 0,
-        stamp: Number(result.charges.stamp) || 0,
-        transCharges: Number(result.charges.transCharges) || 0,
-        other: Number(result.charges.other) || 0,
-      });
-    }
-    
-    if (result.finalNet !== undefined) {
-      setPdfFinalNet(result.finalNet);
-    } else {
-      setPdfFinalNet(null);
-    }
+    const parsedCharges = {
+      stt: Number(result.charges?.stt) || 0,
+      brokerage: Number(result.charges?.brokerage) || 0,
+      gst: Number(result.charges?.gst) || 0,
+      stamp: Number(result.charges?.stamp) || 0,
+      transCharges: Number(result.charges?.transCharges) || 0,
+      other: Number(result.charges?.other) || 0,
+    };
+
+    const newBatch = {
+      batchId,
+      fileName: fileName || parsedCnNo,
+      cnNo: parsedCnNo,
+      cnDate: parsedDate,
+      portfolioId: autoSelectedPortfolio,
+      portfolioName: resolvedPf.portfolioName,
+      accountId: targetAcid,
+      pan: result.pan || '',
+      broker: detectedBroker,
+      brokerName: BROKER_NAMES[detectedBroker] || detectedBroker,
+      brokerLedgerId: resolvedBrokerLedgerId,
+      brokerLedgerName: resolvedBrokerLedgerName,
+      charges: parsedCharges,
+      finalNet: result.finalNet !== undefined ? result.finalNet : null
+    };
+
+    setCnBatches(prev => {
+      const base = appendBatch ? prev.filter(b => b.batchId !== batchId) : [];
+      const updated = [...base, newBatch];
+      // Sync aggregate charges & finalNet across all staged contract notes
+      const sumChg = updated.reduce((acc, b) => ({
+        stt: Number((acc.stt + (b.charges?.stt || 0)).toFixed(2)),
+        brokerage: Number((acc.brokerage + (b.charges?.brokerage || 0)).toFixed(2)),
+        gst: Number((acc.gst + (b.charges?.gst || 0)).toFixed(2)),
+        stamp: Number((acc.stamp + (b.charges?.stamp || 0)).toFixed(2)),
+        transCharges: Number((acc.transCharges + (b.charges?.transCharges || 0)).toFixed(2)),
+        other: Number((acc.other + (b.charges?.other || 0)).toFixed(2)),
+      }), { stt: 0, brokerage: 0, gst: 0, stamp: 0, transCharges: 0, other: 0 });
+      setCnCharges(sumChg);
+
+      const allHaveNet = updated.every(b => b.finalNet !== null && b.finalNet !== undefined);
+      if (allHaveNet && updated.length > 0) {
+        setPdfFinalNet(Number(updated.reduce((s, b) => s + Number(b.finalNet || 0), 0).toFixed(2)));
+      } else {
+        setPdfFinalNet(null);
+      }
+      return updated;
+    });
+
+    setCnTrades(prev => {
+      const base = appendBatch ? prev.filter(t => t.cnBatchId !== batchId) : [];
+      return [...base, ...newTrades];
+    });
   };
 
-  // ── Broker contract note PDF/CSV processor ───────────────────────────────
-  const processBrokerCnFile = async (file: File) => {
-    if (!file) return;
+  // ── Broker contract note PDF/CSV/HTML processor (Single & Multi-File) ────
+  const processBrokerCnFile = async (file: File, appendBatch = true): Promise<boolean> => {
+    if (!file) return true;
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
       try {
@@ -2198,8 +2341,8 @@ function ImportPageInner() {
               }
 
               if (clientRes.trades && clientRes.trades.length > 0) {
-                await ingestParsedCnResult(clientRes);
-                return;
+                await ingestParsedCnResult(clientRes, file.name, appendBatch);
+                return true;
               }
             }
           } catch (candErr) {
@@ -2223,8 +2366,8 @@ function ImportPageInner() {
             if (response.ok) {
               const result = await response.json();
               if (result.status === 'ok' && result.trades && result.trades.length > 0) {
-                await ingestParsedCnResult(result);
-                return;
+                await ingestParsedCnResult(result, file.name, appendBatch);
+                return true;
               }
             }
           } catch {}
@@ -2238,16 +2381,17 @@ function ImportPageInner() {
       const lastSaved = localStorage.getItem(`wealthcore_cn_password_${selectedBroker}`) || localStorage.getItem('wealthcore_cn_password') || '';
       if (lastSaved) setTempPassword(lastSaved);
       setPasswordPromptOpen(true);
+      return false; // Pause queue until password entered
     } else {
       // CSV / HTML / TXT file
       try {
         const text = await file.text();
         
-        // 1. In-browser client-side text parse
+        // 1. In-browser client-side text/HTML parse
         const clientRes = parseContractNoteClientText(text, file.name, 'auto');
         if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
-          await ingestParsedCnResult(clientRes);
-          return;
+          await ingestParsedCnResult(clientRes, file.name, appendBatch);
+          return true;
         }
 
         // 2. Fallback: try local server /api/parse-cn
@@ -2280,18 +2424,33 @@ function ImportPageInner() {
           throw new Error(result.message || "Failed to parse trade file");
         }
 
-        await ingestParsedCnResult(result);
+        await ingestParsedCnResult(result, file.name, appendBatch);
+        return true;
       } catch (err: any) {
-        alert("Error parsing file: " + (err.message || String(err)));
+        alert(`Error parsing ${file.name}: ` + (err.message || String(err)));
         console.error(err);
+        return true;
+      }
+    }
+  };
+
+  const processBrokerCnFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files || []);
+    if (fileArray.length === 0) return;
+    pendingFilesQueueRef.current = [...fileArray];
+    while (pendingFilesQueueRef.current.length > 0) {
+      const nextFile = pendingFilesQueueRef.current.shift()!;
+      const completed = await processBrokerCnFile(nextFile, true);
+      if (!completed) {
+        // Paused waiting for PDF password prompt; remaining files stay in pendingFilesQueueRef
+        break;
       }
     }
   };
 
   const handleBrokerCnFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      await processBrokerCnFile(file);
+    if (e.target.files && e.target.files.length > 0) {
+      await processBrokerCnFiles(e.target.files);
     }
     e.target.value = '';
   };
@@ -2330,6 +2489,25 @@ function ImportPageInner() {
     setCnTrades(prev => prev.filter(t => t.id !== id));
   };
 
+  const handleRemoveCnBatch = (batchId: string) => {
+    setCnBatches(prev => {
+      const updated = prev.filter(b => b.batchId !== batchId);
+      const sumChg = updated.reduce((acc, b) => ({
+        stt: Number((acc.stt + (b.charges?.stt || 0)).toFixed(2)),
+        brokerage: Number((acc.brokerage + (b.charges?.brokerage || 0)).toFixed(2)),
+        gst: Number((acc.gst + (b.charges?.gst || 0)).toFixed(2)),
+        stamp: Number((acc.stamp + (b.charges?.stamp || 0)).toFixed(2)),
+        transCharges: Number((acc.transCharges + (b.charges?.transCharges || 0)).toFixed(2)),
+        other: Number((acc.other + (b.charges?.other || 0)).toFixed(2)),
+      }), { stt: 0, brokerage: 0, gst: 0, stamp: 0, transCharges: 0, other: 0 });
+      setCnCharges(sumChg);
+      const allHaveNet = updated.every(b => b.finalNet !== null && b.finalNet !== undefined);
+      setPdfFinalNet(allHaveNet && updated.length > 0 ? Number(updated.reduce((s, b) => s + Number(b.finalNet || 0), 0).toFixed(2)) : null);
+      return updated;
+    });
+    setCnTrades(prev => prev.filter(t => t.cnBatchId !== batchId));
+  };
+
   // ── Password prompt (for encrypted PDFs) ─────────────────────────────────
   const handlePasswordSubmit = async () => {
     if (!pendingFile) return;
@@ -2363,10 +2541,14 @@ function ImportPageInner() {
           }
 
           if (clientRes.trades && clientRes.trades.length > 0) {
-            await ingestParsedCnResult(clientRes);
+            await ingestParsedCnResult(clientRes, pendingFile.name, true);
             setPasswordPromptOpen(false);
+            setPendingFile(null);
             setTempPassword('');
             setPasswordError('');
+            if (pendingFilesQueueRef.current.length > 0) {
+              await processBrokerCnFiles(pendingFilesQueueRef.current);
+            }
             return;
           } else {
             // PDF decrypted successfully, but no trades detected
@@ -2431,11 +2613,15 @@ function ImportPageInner() {
         }
       }
 
-      await ingestParsedCnResult(result);
+      await ingestParsedCnResult(result, pendingFile.name, true);
 
       setPasswordPromptOpen(false);
+      setPendingFile(null);
       setTempPassword('');
       setPasswordError('');
+      if (pendingFilesQueueRef.current.length > 0) {
+        await processBrokerCnFiles(pendingFilesQueueRef.current);
+      }
     } catch (e: any) {
       setPasswordError(e.message || 'Incorrect password or error parsing PDF. Please try again.');
       console.error(e);
@@ -2781,10 +2967,63 @@ function ImportPageInner() {
             📄 Broker Contract Note Importer
           </h1>
           <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 20px 0' }}>
-            Upload a broker contract note PDF. The individual and broker will be automatically parsed and selected.
+            Upload one or multiple contract notes (PDF, HTML, CSV) across any brokers at one go. Each file's individual, broker ledger, and charges are automatically parsed and isolated.
           </p>
 
-          {autoDetectedInfo && (
+          {cnBatches.length > 0 ? (
+            <div style={{
+              marginBottom: '20px',
+              padding: '14px 18px',
+              background: '#f0fdf4',
+              border: '1px solid #86efac',
+              borderRadius: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', color: '#166534', fontWeight: 700 }}>
+                <span>⚡ Auto-Detected & Isolated Contract Note Batches ({cnBatches.length}):</span>
+                <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 600 }}>Zero cross-broker or cross-individual mix-up</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {cnBatches.map((b: any) => {
+                  const chgTotal = Object.values(b.charges || {}).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
+                  return (
+                    <div key={b.batchId} style={{
+                      background: '#fff',
+                      border: '1px solid #bbf7d0',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '12px',
+                      color: '#0f172a',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 800, color: '#166534' }}>
+                          {b.portfolioName} {b.pan ? <span style={{ color: '#64748b', fontWeight: 600 }}>({b.pan})</span> : ''}
+                        </div>
+                        <div style={{ color: '#475569', marginTop: '2px' }}>
+                          Broker: <strong>{b.brokerLedgerName || b.brokerName}</strong> · CN: <strong>{b.cnNo}</strong> · Date: <strong>{b.cnDate}</strong> · Charges: <strong>₹{chgTotal.toFixed(2)}</strong>
+                        </div>
+                      </div>
+                      {cnBatches.length > 1 && (
+                        <button
+                          onClick={() => handleRemoveCnBatch(b.batchId)}
+                          title="Remove this Contract Note from batch"
+                          style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontWeight: 700, fontSize: '11px' }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : autoDetectedInfo && (
             <div style={{
               marginBottom: '20px',
               padding: '12px 18px',
@@ -2858,7 +3097,7 @@ function ImportPageInner() {
 
           {/* ── Upload + Password inline ── */}
           <div style={{ marginBottom: '28px' }}>
-            <label style={labelStyle}>Upload Contract Note File</label>
+            <label style={labelStyle}>Upload Contract Note File(s) — Single or Multiple</label>
 
             {/* File drop zone */}
             <div
@@ -2880,9 +3119,8 @@ function ImportPageInner() {
                 e.stopPropagation();
                 e.currentTarget.style.borderColor = '#cbd5e1';
                 e.currentTarget.style.background = '#f8fafc';
-                const file = e.dataTransfer?.files?.[0];
-                if (file) {
-                  await processBrokerCnFile(file);
+                if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+                  await processBrokerCnFiles(e.dataTransfer.files);
                 }
               }}
               style={{ border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '28px', textAlign: 'center', cursor: 'pointer', background: '#f8fafc', transition: 'all 0.2s' }}
@@ -2892,19 +3130,22 @@ function ImportPageInner() {
               <input
                 id="cn-file-input"
                 type="file"
-                accept=".pdf,.html,.htm,.csv"
+                multiple
+                accept=".pdf,.html,.htm,.csv,.txt"
                 style={{ display: 'none' }}
                 onChange={handleBrokerCnFileSelect}
               />
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
-              <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>Click or Drag & Drop Contract Note file here</div>
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>PDF / CSV: Zerodha · Groww · ICICI Direct · Kotak · HDFC Sec · Motilal Oswal · Dhan · MStock · RK Global</div>
+              <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>Click or Drag & Drop One or Multiple Contract Note files here</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>Supports Multi-File Batch Upload (PDF / HTML / CSV): Zerodha · Groww · ICICI Direct · Kotak · HDFC Sec · Motilal Oswal · Dhan · MStock · RK Global</div>
             </div>
 
             {/* Password prompt — shown inline when PDF is pending */}
             {passwordPromptOpen && (
               <div style={{ marginTop: '16px', background: '#f0f9ff', border: '2px solid #2563eb', borderRadius: '12px', padding: '20px' }}>
-                <div style={{ fontWeight: 700, color: '#1e40af', fontSize: '15px', marginBottom: '6px' }}>🔒 Password Protected PDF</div>
+                <div style={{ fontWeight: 700, color: '#1e40af', fontSize: '15px', marginBottom: '6px' }}>
+                  🔒 Password Protected PDF {pendingFile ? `(${pendingFile.name})` : ''}
+                </div>
                 <div style={{ color: '#475569', fontSize: '13px', marginBottom: '14px' }}>
                   This PDF is password-protected. Enter the password to decrypt and parse it.<br/>
                   <span style={{ color: '#2563eb', fontWeight: 600 }}>For Zerodha / Groww / Dhan / Motilal / Kotak: enter PAN in UPPERCASE. For ICICI Direct: enter DOB (DDMMYYYY).</span>
@@ -2948,6 +3189,12 @@ function ImportPageInner() {
               {/* Summary bar */}
               <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {cnBatches.length > 1 && (
+                    <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px', padding: '10px 16px' }}>
+                      <div style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 700, textTransform: 'uppercase' }}>Contract Notes</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#4c1d95' }}>{cnBatches.length}</div>
+                    </div>
+                  )}
                   <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 16px' }}>
                     <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Total Trades</div>
                     <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a' }}>{cnTrades.length}</div>
@@ -2973,7 +3220,12 @@ function ImportPageInner() {
                     + Add Row
                   </button>
                   <button
-                    onClick={() => setCnTrades([])}
+                    onClick={() => {
+                      setCnTrades([]);
+                      setCnBatches([]);
+                      setCnCharges({ stt: 0, brokerage: 0, gst: 0, stamp: 0, transCharges: 0, other: 0 });
+                      setPdfFinalNet(null);
+                    }}
                     style={{ padding: '8px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#dc2626', cursor: 'pointer' }}
                   >
                     Clear All
@@ -2987,6 +3239,7 @@ function ImportPageInner() {
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                       <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>✓</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>Individual / Broker</th>
                       <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>Type</th>
                       <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '11px', textTransform: 'uppercase', minWidth: '200px' }}>Stock / Asset</th>
                       <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>ISIN</th>
@@ -3002,6 +3255,13 @@ function ImportPageInner() {
                       <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
                         <td style={{ padding: '8px 12px' }}>
                           <input type="checkbox" checked={!!t.selected} onChange={e => handleUpdateCnTradeRow(t.id, 'selected', e.target.checked)} />
+                        </td>
+                        <td style={{ padding: '8px 12px', fontSize: '12px' }}>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{t.portfolioName || portfolios.find((p: any) => String(p.id) === String(t.portfolioId || selectedPortfolio))?.portfolioName || 'Portfolio'}</div>
+                          <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 600 }}>
+                            {t.brokerLedgerName || t.brokerName || brokerLedgers.find((b: any) => String(b.id) === String(selectedBrokerLedger))?.name || 'Broker'}
+                            {t.cnNo ? ` · ${t.cnNo}` : ''}
+                          </div>
                         </td>
                         <td style={{ padding: '8px 12px' }}>
                           <select
@@ -3086,7 +3346,9 @@ function ImportPageInner() {
           {/* ── Charges Section ── */}
           {cnTrades.length > 0 && (
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', marginBottom: '28px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', margin: '0 0 16px 0' }}>Tax & Regulatory Charges</h3>
+              <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', margin: '0 0 16px 0' }}>
+                Tax & Regulatory Charges {cnBatches.length > 1 ? `(Combined across ${cnBatches.length} Contract Notes — posted individually per CN)` : ''}
+              </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '14px' }}>
                 {Object.keys(cnCharges).map((key) => (
                   <div key={key}>
@@ -3149,36 +3411,36 @@ function ImportPageInner() {
           {/* ── Commit Button ── */}
           {cnTrades.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              {isDuplicateCN && (
+              {cnBatches.length <= 1 && isDuplicateCN && (
                 <div style={{ padding: '10px 16px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '8px', color: '#92400e', fontSize: '13px', fontWeight: 600 }}>
                   ⚠️ CN No. {cnNo} already exists in database
                 </div>
               )}
-              {!selectedBrokerLedger && (
+              {cnBatches.length <= 1 && !selectedBrokerLedger && (
                 <div style={{ padding: '10px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#dc2626', fontSize: '13px', fontWeight: 600 }}>
                   ⚠ Select a Broker Ledger first
                 </div>
               )}
               <button
                 onClick={commitContractNote}
-                disabled={isImporting || !selectedBrokerLedger || cnTrades.filter(t => t.selected).length === 0 || isDuplicateCN}
-                title={isDuplicateCN ? `CN No. ${cnNo} already exists in database. Delete the existing voucher first before re-importing.` : undefined}
+                disabled={isImporting || (cnBatches.length <= 1 && (!selectedBrokerLedger || isDuplicateCN)) || cnTrades.filter(t => t.selected).length === 0}
+                title={(cnBatches.length <= 1 && isDuplicateCN) ? `CN No. ${cnNo} already exists in database. Delete the existing voucher first before re-importing.` : undefined}
                 style={{
                   padding: '12px 32px',
-                  background: (isImporting || !selectedBrokerLedger || cnTrades.filter(t => t.selected).length === 0 || isDuplicateCN) ? '#94a3b8' : '#16a34a',
+                  background: (isImporting || (cnBatches.length <= 1 && (!selectedBrokerLedger || isDuplicateCN)) || cnTrades.filter(t => t.selected).length === 0) ? '#94a3b8' : '#16a34a',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '10px',
                   fontWeight: 800,
                   fontSize: '15px',
-                  cursor: (isImporting || !selectedBrokerLedger || cnTrades.filter(t => t.selected).length === 0) ? 'not-allowed' : 'pointer',
+                  cursor: (isImporting || (cnBatches.length <= 1 && !selectedBrokerLedger) || cnTrades.filter(t => t.selected).length === 0) ? 'not-allowed' : 'pointer',
                   boxShadow: '0 4px 14px rgba(22,163,74,0.3)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
                 }}
               >
-                {isImporting ? '⏳ Committing...' : `✅ Commit ${cnTrades.filter(t => t.selected).length} Trade(s) to Ledger`}
+                {isImporting ? '⏳ Committing...' : `✅ Commit ${cnTrades.filter(t => t.selected).length} Trade(s) ${cnBatches.length > 1 ? `(${cnBatches.length} Contract Notes) ` : ''}to Ledger`}
               </button>
             </div>
           )}

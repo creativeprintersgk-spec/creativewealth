@@ -3295,8 +3295,12 @@ export function resolveAssetLineToBsRow(
   const isAddQtyType = data.type === 'bonus' || data.type === 'split' || data.type === 'rights' || data.type === 'ipo' || data.type === 'reinvest';
   const isBuy = isAddQtyType || (assetLine ? (assetLine.tradeType === 'BUY' || Number(assetLine.debit) > 0) : (data.type !== 'dividend' && data.type !== 'buyback' && data.type !== 'writeoff'));
   const qty = Number(assetLine.quantity) || (linesToProcessCount === 1 ? Number(data.quantity) || 0 : 0);
-  const price = Number(assetLine.price) || (linesToProcessCount === 1 ? Number(data.price) || 0 : 0);
-  const amt = Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcessCount === 1 ? Number(data.amount) || qty * price || 0 : qty * price);
+  const price = (!isBuy && Number(assetLine.salePrice) > 0)
+    ? Number(assetLine.salePrice)
+    : (Number(assetLine.price) || (linesToProcessCount === 1 ? Number(data.price) || 0 : 0));
+  const amt = (!isBuy && Number(assetLine.saleAmount) > 0)
+    ? Number(assetLine.saleAmount)
+    : (Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcessCount === 1 ? Number(data.amount) || qty * price || 0 : qty * price));
 
   const asset = state.assetMaster.find((a: any) => a.amid === amid);
   const existingSum = state.sumTable.find((s: any) => Number(s.amid) === amid && Number(s.pfolio_id) === pfid);
