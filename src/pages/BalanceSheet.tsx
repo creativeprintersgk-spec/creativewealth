@@ -394,6 +394,18 @@ export default function BalanceSheet() {
               if (!showZeroValues && Math.abs(displayBal) < 0.1 && (!isComparative || Math.abs(prevBal) < 0.1)) return null
               const isReadOnly = l.readOnly
               const isExpense  = l.groupType === 'EXPENSE'
+              const isCapitalGain = String(l.groupId) === '180' || (l.groupType === 'INCOME' && /gain|loss|ltcg|stcg|profit\/loss/i.test(l.name))
+              const isGain = isCapitalGain && displayBal > 0
+              const isLoss = isCapitalGain && displayBal < 0
+              const amtColor = isReadOnly
+                ? (displayBal >= 0 ? '#059669' : '#dc2626')
+                : isExpense
+                  ? '#dc2626'
+                  : isGain
+                    ? '#16a34a'
+                    : isLoss
+                      ? '#dc2626'
+                      : '#000000'
               const ledgerColor = isReadOnly ? '#8b5cf6' : '#3b82f6'
 
               return (
@@ -434,6 +446,20 @@ export default function BalanceSheet() {
                         borderRadius: 2, flexShrink: 0, letterSpacing: '0.05em'
                       }}>EXP</span>
                     )}
+                    {isGain && (
+                      <span style={{
+                        fontSize: 9.5, fontWeight: 800, color: '#16a34a',
+                        background: '#f0fdf4', padding: '0px 3px',
+                        borderRadius: 2, flexShrink: 0, letterSpacing: '0.05em'
+                      }}>GAIN</span>
+                    )}
+                    {isLoss && (
+                      <span style={{
+                        fontSize: 9.5, fontWeight: 800, color: '#dc2626',
+                        background: '#fef2f2', padding: '0px 3px',
+                        borderRadius: 2, flexShrink: 0, letterSpacing: '0.05em'
+                      }}>LOSS</span>
+                    )}
                     {!isReadOnly && (
                       <span style={{ fontSize: 10, color: '#2563eb', flexShrink: 0, opacity: 0.7 }} title="View Ledger">↗</span>
                     )}
@@ -443,7 +469,7 @@ export default function BalanceSheet() {
                     <div style={{ display: 'grid', gridTemplateColumns: '130px 120px 140px', gap: 8, flexShrink: 0, textAlign: 'right' }}>
                       <span style={{
                         fontVariantNumeric: 'tabular-nums', fontSize: 11.5, fontWeight: 650,
-                        color: isReadOnly ? (displayBal >= 0 ? '#059669' : '#dc2626') : '#000000',
+                        color: amtColor,
                         whiteSpace: 'nowrap'
                       }}>
                         {fmtIN(displayBal)}
@@ -456,9 +482,7 @@ export default function BalanceSheet() {
                   ) : (
                     <span style={{
                       fontVariantNumeric: 'tabular-nums', fontSize: 12.5, fontWeight: 650, flexShrink: 0,
-                      color: isReadOnly
-                        ? (displayBal >= 0 ? '#059669' : '#dc2626')
-                        : isExpense ? '#dc2626' : '#000000',
+                      color: amtColor,
                       marginLeft: 8, whiteSpace: 'nowrap',
                       minWidth: 140, textAlign: 'right', display: 'inline-block'
                     }}>

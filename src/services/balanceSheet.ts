@@ -122,8 +122,10 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
 
   // Walk up parent chain to find the root type of a group
   const getGroupType = (groupId: string): string => {
+    if (groupId === '180') return 'INCOME';
     let current: any = groups.find((g: any) => g.id === groupId);
     while (current) {
+      if (current.id === '180' || current.name?.toLowerCase().includes('capital gain')) return 'INCOME';
       if (current.type) return current.type;
       current = groups.find((g: any) => g.id === current.parent);
     }

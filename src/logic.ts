@@ -1037,14 +1037,17 @@ export function getStoredGroups(acid?: string | number): Group[] {
   const acidNum = acid ? Number(acid) : null;
   return state.acmac1
     .filter((a: any) => a.is_group && (!acidNum || a.acid === acidNum))
-    .map((a: any) => ({
-      id: String(a.id),
-      name: a.name,
-      parent: a.parent_id ? String(a.parent_id) : undefined,
-      type: getGroupType(a.special_type_id || 150),
-      acid: a.acid,
-      specialTypeId: a.special_type_id
-    }));
+    .map((a: any) => {
+      const isCapitalGainsGroup = Number(a.id) === 180 || a.name?.toLowerCase().includes('capital gain') || a.parent_id === 155;
+      return {
+        id: String(a.id),
+        name: a.name,
+        parent: a.parent_id ? String(a.parent_id) : undefined,
+        type: isCapitalGainsGroup ? 'INCOME' : getGroupType(a.special_type_id || 150),
+        acid: a.acid,
+        specialTypeId: isCapitalGainsGroup ? 280 : a.special_type_id
+      };
+    });
 }
 
 export function getStoredLedgers(acid?: string | number): Ledger[] {

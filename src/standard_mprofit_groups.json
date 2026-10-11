@@ -184,7 +184,7 @@
     "parent_id": 155,
     "is_group": true,
     "name": "Capital Gains",
-    "special_type_id": 290,
+    "special_type_id": 280,
     "flags": "65536",
     "disp_seqno": 100,
     "tree_node": "<null>"
