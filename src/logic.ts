@@ -504,7 +504,7 @@ async function performBackgroundSync() {
         console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
         return;
       }
-      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v30') : null;
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v31') : null;
       if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
         console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
         Object.assign(state, cachedState);
@@ -657,7 +657,7 @@ async function performBackgroundSync() {
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v30', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v31', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -675,7 +675,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v30') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v31') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -732,7 +732,7 @@ export async function initDatabase() {
 export async function persistStateToIDB() {
   if (typeof indexedDB !== 'undefined') {
     try {
-      await set('wealthcore_state_v30', JSON.parse(JSON.stringify(state)));
+      await set('wealthcore_state_v31', JSON.parse(JSON.stringify(state)));
       console.log('✅ WealthCore state saved to IndexedDB');
     } catch (e) {
       console.warn('Failed to persist state to IndexedDB:', e);
@@ -1787,10 +1787,10 @@ export function getAssetTransactions(portfolioIds: number[], amid: number, start
       const port = state.portfolios.find((p: any) => p.id === t.pfid);
       const date = t.dt || '';
 
-      // Calculate pro-rated contract note charges if linked to scnote1
+      // Calculate pro-rated contract note charges if linked to scnote1 or voucher
       let cnChargesVal = Number(t.chrgs) || 0;
       let cnBrokerageVal = Number(t.brkg) || 0;
-      if (t.cnid && Number(t.cnid) > 0 && cnChargesVal === 0) {
+      if (cnChargesVal === 0 && t.cnid && Number(t.cnid) > 0) {
         const cn = (state as any).scnote1?.find?.((n: any) => Number(n.cnid) === Number(t.cnid));
         if (cn) {
           const totalCnCharges = (Number(cn.stt) || 0) + (Number(cn.servtax) || 0) + (Number(cn.stmpchrgs) || 0) + (Number(cn.tranchrg) || 0) + (Number(cn.othchrg) || 0);
@@ -1801,6 +1801,21 @@ export function getAssetTransactions(portfolioIds: number[], amid: number, start
           }
         }
       }
+      if (cnChargesVal === 0 && (t.acvch || t.vid)) {
+        const linkedVid = Number(t.acvch || t.vid);
+        const v = (state.vouchersC1 || []).find((x: any) => x.vid === linkedVid) || (state.vouchers1 || []).find((x: any) => x.vid === linkedVid);
+        if (v && v.cnid && Number(v.cnid) > 0) {
+          const cn = (state as any).scnote1?.find?.((n: any) => Number(n.cnid) === Number(v.cnid));
+          if (cn) {
+            const totalCnCharges = (Number(cn.stt) || 0) + (Number(cn.servtax) || 0) + (Number(cn.stmpchrgs) || 0) + (Number(cn.tranchrg) || 0) + (Number(cn.othchrg) || 0);
+            if (totalCnCharges > 0) {
+              const cnTrades = state.bs1.filter((b: any) => Number(b.cnid) === Number(v.cnid) || Number(b.acvch) === linkedVid);
+              const totalCnAmt = cnTrades.reduce((s: number, b: any) => s + (Number(b.amt) || 0), 0);
+              cnChargesVal = totalCnAmt > 0 ? Number(((amount / totalCnAmt) * totalCnCharges).toFixed(2)) : totalCnCharges;
+            }
+          }
+        }
+      }
 
       const folio = getFolioNumber(t.sid, t.amid, t.pfid);
       const txItem = {
@@ -1808,7 +1823,8 @@ export function getAssetTransactions(portfolioIds: number[], amid: number, start
         date,
         type: t.trstr || (isBuy ? 'Buy' : 'Sell'),
         trty: t.trty,
-        voucherId: 'trid_' + t.trid,
+        voucherId: t.acvch ? String(t.acvch) : 'trid_' + t.trid,
+        acvch: t.acvch,
         cnid: t.cnid,
         portfolioName: port?.investor_name || `Portfolio ${t.pfid}`,
         portfolioId: t.pfid,
@@ -4426,7 +4442,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // Cache updated state in IndexedDB
     if (typeof indexedDB !== 'undefined') {
       try {
-        await set('wealthcore_state_v30', JSON.parse(JSON.stringify(state)));
+        await set('wealthcore_state_v31', JSON.parse(JSON.stringify(state)));
       } catch (idbErr) {
         console.warn('IDB price update failed:', idbErr);
       }

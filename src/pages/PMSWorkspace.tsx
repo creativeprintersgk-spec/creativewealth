@@ -522,8 +522,8 @@ export default function PMSWorkspace() {
                   <button className="dropdown-item" onClick={() => { setEditingVoucherId('new'); setIsActivityMenuOpen(false); }}>Add Transaction (Stocks / MF)</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd' }); setIsActivityMenuOpen(false); }}>+ Add Fixed Deposit (FD)</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ppf' }); setIsActivityMenuOpen(false); }}>+ Add PPF / EPF Contribution</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ncd' }); setIsActivityMenuOpen(false); }}>+ Add NCD / Debenture Buy</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'bond' }); setIsActivityMenuOpen(false); }}>+ Add Traded Bond Buy</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ncd' }); setIsActivityMenuOpen(false); }}>+ Add Unlisted NCD / Bond Buy</button>
+                  <button className="dropdown-item" onClick={() => { setEditingVoucherId('new'); setIsActivityMenuOpen(false); }}>+ Add Traded Bond (Contract Note)</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_buy' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Purchase</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_sell' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Sale</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ulip' }); setIsActivityMenuOpen(false); }}>+ Add ULIP Policy</button>
