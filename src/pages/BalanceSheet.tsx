@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react"
 import { getBalanceSheet, getComparativeBalanceSheet } from "../services/balanceSheet"
 import { useFY } from "../FYContext"
-import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, createVoucher, getStoredAccounts, formatDateDDMMMYYYY } from "../logic"
+import { getStoredGroups, getStoredLedgers, getStoredEntries, getStoredVouchers, createVoucher, getStoredAccounts, formatDateDDMMMYYYY, forceRefreshDatabase } from "../logic"
 import { v4 as uuid } from "uuid"
 import LedgerDrilldownModal from "../LedgerDrilldownModal"
 import VoucherModal from "../VoucherModal"
@@ -117,6 +117,7 @@ export default function BalanceSheet() {
   const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null)
   const [selectedVoucherId, setSelectedVoucherId] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const accounts = getStoredAccounts().filter(a => a.familyId === activeFamilyId)
 
@@ -153,6 +154,12 @@ export default function BalanceSheet() {
   useEffect(() => { setCompareFY(getLastFY(selectedFY)) }, [selectedFY])
   useEffect(() => { load() }, [selectedFY, reportFilter, customRange.start, customRange.end, selectedAccountId, globalRefreshTrigger, isComparative, compareFY])
 
+  useEffect(() => {
+    const handleSync = () => { load() };
+    window.addEventListener('wealthcore-sync-complete', handleSync);
+    return () => window.removeEventListener('wealthcore-sync-complete', handleSync);
+  }, [selectedFY, reportFilter, customRange.start, customRange.end, selectedAccountId, isComparative, compareFY]);
+
   async function load() {
     if (!selectedAccountId && accounts.length > 0) return
     if (isComparative) {
@@ -162,6 +169,16 @@ export default function BalanceSheet() {
     } else {
       const res = await getBalanceSheet(effectiveDates.start, effectiveDates.end, selectedAccountId)
       setData(res)
+    }
+  }
+
+  async function handleForceRefresh() {
+    setIsRefreshing(true)
+    try {
+      await forceRefreshDatabase()
+      await load()
+    } finally {
+      setIsRefreshing(false)
     }
   }
 
@@ -802,17 +819,21 @@ export default function BalanceSheet() {
 
           {/* Refresh */}
           <button
-            onClick={load}
+            onClick={handleForceRefresh}
+            disabled={isRefreshing}
+            title="Sync latest data from cloud"
             style={{
-              display: 'flex', alignItems: 'center',
+              display: 'flex', alignItems: 'center', gap: 4,
               padding: '4px 8px', fontSize: 11,
-              borderRadius: 6, cursor: 'pointer',
+              borderRadius: 6, cursor: isRefreshing ? 'wait' : 'pointer',
               border: '1px solid rgba(255,255,255,0.2)',
               background: 'rgba(255,255,255,0.08)',
-              color: '#c7d2fe'
+              color: '#c7d2fe',
+              opacity: isRefreshing ? 0.7 : 1
             }}
           >
-            <RefreshCw size={11} />
+            <RefreshCw size={11} className={isRefreshing ? "animate-spin" : ""} />
+            {isRefreshing && <span>Syncing...</span>}
           </button>
         </div>
       </div>
