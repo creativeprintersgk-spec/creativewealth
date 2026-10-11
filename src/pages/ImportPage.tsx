@@ -1072,6 +1072,11 @@ function ImportPageInner() {
   const [cnNo, setCnNo] = useState<string>("");
   const [cnTrades, setCnTrades] = useState<any[]>([]);
   const [cnBatches, setCnBatches] = useState<any[]>([]);
+  const [cnFileQueue, setCnFileQueue] = useState<File[]>([]);
+  const [cnTotalQueued, setCnTotalQueued] = useState<number>(0);
+  const [cnCurrentFileIndex, setCnCurrentFileIndex] = useState<number>(0);
+  const [cnActiveFileName, setCnActiveFileName] = useState<string>("");
+  const [duplicateSkippedNotices, setDuplicateSkippedNotices] = useState<Array<{ fileName: string; cnNo: string; individual: string; broker: string; date: string; reason: string }>>([]);
   const [hideDuplicatesCn, setHideDuplicatesCn] = useState<boolean>(false);
   const [cnCharges, setCnCharges] = useState({
     stt: 0,
@@ -1728,6 +1733,12 @@ function ImportPageInner() {
       setCnBatches([]);
       setCnNo("");
       setPdfFinalNet(null);
+      setCnActiveFileName("");
+
+      // Automatically parse and display the next Contract Note in the queue (if any)!
+      if (pendingFilesQueueRef.current.length > 0) {
+        await advanceCnQueue();
+      }
     } catch (err: any) {
       alert(`Failed to commit trades: ${err.message}`);
     } finally {
@@ -1980,8 +1991,11 @@ function ImportPageInner() {
     };
   };
 
-  // ── Unified Contract Note ingestion pipeline (Supports Multi-CN & Multi-Broker) ──
-  const ingestParsedCnResult = async (result: any, fileName = '', appendBatch = true) => {
+  // ── Unified Contract Note ingestion pipeline (Sequential One-by-One with Duplicate Protection) ──
+  const ingestParsedCnResult = async (
+    result: any,
+    fileName = ''
+  ): Promise<{ isDuplicate: boolean; cnNo: string; individual: string; broker: string; date: string; reason?: string }> => {
     let nextId = Date.now() + Math.floor(Math.random() * 10000);
     const newTrades: any[] = [];
 
@@ -1989,18 +2003,16 @@ function ImportPageInner() {
     const isFno = (result.trades || []).some((t: any) => !t.isin || /OPT|FUT/i.test(t.assetName || ''));
     const resolvedPf = await resolveOrCreatePortfolio(result.pan || '', result.clientName || '', result.ucc || '', isFno);
     const autoSelectedPortfolio = resolvedPf.portfolioId;
-    setSelectedPortfolio(autoSelectedPortfolio);
 
     // 2. Auto-detect broker & auto-select / auto-create the EXACT Broker Ledger for this individual's account (acid)
     const detectedBroker = result.broker && result.broker !== 'auto' ? result.broker : 'zerodha';
-    setSelectedBroker(detectedBroker);
 
     const targetAcid = Number(resolvedPf.accountId) || 31;
     const allLedgers = getStoredLedgers(targetAcid);
     const brokerLedgersList = allLedgers.filter(l => l.groupId === '75' || l.groupId === '90' || (l as any).parent_id === 75 || (l as any).parent_id === 90);
 
     const matchKeys = BROKER_MATCHERS[detectedBroker] || [detectedBroker];
-    let matchedLedger = brokerLedgersList.find(b => {
+    const matchedLedger = brokerLedgersList.find(b => {
       const bName = b.name.toLowerCase();
       return matchKeys.some(k => bName.includes(k.toLowerCase()));
     });
@@ -2014,34 +2026,20 @@ function ImportPageInner() {
       if (created) {
         resolvedBrokerLedgerId = String(created.id);
         resolvedBrokerLedgerName = created.name || displayName;
-        setSelectedBrokerLedger(resolvedBrokerLedgerId);
-        setBrokerLedgers([...brokerLedgersList, created]);
       } else if (brokerLedgersList.length > 0) {
         resolvedBrokerLedgerId = String(brokerLedgersList[0].id);
         resolvedBrokerLedgerName = brokerLedgersList[0].name;
-        setSelectedBrokerLedger(resolvedBrokerLedgerId);
-        setBrokerLedgers(brokerLedgersList);
       }
     } else {
       resolvedBrokerLedgerId = String(matchedLedger.id);
       resolvedBrokerLedgerName = matchedLedger.name;
-      setSelectedBrokerLedger(resolvedBrokerLedgerId);
-      setBrokerLedgers(brokerLedgersList);
     }
-
-    setAutoDetectedInfo({
-      individual: resolvedPf.portfolioName,
-      broker: detectedBroker,
-      pan: result.pan
-    });
 
     // Set CN date from parsed file (fallback to today)
     const parsedDate = result.cnDate || cnDate;
-    if (result.cnDate) setCnDate(result.cnDate);
 
     // Set CN number from parsed file
-    const parsedCnNo = result.cnNo || cnNo || `CN-${parsedDate.replace(/-/g, '')}`;
-    if (result.cnNo) setCnNo(result.cnNo);
+    const parsedCnNo = result.cnNo || `CN-${parsedDate.replace(/-/g, '')}`;
 
     const batchId = `${autoSelectedPortfolio}_${parsedDate}_${parsedCnNo}_${resolvedBrokerLedgerId}`;
 
@@ -2210,6 +2208,46 @@ function ImportPageInner() {
       throw new Error(`No trades were found in ${fileName || 'this file'}. Please verify it is a valid broker contract note or tradebook.`);
     }
 
+    // ── Check if this Contract Note is ALREADY in the database (Duplicate Protection) ──
+    const dupScnote = parsedCnNo
+      ? state.scnote1?.some((s: any) => s.cnnum && s.cnnum.toLowerCase() === parsedCnNo.toLowerCase())
+      : false;
+    const dupVoucher = parsedCnNo
+      ? getStoredVouchers().some((v: any) => {
+          const n = (v.narration || v.narr || '').toLowerCase();
+          return n.includes(`no: ${parsedCnNo.toLowerCase()}`) || n.includes(parsedCnNo.toLowerCase());
+        })
+      : false;
+    const allTradesAlreadyInBs1 = newTrades.length > 0 && newTrades.every(tr => isDuplicateTrade(tr, Number(autoSelectedPortfolio), parsedDate));
+
+    if (dupScnote || dupVoucher || allTradesAlreadyInBs1) {
+      const dupReason = (dupScnote || dupVoucher)
+        ? `Contract Note ${parsedCnNo} already exists in accounting vouchers`
+        : `All ${newTrades.length} trade(s) on ${parsedDate} already exist in ${resolvedPf.portfolioName}`;
+      return {
+        isDuplicate: true,
+        cnNo: parsedCnNo,
+        individual: resolvedPf.portfolioName,
+        broker: resolvedBrokerLedgerName,
+        date: parsedDate,
+        reason: dupReason
+      };
+    }
+
+    // Not a duplicate — stage this single Contract Note for review & commitment!
+    setSelectedPortfolio(autoSelectedPortfolio);
+    setSelectedBroker(detectedBroker);
+    setSelectedBrokerLedger(resolvedBrokerLedgerId);
+    setBrokerLedgers(brokerLedgersList);
+    setCnDate(parsedDate);
+    setCnNo(parsedCnNo);
+    setCnActiveFileName(fileName || parsedCnNo);
+    setAutoDetectedInfo({
+      individual: resolvedPf.portfolioName,
+      broker: detectedBroker,
+      pan: result.pan
+    });
+
     const parsedCharges = {
       stt: Number(result.charges?.stt) || 0,
       brokerage: Number(result.charges?.brokerage) || 0,
@@ -2236,38 +2274,25 @@ function ImportPageInner() {
       finalNet: result.finalNet !== undefined ? result.finalNet : null
     };
 
-    setCnBatches(prev => {
-      const base = appendBatch ? prev.filter(b => b.batchId !== batchId) : [];
-      const updated = [...base, newBatch];
-      // Sync aggregate charges & finalNet across all staged contract notes
-      const sumChg = updated.reduce((acc, b) => ({
-        stt: Number((acc.stt + (b.charges?.stt || 0)).toFixed(2)),
-        brokerage: Number((acc.brokerage + (b.charges?.brokerage || 0)).toFixed(2)),
-        gst: Number((acc.gst + (b.charges?.gst || 0)).toFixed(2)),
-        stamp: Number((acc.stamp + (b.charges?.stamp || 0)).toFixed(2)),
-        transCharges: Number((acc.transCharges + (b.charges?.transCharges || 0)).toFixed(2)),
-        other: Number((acc.other + (b.charges?.other || 0)).toFixed(2)),
-      }), { stt: 0, brokerage: 0, gst: 0, stamp: 0, transCharges: 0, other: 0 });
-      setCnCharges(sumChg);
+    setCnBatches([newBatch]);
+    setCnCharges(parsedCharges);
+    setPdfFinalNet(result.finalNet !== undefined ? result.finalNet : null);
+    setCnTrades(newTrades);
 
-      const allHaveNet = updated.every(b => b.finalNet !== null && b.finalNet !== undefined);
-      if (allHaveNet && updated.length > 0) {
-        setPdfFinalNet(Number(updated.reduce((s, b) => s + Number(b.finalNet || 0), 0).toFixed(2)));
-      } else {
-        setPdfFinalNet(null);
-      }
-      return updated;
-    });
-
-    setCnTrades(prev => {
-      const base = appendBatch ? prev.filter(t => t.cnBatchId !== batchId) : [];
-      return [...base, ...newTrades];
-    });
+    return {
+      isDuplicate: false,
+      cnNo: parsedCnNo,
+      individual: resolvedPf.portfolioName,
+      broker: resolvedBrokerLedgerName,
+      date: parsedDate
+    };
   };
 
-  // ── Broker contract note PDF/CSV/HTML processor (Single & Multi-File) ────
-  const processBrokerCnFile = async (file: File, appendBatch = true): Promise<boolean> => {
-    if (!file) return true;
+  // ── Broker contract note PDF/CSV/HTML processor (Single File in Sequential Queue) ────
+  const processBrokerCnFile = async (
+    file: File
+  ): Promise<'staged' | 'duplicate_skipped' | 'needs_password' | 'error'> => {
+    if (!file) return 'error';
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
       try {
@@ -2341,8 +2366,22 @@ function ImportPageInner() {
               }
 
               if (clientRes.trades && clientRes.trades.length > 0) {
-                await ingestParsedCnResult(clientRes, file.name, appendBatch);
-                return true;
+                const ingestRes = await ingestParsedCnResult(clientRes, file.name);
+                if (ingestRes.isDuplicate) {
+                  setDuplicateSkippedNotices(prev => [
+                    ...prev,
+                    {
+                      fileName: file.name,
+                      cnNo: ingestRes.cnNo,
+                      individual: ingestRes.individual,
+                      broker: ingestRes.broker,
+                      date: ingestRes.date,
+                      reason: ingestRes.reason || 'Duplicate Contract Note'
+                    }
+                  ]);
+                  return 'duplicate_skipped';
+                }
+                return 'staged';
               }
             }
           } catch (candErr) {
@@ -2366,8 +2405,22 @@ function ImportPageInner() {
             if (response.ok) {
               const result = await response.json();
               if (result.status === 'ok' && result.trades && result.trades.length > 0) {
-                await ingestParsedCnResult(result, file.name, appendBatch);
-                return true;
+                const ingestRes = await ingestParsedCnResult(result, file.name);
+                if (ingestRes.isDuplicate) {
+                  setDuplicateSkippedNotices(prev => [
+                    ...prev,
+                    {
+                      fileName: file.name,
+                      cnNo: ingestRes.cnNo,
+                      individual: ingestRes.individual,
+                      broker: ingestRes.broker,
+                      date: ingestRes.date,
+                      reason: ingestRes.reason || 'Duplicate Contract Note'
+                    }
+                  ]);
+                  return 'duplicate_skipped';
+                }
+                return 'staged';
               }
             }
           } catch {}
@@ -2381,7 +2434,7 @@ function ImportPageInner() {
       const lastSaved = localStorage.getItem(`wealthcore_cn_password_${selectedBroker}`) || localStorage.getItem('wealthcore_cn_password') || '';
       if (lastSaved) setTempPassword(lastSaved);
       setPasswordPromptOpen(true);
-      return false; // Pause queue until password entered
+      return 'needs_password'; // Pause queue until password entered
     } else {
       // CSV / HTML / TXT file
       try {
@@ -2390,8 +2443,22 @@ function ImportPageInner() {
         // 1. In-browser client-side text/HTML parse
         const clientRes = parseContractNoteClientText(text, file.name, 'auto');
         if (clientRes.status === 'ok' && clientRes.trades && clientRes.trades.length > 0) {
-          await ingestParsedCnResult(clientRes, file.name, appendBatch);
-          return true;
+          const ingestRes = await ingestParsedCnResult(clientRes, file.name);
+          if (ingestRes.isDuplicate) {
+            setDuplicateSkippedNotices(prev => [
+              ...prev,
+              {
+                fileName: file.name,
+                cnNo: ingestRes.cnNo,
+                individual: ingestRes.individual,
+                broker: ingestRes.broker,
+                date: ingestRes.date,
+                reason: ingestRes.reason || 'Duplicate Contract Note'
+              }
+            ]);
+            return 'duplicate_skipped';
+          }
+          return 'staged';
         }
 
         // 2. Fallback: try local server /api/parse-cn
@@ -2424,28 +2491,77 @@ function ImportPageInner() {
           throw new Error(result.message || "Failed to parse trade file");
         }
 
-        await ingestParsedCnResult(result, file.name, appendBatch);
-        return true;
+        const ingestRes = await ingestParsedCnResult(result, file.name);
+        if (ingestRes.isDuplicate) {
+          setDuplicateSkippedNotices(prev => [
+            ...prev,
+            {
+              fileName: file.name,
+              cnNo: ingestRes.cnNo,
+              individual: ingestRes.individual,
+              broker: ingestRes.broker,
+              date: ingestRes.date,
+              reason: ingestRes.reason || 'Duplicate Contract Note'
+            }
+          ]);
+          return 'duplicate_skipped';
+        }
+        return 'staged';
       } catch (err: any) {
         alert(`Error parsing ${file.name}: ` + (err.message || String(err)));
         console.error(err);
-        return true;
+        return 'error';
       }
+    }
+  };
+
+  // Advance through the file queue until a non-duplicate Contract Note is staged for commitment (or queue finishes)
+  const advanceCnQueue = async (totalCount?: number, startIdx?: number) => {
+    let idx = startIdx !== undefined ? startIdx : cnCurrentFileIndex;
+    const total = totalCount !== undefined ? totalCount : cnTotalQueued;
+
+    while (pendingFilesQueueRef.current.length > 0) {
+      const nextFile = pendingFilesQueueRef.current.shift()!;
+      idx += 1;
+      setCnCurrentFileIndex(idx);
+      setCnFileQueue([...pendingFilesQueueRef.current]);
+
+      const status = await processBrokerCnFile(nextFile);
+      if (status === 'staged') {
+        // Stop here so user can review and press Commit for this Contract Note!
+        return;
+      }
+      if (status === 'needs_password') {
+        // Paused waiting for PDF password prompt; remaining files stay in pendingFilesQueueRef
+        return;
+      }
+      // If 'duplicate_skipped' or 'error', automatically continue to the next file in queue!
+    }
+
+    // Queue exhausted without staging a new file
+    setCnFileQueue([]);
+    if (total > 0 && idx >= total) {
+      setCnTrades([]);
+      setCnBatches([]);
+      setCnNo("");
+      setPdfFinalNet(null);
+      setCnActiveFileName("");
     }
   };
 
   const processBrokerCnFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files || []);
     if (fileArray.length === 0) return;
+
+    // Clear previous duplicate notices when starting a fresh upload selection
+    setDuplicateSkippedNotices([]);
+    setLastCommittedInfo(null);
     pendingFilesQueueRef.current = [...fileArray];
-    while (pendingFilesQueueRef.current.length > 0) {
-      const nextFile = pendingFilesQueueRef.current.shift()!;
-      const completed = await processBrokerCnFile(nextFile, true);
-      if (!completed) {
-        // Paused waiting for PDF password prompt; remaining files stay in pendingFilesQueueRef
-        break;
-      }
-    }
+    setCnTotalQueued(fileArray.length);
+    setCnCurrentFileIndex(0);
+    setCnFileQueue([...fileArray]);
+
+    await advanceCnQueue(fileArray.length, 0);
   };
 
   const handleBrokerCnFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2489,23 +2605,15 @@ function ImportPageInner() {
     setCnTrades(prev => prev.filter(t => t.id !== id));
   };
 
-  const handleRemoveCnBatch = (batchId: string) => {
-    setCnBatches(prev => {
-      const updated = prev.filter(b => b.batchId !== batchId);
-      const sumChg = updated.reduce((acc, b) => ({
-        stt: Number((acc.stt + (b.charges?.stt || 0)).toFixed(2)),
-        brokerage: Number((acc.brokerage + (b.charges?.brokerage || 0)).toFixed(2)),
-        gst: Number((acc.gst + (b.charges?.gst || 0)).toFixed(2)),
-        stamp: Number((acc.stamp + (b.charges?.stamp || 0)).toFixed(2)),
-        transCharges: Number((acc.transCharges + (b.charges?.transCharges || 0)).toFixed(2)),
-        other: Number((acc.other + (b.charges?.other || 0)).toFixed(2)),
-      }), { stt: 0, brokerage: 0, gst: 0, stamp: 0, transCharges: 0, other: 0 });
-      setCnCharges(sumChg);
-      const allHaveNet = updated.every(b => b.finalNet !== null && b.finalNet !== undefined);
-      setPdfFinalNet(allHaveNet && updated.length > 0 ? Number(updated.reduce((s, b) => s + Number(b.finalNet || 0), 0).toFixed(2)) : null);
-      return updated;
-    });
-    setCnTrades(prev => prev.filter(t => t.cnBatchId !== batchId));
+  const handleSkipCurrentCnInQueue = async () => {
+    setCnTrades([]);
+    setCnBatches([]);
+    setCnNo("");
+    setPdfFinalNet(null);
+    setCnActiveFileName("");
+    if (pendingFilesQueueRef.current.length > 0) {
+      await advanceCnQueue();
+    }
   };
 
   // ── Password prompt (for encrypted PDFs) ─────────────────────────────────
@@ -2541,13 +2649,26 @@ function ImportPageInner() {
           }
 
           if (clientRes.trades && clientRes.trades.length > 0) {
-            await ingestParsedCnResult(clientRes, pendingFile.name, true);
+            const ingestRes = await ingestParsedCnResult(clientRes, pendingFile.name);
             setPasswordPromptOpen(false);
             setPendingFile(null);
             setTempPassword('');
             setPasswordError('');
-            if (pendingFilesQueueRef.current.length > 0) {
-              await processBrokerCnFiles(pendingFilesQueueRef.current);
+            if (ingestRes.isDuplicate) {
+              setDuplicateSkippedNotices(prev => [
+                ...prev,
+                {
+                  fileName: pendingFile.name,
+                  cnNo: ingestRes.cnNo,
+                  individual: ingestRes.individual,
+                  broker: ingestRes.broker,
+                  date: ingestRes.date,
+                  reason: ingestRes.reason || 'Duplicate Contract Note'
+                }
+              ]);
+              if (pendingFilesQueueRef.current.length > 0) {
+                await advanceCnQueue();
+              }
             }
             return;
           } else {
@@ -2613,14 +2734,27 @@ function ImportPageInner() {
         }
       }
 
-      await ingestParsedCnResult(result, pendingFile.name, true);
+      const ingestRes = await ingestParsedCnResult(result, pendingFile.name);
 
       setPasswordPromptOpen(false);
       setPendingFile(null);
       setTempPassword('');
       setPasswordError('');
-      if (pendingFilesQueueRef.current.length > 0) {
-        await processBrokerCnFiles(pendingFilesQueueRef.current);
+      if (ingestRes.isDuplicate) {
+        setDuplicateSkippedNotices(prev => [
+          ...prev,
+          {
+            fileName: pendingFile.name,
+            cnNo: ingestRes.cnNo,
+            individual: ingestRes.individual,
+            broker: ingestRes.broker,
+            date: ingestRes.date,
+            reason: ingestRes.reason || 'Duplicate Contract Note'
+          }
+        ]);
+        if (pendingFilesQueueRef.current.length > 0) {
+          await advanceCnQueue();
+        }
       }
     } catch (e: any) {
       setPasswordError(e.message || 'Incorrect password or error parsing PDF. Please try again.');
@@ -2628,11 +2762,14 @@ function ImportPageInner() {
     }
   };
 
-  const handlePasswordCancel = () => {
+  const handlePasswordCancel = async () => {
     setPasswordPromptOpen(false);
     setPendingFile(null);
     setTempPassword('');
     setPasswordError('');
+    if (pendingFilesQueueRef.current.length > 0) {
+      await advanceCnQueue();
+    }
   };
 
 
@@ -2967,8 +3104,103 @@ function ImportPageInner() {
             📄 Broker Contract Note Importer
           </h1>
           <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 20px 0' }}>
-            Upload one or multiple contract notes (PDF, HTML, CSV) across any brokers at one go. Each file's individual, broker ledger, and charges are automatically parsed and isolated.
+            Select one or multiple contract notes (PDF, HTML, CSV) across any brokers. Files are parsed and reviewed <strong>one by one</strong> — once you press Commit, the next Contract Note is automatically parsed and displayed. Duplicates are detected and skipped automatically.
           </p>
+
+          {/* ── Sequential Queue Progress Bar (when multiple files selected) ── */}
+          {cnTotalQueued > 1 && (cnTrades.length > 0 || cnFileQueue.length > 0 || passwordPromptOpen) && (
+            <div style={{
+              marginBottom: '16px',
+              padding: '12px 18px',
+              background: '#eff6ff',
+              border: '1px solid #93c5fd',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#1e40af', fontWeight: 700 }}>
+                <span style={{ background: '#2563eb', color: '#fff', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 800 }}>
+                  File {cnCurrentFileIndex} of {cnTotalQueued}
+                </span>
+                <span>
+                  Reviewing: <strong>{cnActiveFileName || pendingFile?.name || 'Contract Note'}</strong>
+                </span>
+                {cnFileQueue.length > 0 && (
+                  <span style={{ color: '#3b82f6', fontWeight: 600 }}>
+                    ({cnFileQueue.length} more queued next: {cnFileQueue.map(f => f.name).join(', ')})
+                  </span>
+                )}
+              </div>
+              {cnFileQueue.length > 0 && (
+                <button
+                  onClick={handleSkipCurrentCnInQueue}
+                  style={{
+                    background: '#fff',
+                    color: '#1e40af',
+                    border: '1px solid #93c5fd',
+                    borderRadius: '8px',
+                    padding: '5px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Skip to Next File →
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── Duplicate Contract Note Skipped Alert Banner ── */}
+          {duplicateSkippedNotices.length > 0 && (
+            <div style={{
+              marginBottom: '20px',
+              padding: '14px 18px',
+              background: '#fffbeb',
+              border: '1px solid #fcd34d',
+              borderRadius: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>⚠️ Duplicate Contract Note(s) Detected — Skipped Automatically (No Double Entry):</span>
+                </div>
+                <button
+                  onClick={() => setDuplicateSkippedNotices([])}
+                  style={{ background: 'none', border: 'none', color: '#b45309', cursor: 'pointer', fontWeight: 700, fontSize: '14px' }}
+                >
+                  ✕
+                </button>
+              </div>
+              {duplicateSkippedNotices.map((d, i) => (
+                <div key={i} style={{
+                  background: '#fff',
+                  border: '1px solid #fde68a',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  color: '#78350f',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '8px'
+                }}>
+                  <div>
+                    <strong>{d.fileName}</strong> — Individual: <strong>{d.individual}</strong> · Broker: <strong>{d.broker}</strong> · CN: <strong>{d.cnNo}</strong> · Date: <strong>{d.date}</strong>
+                  </div>
+                  <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '11px' }}>
+                    DUPLICATE SKIPPED ({d.reason})
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {cnBatches.length > 0 ? (
             <div style={{
@@ -2982,8 +3214,8 @@ function ImportPageInner() {
               gap: '10px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', color: '#166534', fontWeight: 700 }}>
-                <span>⚡ Auto-Detected & Isolated Contract Note Batches ({cnBatches.length}):</span>
-                <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 600 }}>Zero cross-broker or cross-individual mix-up</span>
+                <span>⚡ Auto-Detected Contract Note Ready for Commitment:</span>
+                <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 600 }}>One-by-One Sequential Mode · Zero Mix-Up</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                 {cnBatches.map((b: any) => {
@@ -3009,15 +3241,6 @@ function ImportPageInner() {
                           Broker: <strong>{b.brokerLedgerName || b.brokerName}</strong> · CN: <strong>{b.cnNo}</strong> · Date: <strong>{b.cnDate}</strong> · Charges: <strong>₹{chgTotal.toFixed(2)}</strong>
                         </div>
                       </div>
-                      {cnBatches.length > 1 && (
-                        <button
-                          onClick={() => handleRemoveCnBatch(b.batchId)}
-                          title="Remove this Contract Note from batch"
-                          style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontWeight: 700, fontSize: '11px' }}
-                        >
-                          ✕
-                        </button>
-                      )}
                     </div>
                   );
                 })}
@@ -3097,7 +3320,7 @@ function ImportPageInner() {
 
           {/* ── Upload + Password inline ── */}
           <div style={{ marginBottom: '28px' }}>
-            <label style={labelStyle}>Upload Contract Note File(s) — Single or Multiple</label>
+            <label style={labelStyle}>Upload Contract Note File(s) — Select Multiple, Commit One by One</label>
 
             {/* File drop zone */}
             <div
@@ -3137,7 +3360,7 @@ function ImportPageInner() {
               />
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
               <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>Click or Drag & Drop One or Multiple Contract Note files here</div>
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>Supports Multi-File Batch Upload (PDF / HTML / CSV): Zerodha · Groww · ICICI Direct · Kotak · HDFC Sec · Motilal Oswal · Dhan · MStock · RK Global</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>Select multiple files across any brokers — each file is parsed and presented one by one for commitment (duplicates auto-skipped)</div>
             </div>
 
             {/* Password prompt — shown inline when PDF is pending */}
@@ -3189,10 +3412,10 @@ function ImportPageInner() {
               {/* Summary bar */}
               <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  {cnBatches.length > 1 && (
+                  {cnTotalQueued > 1 && (
                     <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px', padding: '10px 16px' }}>
-                      <div style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 700, textTransform: 'uppercase' }}>Contract Notes</div>
-                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#4c1d95' }}>{cnBatches.length}</div>
+                      <div style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 700, textTransform: 'uppercase' }}>Queue Progress</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#4c1d95' }}>{cnCurrentFileIndex} / {cnTotalQueued}</div>
                     </div>
                   )}
                   <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 16px' }}>
@@ -3221,6 +3444,11 @@ function ImportPageInner() {
                   </button>
                   <button
                     onClick={() => {
+                      pendingFilesQueueRef.current = [];
+                      setCnFileQueue([]);
+                      setCnTotalQueued(0);
+                      setCnCurrentFileIndex(0);
+                      setCnActiveFileName("");
                       setCnTrades([]);
                       setCnBatches([]);
                       setCnCharges({ stt: 0, brokerage: 0, gst: 0, stamp: 0, transCharges: 0, other: 0 });
@@ -3347,7 +3575,7 @@ function ImportPageInner() {
           {cnTrades.length > 0 && (
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', marginBottom: '28px' }}>
               <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', margin: '0 0 16px 0' }}>
-                Tax & Regulatory Charges {cnBatches.length > 1 ? `(Combined across ${cnBatches.length} Contract Notes — posted individually per CN)` : ''}
+                Tax & Regulatory Charges
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '14px' }}>
                 {Object.keys(cnCharges).map((key) => (
@@ -3410,37 +3638,41 @@ function ImportPageInner() {
 
           {/* ── Commit Button ── */}
           {cnTrades.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              {cnBatches.length <= 1 && isDuplicateCN && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center' }}>
+              {isDuplicateCN && (
                 <div style={{ padding: '10px 16px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '8px', color: '#92400e', fontSize: '13px', fontWeight: 600 }}>
                   ⚠️ CN No. {cnNo} already exists in database
                 </div>
               )}
-              {cnBatches.length <= 1 && !selectedBrokerLedger && (
+              {!selectedBrokerLedger && (
                 <div style={{ padding: '10px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#dc2626', fontSize: '13px', fontWeight: 600 }}>
                   ⚠ Select a Broker Ledger first
                 </div>
               )}
               <button
                 onClick={commitContractNote}
-                disabled={isImporting || (cnBatches.length <= 1 && (!selectedBrokerLedger || isDuplicateCN)) || cnTrades.filter(t => t.selected).length === 0}
-                title={(cnBatches.length <= 1 && isDuplicateCN) ? `CN No. ${cnNo} already exists in database. Delete the existing voucher first before re-importing.` : undefined}
+                disabled={isImporting || !selectedBrokerLedger || isDuplicateCN || cnTrades.filter(t => t.selected).length === 0}
+                title={isDuplicateCN ? `CN No. ${cnNo} already exists in database. Delete the existing voucher first before re-importing.` : undefined}
                 style={{
                   padding: '12px 32px',
-                  background: (isImporting || (cnBatches.length <= 1 && (!selectedBrokerLedger || isDuplicateCN)) || cnTrades.filter(t => t.selected).length === 0) ? '#94a3b8' : '#16a34a',
+                  background: (isImporting || !selectedBrokerLedger || isDuplicateCN || cnTrades.filter(t => t.selected).length === 0) ? '#94a3b8' : '#16a34a',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '10px',
                   fontWeight: 800,
                   fontSize: '15px',
-                  cursor: (isImporting || (cnBatches.length <= 1 && !selectedBrokerLedger) || cnTrades.filter(t => t.selected).length === 0) ? 'not-allowed' : 'pointer',
+                  cursor: (isImporting || !selectedBrokerLedger || isDuplicateCN || cnTrades.filter(t => t.selected).length === 0) ? 'not-allowed' : 'pointer',
                   boxShadow: '0 4px 14px rgba(22,163,74,0.3)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
                 }}
               >
-                {isImporting ? '⏳ Committing...' : `✅ Commit ${cnTrades.filter(t => t.selected).length} Trade(s) ${cnBatches.length > 1 ? `(${cnBatches.length} Contract Notes) ` : ''}to Ledger`}
+                {isImporting
+                  ? '⏳ Committing...'
+                  : cnFileQueue.length > 0
+                    ? `✅ Commit ${cnTrades.filter(t => t.selected).length} Trade(s) & Load Next (${cnFileQueue.length} remaining) →`
+                    : `✅ Commit ${cnTrades.filter(t => t.selected).length} Trade(s) to Ledger`}
               </button>
             </div>
           )}
