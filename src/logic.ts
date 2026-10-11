@@ -3488,7 +3488,9 @@ async function syncPortfolioStats(portfolioId: number, amid: number) {
   let assetType = resolveAssetType(portfolioId, amid, existingSum?.atty);
   const rawName = state.assetNameMap[amid] || '';
   const isDerivative = [30, 31, 32, 33, 80, 81, 82, 83, 84].includes(assetType) ||
-                       /^(futstk|futidx|futcur|futcom|optstk|optidx|optcur|optcom)/i.test(rawName);
+                       [30, 31, 32, 33, 80, 81, 82, 83, 84].some(code => txs.some((t: any) => Number(t.atyid) === code)) ||
+                       /^(futstk|futidx|futcur|futcom|optstk|optidx|optcur|optcom)/i.test(rawName) ||
+                       txs.some((t: any) => /^(futstk|futidx|futcur|futcom|optstk|optidx|optcur|optcom)/i.test(t.narr || ''));
 
   const sortedTxs = [...txs].sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trid) - Number(b.trid)));
 
