@@ -406,6 +406,7 @@ function ImportPageInner() {
   const { triggerGlobalRefresh } = useFY();
   const { isTestMode } = useTestMode();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cnFileInputRef = useRef<HTMLInputElement>(null);
 
   // EMERGENCY CLEANUP FOR CORRUPTED CONTRACT NOTE
   useEffect(() => {
@@ -3386,7 +3387,6 @@ function ImportPageInner() {
 
             {/* File drop zone */}
             <div
-              onClick={() => { const inp = document.getElementById('cn-file-input') as HTMLInputElement; inp?.click(); }}
               onDragOver={e => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -3408,16 +3408,24 @@ function ImportPageInner() {
                   await processBrokerCnFiles(e.dataTransfer.files);
                 }
               }}
+              onClick={() => {
+                if (cnFileInputRef.current) {
+                  cnFileInputRef.current.value = '';
+                  cnFileInputRef.current.click();
+                }
+              }}
               style={{ border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '28px', textAlign: 'center', cursor: 'pointer', background: '#f8fafc', transition: 'all 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = '#2563eb')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = '#cbd5e1')}
             >
               <input
                 id="cn-file-input"
+                ref={cnFileInputRef}
                 type="file"
                 multiple
                 accept=".pdf,.html,.htm,.csv,.txt"
                 style={{ display: 'none' }}
+                onClick={e => e.stopPropagation()}
                 onChange={handleBrokerCnFileSelect}
               />
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
