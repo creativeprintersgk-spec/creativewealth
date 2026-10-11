@@ -3512,13 +3512,18 @@ async function syncPortfolioStats(portfolioId: number, amid: number) {
     }
   });
 
-  if (!isDerivative) {
+  if (isDerivative) {
+    if (Math.abs(qty) < 0.0001) {
+      qty = 0;
+      amtInvested = 0;
+    }
+  } else {
     if (qty < 0) qty = 0;
     if (amtInvested < 0) amtInvested = 0;
   }
 
   const price = state.priceMap[amid]?.curr || 0;
-  const currv = qty !== 0 ? (price > 0 ? qty * price : amtInvested) : amtInvested;
+  const currv = qty !== 0 ? (price > 0 ? qty * price : amtInvested) : 0;
   const effectiveQty = qty !== 0 ? qty : (!isDerivative && amtInvested > 0 ? 1 : 0);
 
   const summaryRow: any = {
