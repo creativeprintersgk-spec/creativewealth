@@ -94,16 +94,26 @@ export default function AssetLedgerModal({
     if (isFD) { setFdModalVoucherId('__new__'); return; }
     if (isPPF) { setPpfModalVoucherId('__new__'); return; }
     if (isNCD) { setNcdModalVoucherId({ voucherId: '__new__', category: 'ncd' }); return; }
-    if (isBond) { setNcdModalVoucherId({ voucherId: '__new__', category: 'bonds' }); return; }
     if (isGold) { setGoldSilverModal({ voucherId: null, metal: 'gold', mode }); return; }
     if (isSilver) { setGoldSilverModal({ voucherId: null, metal: 'silver', mode }); return; }
     if (isULIP) { setUlipModalVoucherId('__new__'); return; }
-    // Fallback: standard equity/MF transaction modal
+    // Standard equity / MF / Traded Bond transaction modal (Contract Note style)
     onEditTransaction?.('new', assetId, assetName, portfolioIds[0]);
   };
 
   // Handler: open correct edit modal for a clicked transaction
-  const handleEditEntry = (vId: string) => {
+  const handleEditEntry = (vId: string, tx?: any) => {
+    const isCnTrade = tx && (
+      (tx.cnid && Number(tx.cnid) > 0) ||
+      (tx.charges && Number(tx.charges) > 0) ||
+      (tx.brokerage && Number(tx.brokerage) > 0) ||
+      (tx.narration && /contract note|cn\s*\(|combined|no:/i.test(tx.narration)) ||
+      (tx.trty === 20 || tx.trty === 99 || tx.trty === 101)
+    );
+    if (isBond && isCnTrade) {
+      onEditTransaction?.(vId, assetId, assetName, portfolioIds[0]);
+      return;
+    }
     if (isFD) { setFdModalVoucherId(vId); return; }
     if (isPPF) { setPpfModalVoucherId(vId); return; }
     if (isNCD) { setNcdModalVoucherId({ voucherId: vId, category: 'ncd' }); return; }
@@ -270,13 +280,13 @@ export default function AssetLedgerModal({
             onClick={() => {
               if (selectedTxId) {
                 const tx = transactions.find(t => t.id === Number(selectedTxId));
-                if (tx && (tx.trty === 62 || tx.type.toLowerCase().includes('dividend'))) {
+                if (tx && (tx.trty === 62 || tx.type.toLowerCase().includes('dividend') || tx.trty === 67 || tx.type.toLowerCase().includes('interest'))) {
                   setIncomeModalVoucherId(tx.voucherId);
                 } else if (tx && CORPORATE_TRTY.has(tx.trty)) {
                   // Corporate actions (splits, bonus, merger) — read-only info
                   setInfoRow(tx);
                 } else if (tx) {
-                  handleEditEntry(tx.voucherId);
+                  handleEditEntry(tx.voucherId, tx);
                 }
               } else {
                 alert("Please select a transaction row below to edit.");
@@ -361,7 +371,7 @@ export default function AssetLedgerModal({
                   { label: "Date", width: '12%', align: 'left' },
                   { label: "Quantity", width: '15%', align: 'right' },
                   { label: "Price", width: '15%', align: 'right' },
-                  { label: "Brokerage (Rs.)", width: '14%', align: 'right' },
+                  { label: "Brkg / Charges (Rs.)", width: '14%', align: 'right' },
                   { label: "Amount", width: '16%', align: 'right' },
                   { label: isSpecialEntry ? "Balance (₹)" : "Bal. Quant", width: '16%', align: 'right' }
                 ].map((col) => (
@@ -407,13 +417,13 @@ export default function AssetLedgerModal({
               ) : (
                 transactions.map((tx) => {
                   const isSelected = selectedTxId === String(tx.id);
-                  const isDividend = tx.trty === 62 || tx.type.toLowerCase().includes('dividend');
+                  const isDividend = tx.trty === 62 || tx.type.toLowerCase().includes('dividend') || tx.trty === 67 || tx.type.toLowerCase().includes('interest');
                   const isCorporate = CORPORATE_TRTY.has(tx.trty);
                   // For display: splits are neutral grey; only regular buy/sell get red/green
                   const isBuyColor = !isCorporate && [19, 20, 12, 25, 30, 46].includes(tx.trty);
                   const bgColor = isSelected ? '#eff6ff' : isDividend ? '#fef3c7' : isCorporate ? '#f0fdf4' : isBuyColor ? '#fee2e2' : '#dcfce7';
                   const textColor = isDividend ? '#92400e' : isCorporate ? '#166534' : isBuyColor ? '#991b1b' : '#166534';
-                  const isImported = tx.narration && (tx.narration.toLowerCase().includes("mutual fund cas") || tx.narration.toLowerCase().includes("contract note"));
+                  const isImported = tx.narration && (tx.narration.toLowerCase().includes("mutual fund cas") || tx.narration.toLowerCase().includes("contract note") || tx.narration.toLowerCase().includes("daily trades cn"));
                   const rowBgColor = isSelected ? '#dbeafe' : isCorporate ? '#f0fdf4' : (isImported ? '#e0f2fe' : 'transparent');
 
                   const handleRowOpen = () => {
@@ -422,7 +432,7 @@ export default function AssetLedgerModal({
                     } else if (isCorporate) {
                       setInfoRow(tx);
                     } else {
-                      handleEditEntry(tx.voucherId);
+                      handleEditEntry(tx.voucherId, tx);
                     }
                   };
 
@@ -453,7 +463,11 @@ export default function AssetLedgerModal({
                       <td style={{ padding: '12px 16px', width: '12%', fontWeight: 600, color: '#0f172a' }}>{formatDate(tx.date)}</td>
                       <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right', fontWeight: 600 }}>{fmtQty(tx.quantity)}</td>
                       <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{tx.price > 0 ? `${tx.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : ''}</td>
-                      <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', color: '#94a3b8' }}>{tx.brokerage > 0 ? `${tx.brokerage.toLocaleString()}` : ''}</td>
+                      <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', color: '#475569', fontWeight: 600 }}>
+                        {((tx.brokerage || 0) + (tx.charges || 0)) > 0
+                          ? fmtAmt((tx.brokerage || 0) + (tx.charges || 0))
+                          : ''}
+                      </td>
                       <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 600, color: isCorporate ? '#6b7280' : isBuyColor ? '#0f172a' : '#16a34a' }}>
                         {tx.amount > 0 ? `${fmtAmt(tx.amount)}` : (isCorporate ? <span style={{color:'#94a3b8',fontSize:'11px'}}>Cost basis transfer</span> : '')}
                       </td>

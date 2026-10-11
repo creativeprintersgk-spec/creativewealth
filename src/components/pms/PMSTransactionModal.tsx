@@ -245,8 +245,10 @@ export default function PMSTransactionModal({
             extractedGst += (l.debit || l.credit || 0);
           } else if (ledgerName.includes('trans. charge') || ledgerName.includes('transaction charge') || ledgerName.includes('exchange charge')) {
             extractedTrans += (l.debit || l.credit || 0);
-          } else if (ledgerName.includes('brokerage')) {
+          } else if (ledgerName.includes('brokerage') || ledgerName.includes('share transaction charge')) {
             extractedBrokerage += (l.debit || l.credit || 0);
+          } else if (ledgerName.includes('other charge')) {
+            extractedOther += (l.debit || l.credit || 0);
           } else if (ledgerName.includes('gain') || ledgerName.includes('loss') || ledgerName.includes('stcg') || ledgerName.includes('ltcg')) {
             // Ignore capital gains
           } else if (
@@ -268,6 +270,7 @@ export default function PMSTransactionModal({
             let tQty = Number(l.quantity) || 0;
             let tPrice = Number(l.price) || 0;
             const lAmt = Number(l.debit || l.credit || 0);
+            const isBuyLine = (Number(l.debit) || 0) > 0;
 
             // Parse quantity @ price from narration if missing (e.g. "780 @ 109")
             const narrText = (l.narration || v.narration || '').trim();
@@ -285,8 +288,12 @@ export default function PMSTransactionModal({
                             (!ledger && !ledgerName.includes('broker') && !ledgerName.includes('bank') && !ledgerName.includes('cash') && !ledgerName.includes('stt') && !ledgerName.includes('stamp') && !ledgerName.includes('gst') && !ledgerName.includes('charge') && !ledgerName.includes('brokerage') && !availableBrokers.some(b => ledgerName.includes(b.toLowerCase())));
             
             if (isAsset) {
-              const tradeVal = tQty > 0 && tPrice > 0 ? tQty * tPrice : lAmt;
-              const lineOtherCharges = lAmt > tradeVal && tradeVal > 0 ? lAmt - tradeVal : 0;
+              // For SELL lines in accounting (transc1), l.credit is FIFO Cost Basis, while l.tradeAmount / (tQty * tPrice) is actual Sale Proceeds!
+              const tradeVal = Number(l.tradeAmount) > 0
+                ? Number(l.tradeAmount)
+                : (tQty > 0 && tPrice > 0 ? Number((tQty * tPrice).toFixed(2)) : lAmt);
+              // Only infer capitalized charges when it is a BUY line where debit > qty*price (never on a SELL line where costBasis > saleProceeds!)
+              const lineOtherCharges = isBuyLine && lAmt > tradeVal + 0.05 && tradeVal > 0 ? Number((lAmt - tradeVal).toFixed(2)) : 0;
               if (lineOtherCharges > 0) {
                 extractedOther += lineOtherCharges;
               }
@@ -304,7 +311,7 @@ export default function PMSTransactionModal({
                 ledgerId: ledgerId,
                 amid: tradeAmid,
                 assetName: ledger ? ledger.name : (l.ledgerName || ledgerId || ''),
-                type: (l.debit || 0) > 0 ? 'BUY' : 'SELL',
+                type: isBuyLine ? 'BUY' : 'SELL',
                 quantity: tQty,
                 price: tPrice,
                 amount: tradeVal
@@ -437,11 +444,11 @@ export default function PMSTransactionModal({
 
     const totalBuysAmount = trades
       .filter(t => t.type === 'BUY')
-      .reduce((sum, t) => sum + (t.quantity * t.price || 0), 0);
+      .reduce((sum, t) => sum + (Number(t.amount) > 0 ? Number(t.amount) : (t.quantity * t.price || 0)), 0);
 
     const totalSellsAmount = trades
       .filter(t => t.type === 'SELL')
-      .reduce((sum, t) => sum + (t.quantity * t.price || 0), 0);
+      .reduce((sum, t) => sum + (Number(t.amount) > 0 ? Number(t.amount) : (t.quantity * t.price || 0)), 0);
 
     const totalCharges = stt + stampCharges + otherCharges + gst + transCharges + brokerage;
     const finalAmount = totalBuysAmount + totalCharges - totalSellsAmount;
@@ -482,16 +489,11 @@ export default function PMSTransactionModal({
     const lines = [];
 
     // Trade Asset Lines
-    const nonSttCharges = stampCharges + otherCharges + gst + transCharges + brokerage;
     for (const trade of trades) {
       const isTradeBuy = trade.type === 'BUY';
-      
-      let finalTradeAmount = trade.amount;
-      if (isTradeBuy && totalBuysAmount > 0) {
-        // Allocate non-STT charges proportionally to BUY trades
-        const proportion = trade.amount / totalBuysAmount;
-        finalTradeAmount += (nonSttCharges * proportion);
-      }
+      const grossTradeAmount = Number(trade.amount) > 0
+        ? Number(Number(trade.amount).toFixed(2))
+        : Number((Number(trade.quantity || 0) * Number(trade.price || 0)).toFixed(2));
 
       // Use direct ledgerId (amid) if it's already set — avoids mismatching Gold/Silver/Bond assets
       // to the 'stocks' ledger group which would break bs1 insertion
@@ -502,16 +504,48 @@ export default function PMSTransactionModal({
       lines.push({
         ledgerId: directLedgerId,
         amid: trade.amid,
-        debit: isTradeBuy ? finalTradeAmount : 0,
-        credit: !isTradeBuy ? trade.amount : 0,
+        debit: isTradeBuy ? grossTradeAmount : 0,
+        credit: !isTradeBuy ? grossTradeAmount : 0,
         quantity: trade.quantity,
         price: trade.price,
+        salePrice: !isTradeBuy ? trade.price : undefined,
+        saleAmount: !isTradeBuy ? grossTradeAmount : undefined,
         tradeType: trade.type // Explicitly pass BUY/SELL to preserve direction even if amount is 0
       });
     }
 
+    // Charge Lines (MProfit double-entry standard: separate expense lines under person's acid)
+    if (stt > 0) {
+      const sttName = assetType === 'MF' ? 'STT - MFs' : 'STT - Equity';
+      const l = await ensureLedgerExists(sttName, "stt", acidNum);
+      if (l?.id) lines.push({ ledgerId: l.id, debit: stt, credit: 0 });
+    }
+    if (brokerage > 0) {
+      const l = await ensureLedgerExists("Share Transaction Charges", "share_txn_charges", acidNum)
+             || await ensureLedgerExists("Brokerage - Equity", "share_txn_charges", acidNum);
+      if (l?.id) lines.push({ ledgerId: l.id, debit: brokerage, credit: 0 });
+    }
+    if (gst > 0) {
+      const l = await ensureLedgerExists("GST - Equity", "tax_charges_stocks", acidNum);
+      if (l?.id) lines.push({ ledgerId: l.id, debit: gst, credit: 0 });
+    }
+    if (stampCharges > 0) {
+      const l = await ensureLedgerExists("Stamp Charges - Equity", "tax_charges_stocks", acidNum);
+      if (l?.id) lines.push({ ledgerId: l.id, debit: stampCharges, credit: 0 });
+    }
+    if (transCharges > 0) {
+      const l = await ensureLedgerExists("Trans. Charges - Equity(T)", "tax_charges_stocks", acidNum)
+             || await ensureLedgerExists("Trans. Charges - Equity", "share_txn_charges", acidNum);
+      if (l?.id) lines.push({ ledgerId: l.id, debit: transCharges, credit: 0 });
+    }
+    if (otherCharges > 0) {
+      const l = await ensureLedgerExists("Other Charges - Equity", "tax_charges_stocks", acidNum)
+             || await ensureLedgerExists("Trans. Charges - Equity(T)", "tax_charges_stocks", acidNum);
+      if (l?.id) lines.push({ ledgerId: l.id, debit: otherCharges, credit: 0 });
+    }
+
     // Broker / Bank Settlement Line
-    const absFinalAmt = Math.abs(finalAmount);
+    const absFinalAmt = Number(Math.abs(finalAmount).toFixed(2));
     if (finalAmount >= 0) {
       // Net Payable -> Credit Counter
       lines.push({
@@ -532,14 +566,6 @@ export default function PMSTransactionModal({
       });
     }
 
-    // Charge Lines (Only if > 0)
-    if (stt > 0) {
-      const sttName = assetType === 'MF' ? 'STT-MF' : 'STT-EQ';
-      lines.push({ ledgerId: (await ensureLedgerExists(sttName, "stt", acidNum))?.id ?? "", debit: stt, credit: 0 });
-    }
-    // Note: Other charges (brokerage, gst, stampCharges, transCharges, otherCharges)
-    // are now allocated proportionally to the BUY asset trade lines in the section below.
-
     const narrationParts = trades.map(t => `${t.type} ${t.quantity} ${t.assetName}`);
     const defaultNarr = `${narrationParts.join(', ')}`;
     const finalNarration = narration || (voucherNo ? `Share Contract Note,  No.:${voucherNo}` : `Contract Note - ${defaultNarr}`);
@@ -553,10 +579,22 @@ export default function PMSTransactionModal({
       date,
       narration: finalNarration,
       voucherNo,
+      cnNo: voucherNo,
+      isContractNote: assetType === 'EQ',
+      brokerLedgerId: Number(finalCounterId) || undefined,
+      netPayable: finalAmount,
+      cnCharges: {
+        stt,
+        brokerage,
+        gst,
+        stamp: stampCharges,
+        transCharges: Number((transCharges + otherCharges).toFixed(2)),
+        other: Number((brokerage + gst + stampCharges + transCharges + otherCharges).toFixed(2))
+      },
       accountId,
       lines,
       assetId: primaryTradeAssetId,
-      type: originalVoucher?.type || (assetType === 'MF' ? 'contra' : 'journal'),
+      type: trades.some(t => t.type === 'SELL') && !trades.some(t => t.type === 'BUY') ? 'sale' : (originalVoucher?.type || (assetType === 'MF' ? 'contra' : 'journal')),
       stt,
       stampCharges,
       brokerage,
@@ -683,11 +721,11 @@ export default function PMSTransactionModal({
 
   const totalBuysAmount = trades
     .filter(t => t.type === 'BUY')
-    .reduce((sum, t) => sum + (t.quantity * t.price || 0), 0);
+    .reduce((sum, t) => sum + (Number(t.amount) > 0 ? Number(t.amount) : (t.quantity * t.price || 0)), 0);
 
   const totalSellsAmount = trades
     .filter(t => t.type === 'SELL')
-    .reduce((sum, t) => sum + (t.quantity * t.price || 0), 0);
+    .reduce((sum, t) => sum + (Number(t.amount) > 0 ? Number(t.amount) : (t.quantity * t.price || 0)), 0);
 
   const totalCharges = stt + stampCharges + otherCharges + gst + transCharges + brokerage;
   const isNetPayable = totalBuysAmount + totalCharges >= totalSellsAmount;
