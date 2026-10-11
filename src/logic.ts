@@ -504,7 +504,7 @@ async function performBackgroundSync() {
         console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
         return;
       }
-      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v29') : null;
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v30') : null;
       if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
         console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
         Object.assign(state, cachedState);
@@ -521,12 +521,12 @@ async function performBackgroundSync() {
           }
         });
         (state.sam || []).forEach((s: any) => {
-          state.assetNameMap[s.amid] = s.anm;
+          if (Number(s.amid) >= 100000) state.assetNameMap[s.amid] = s.anm;
           state.assetNameMap[500000 + Number(s.amid)] = s.anm;
         });
         (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
         (state.acmac1 || []).forEach((a: any) => {
-          if (a.name && Number(a.parent_id) >= 200000) {
+          if (a.name) {
             state.assetNameMap[a.id] = a.name;
           }
         });
@@ -633,7 +633,7 @@ async function performBackgroundSync() {
       state.priceMap[103605] = { curr: 18.60, prev: 18.60 }; // Mayur Floorings Ltd (BSE: 531221)
     }
     newState.sam.forEach((s: any) => {
-      state.assetNameMap[s.amid] = s.anm;
+      if (Number(s.amid) >= 100000) state.assetNameMap[s.amid] = s.anm;
       // MProfit v10: Trans1 investment maids use 500000 + SAM.amid
       // Register both keys so getAssetName works for both raw and prefixed amids
       state.assetNameMap[500000 + Number(s.amid)] = s.anm;
@@ -646,8 +646,7 @@ async function performBackgroundSync() {
       if (isinVal) state.isinMap[a.amid] = String(isinVal).trim();
     });
     newState.acmac1.forEach((a: any) => {
-      // Prioritize investment ledger names from Chart of Accounts
-      if (a.name && Number(a.parent_id) >= 200000) {
+      if (a.name) {
         state.assetNameMap[a.id] = a.name;
       }
       const isinVal = a.isin || a.isincode;
@@ -658,7 +657,7 @@ async function performBackgroundSync() {
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v29', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v30', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -676,7 +675,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v29') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v30') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -700,12 +699,12 @@ export async function initDatabase() {
         state.priceMap[103605] = { curr: 18.60, prev: 18.60 }; // Mayur Floorings Ltd (BSE: 531221)
       }
       (state.sam || []).forEach((s: any) => {
-        state.assetNameMap[s.amid] = s.anm;
+        if (Number(s.amid) >= 100000) state.assetNameMap[s.amid] = s.anm;
         state.assetNameMap[500000 + Number(s.amid)] = s.anm; // MProfit v10: maid = 500000 + SAM.amid
       });
       (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
       (state.acmac1 || []).forEach((a: any) => {
-        if (a.name && (Number(a.parent_id) >= 200000 || !state.assetNameMap[a.id])) {
+        if (a.name) {
           state.assetNameMap[a.id] = a.name;
         }
       });
@@ -733,7 +732,7 @@ export async function initDatabase() {
 export async function persistStateToIDB() {
   if (typeof indexedDB !== 'undefined') {
     try {
-      await set('wealthcore_state_v28', JSON.parse(JSON.stringify(state)));
+      await set('wealthcore_state_v30', JSON.parse(JSON.stringify(state)));
       console.log('✅ WealthCore state saved to IndexedDB');
     } catch (e) {
       console.warn('Failed to persist state to IndexedDB:', e);
@@ -3365,7 +3364,7 @@ export function resolveAssetLineToBsRow(
   const existingBs = state.bs1.find((b: any) => Number(b.amid) === amid && b.atyid);
   const atyid = assetLine.atyid ? Number(assetLine.atyid) : resolveAssetType(pfid, amid, asset?.asset_type || existingSum?.atty || existingBs?.atyid);
 
-  let trty = isBuy ? 20 : 99;
+  let trty = isBuy ? 20 : (atyid === 81 || data.isFno ? 101 : 99);
   let trstr = isBuy ? 'Buy' : 'Sell';
 
   if (data.isOpeningBalance || data.type === 'opening_balance') {
@@ -3559,7 +3558,7 @@ export async function createVoucher(data: any, reuseVid?: number) {
     const scRow: any = {
       cnid,
       pfid: Number(data.portfolioId),
-      aty: 50,
+      aty: data.isFno ? 81 : (data.isCommodity ? 30 : 50),
       brkrid,
       cnnum: data.cnNo || data.voucherNo || null,
       billnum: null,
@@ -3865,19 +3864,21 @@ export async function createVoucher(data: any, reuseVid?: number) {
     const pfid = Number(data.portfolioId);
 
     // Find all lines representing distinct asset holdings/trades (explicitly exclude broker/bank ledgers)
-    const assetLines = (data.lines || []).filter((l: any) => {
-      const ledgerIdNum = Number(l.ledgerId);
-      if (ledgerIdNum >= 100001 && ledgerIdNum <= 100099) return false;
-      const ledger = state.acmac1.find((a: any) => a.id === ledgerIdNum);
-      if (ledger && [75, 90, 60, 160, 170, 171, 175, 180].includes(Number(ledger.parent_id))) return false;
-      if (l.amid && Number(l.amid) > 0) return true;
-      if (Number(l.quantity) > 0 || Number(l.price) > 0) return true;
-      if (ledgerIdNum >= 500000) return true;
-      if (ledger && ASSET_GROUP_IDS.includes(Number(ledger.parent_id))) return true;
-      return false;
-    });
+    const assetLines = (data.assetTrades && data.assetTrades.length > 0)
+      ? data.assetTrades
+      : (data.lines || []).filter((l: any) => {
+          const ledgerIdNum = Number(l.ledgerId);
+          if (ledgerIdNum >= 100001 && ledgerIdNum <= 100099) return false;
+          const ledger = state.acmac1.find((a: any) => a.id === ledgerIdNum);
+          if (ledger && [75, 90, 60, 160, 170, 171, 175, 180].includes(Number(ledger.parent_id))) return false;
+          if (l.amid && Number(l.amid) > 0) return true;
+          if (Number(l.quantity) > 0 || Number(l.price) > 0) return true;
+          if (ledgerIdNum >= 500000) return true;
+          if (ledger && ASSET_GROUP_IDS.includes(Number(ledger.parent_id))) return true;
+          return false;
+        });
 
-    const linesToProcess = assetLines.length > 0 ? assetLines : [data.lines[0]];
+    const linesToProcess = assetLines.length > 0 ? assetLines : (data.isFno ? [] : [data.lines[0]]);
     const CORP_ACTION_TYPES = new Set(['split', 'bonus', 'merger', 'demerger']);
 
     // Pro-rate Contract Note charges & brokerage across asset lines if not already set on each line
@@ -4425,7 +4426,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // Cache updated state in IndexedDB
     if (typeof indexedDB !== 'undefined') {
       try {
-        await set('wealthcore_state_v28', JSON.parse(JSON.stringify(state)));
+        await set('wealthcore_state_v30', JSON.parse(JSON.stringify(state)));
       } catch (idbErr) {
         console.warn('IDB price update failed:', idbErr);
       }
@@ -4503,6 +4504,12 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
     a.acid === acidNum && 
     a.name && (
       a.name.toLowerCase() === name.toLowerCase() ||
+      (parentId === 175 && (Number(a.parent_id) === 175 || Number(a.id) === 665 || Number(a.id) === 670) && (
+        name.toLowerCase().includes('share') || name.toLowerCase().includes('trans') || name.toLowerCase().includes('brok')
+      )) ||
+      (parentId === 170 && (Number(a.parent_id) === 170 || Number(a.id) === 650 || Number(a.id) === 660) && (
+        name.toLowerCase().includes('stt')
+      )) ||
       (parentId === 200120 && Number(a.parent_id) === 200120 && (
         (a.name.toLowerCase().includes('ppf') && name.toLowerCase().includes('ppf')) ||
         (a.name.toLowerCase().includes('epf') && name.toLowerCase().includes('epf'))
@@ -4542,7 +4549,7 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
       nextId = (assetIds.length > 0 ? Math.max(...assetIds) : 504000) + 1 + attempt;
     } else {
       const allIds = state.acmac1.map((a: any) => Number(a.id)).filter(id => id < 100000 && !isNaN(id));
-      nextId = (allIds.length > 0 ? Math.max(...allIds) : 1000) + 1 + attempt;
+      nextId = (allIds.length > 0 ? Math.max(10000, ...allIds) : 10000) + 1 + attempt;
     }
 
     const newRow = {
@@ -4551,7 +4558,7 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
       parent_id: parentId,
       is_group: false,
       acid: acidNum,
-      special_type_id: 150,
+      special_type_id: [160, 170, 171, 175].includes(parentId) ? 290 : 150,
       descr: extra?.descr || null,
       addinfo: extra?.addinfo || null
     };

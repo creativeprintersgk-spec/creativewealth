@@ -1121,19 +1121,23 @@ function ImportPageInner() {
       setBrokerLedgers(brokers);
       if (brokers.length > 0) {
         const activeParser = selectedBroker.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const matchedLedger = activeParser && activeParser !== 'auto' ? brokers.find(b => {
-          const nameLower = b.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-          if (activeParser === 'zerodha') return nameLower.includes('zerodha');
-          if (activeParser === 'groww') return nameLower.includes('groww') || nameLower.includes('nextbillion');
-          if (activeParser === 'icici') return nameLower.includes('icici') || nameLower.includes('direct');
-          if (activeParser === 'kotak') return nameLower.includes('kotak');
-          if (activeParser === 'hdfc') return nameLower.includes('hdfc');
-          if (activeParser === 'motilal') return nameLower.includes('motilal') || nameLower.includes('mosl');
-          if (activeParser === 'dhan') return nameLower.includes('dhan') || nameLower.includes('raise');
-          if (activeParser === 'mirae') return nameLower.includes('mirae') || nameLower.includes('mstock');
-          if (activeParser === 'rkglobal') return nameLower.includes('global') || nameLower.includes('rk');
-          return nameLower.includes(activeParser);
-        }) : null;
+        const matchedLedger = activeParser && activeParser !== 'auto' ? brokers
+          .slice()
+          .sort((a, b) => (Number(b.id) >= 100000 ? 1 : 0) - (Number(a.id) >= 100000 ? 1 : 0))
+          .find(b => {
+            if (Number(b.id) === 155) return false;
+            const nameLower = b.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (activeParser === 'zerodha') return nameLower.includes('zerodha');
+            if (activeParser === 'groww') return nameLower.includes('groww') || nameLower.includes('nextbillion');
+            if (activeParser === 'icici') return nameLower.includes('icici') || nameLower.includes('direct');
+            if (activeParser === 'kotak') return nameLower.includes('kotak');
+            if (activeParser === 'hdfc') return nameLower.includes('hdfc');
+            if (activeParser === 'motilal') return nameLower.includes('motilal') || nameLower.includes('mosl');
+            if (activeParser === 'dhan') return nameLower.includes('raise') || nameLower.includes('dhan');
+            if (activeParser === 'mirae') return nameLower.includes('mirae') || nameLower.includes('mstock');
+            if (activeParser === 'rkglobal') return nameLower.includes('global') || nameLower.includes('rk');
+            return nameLower.includes(activeParser);
+          }) : null;
 
         if (matchedLedger) {
           setSelectedBrokerLedger(String(matchedLedger.id));
@@ -1450,200 +1454,252 @@ function ImportPageInner() {
           other: Number((groupBrok + groupGst + groupStamp + groupTrans).toFixed(2))
         };
 
-        let totalBuys = 0;
-        let totalSells = 0;
+        const isFnoGroup = tradesInGroup.some((t: any) => 
+          Boolean(parseFnoSymbol(t.assetName)) || 
+          /^(optidx|optstk|futidx|futstk|optcom|futcom|optcur|futcur)/i.test(t.assetName)
+        );
 
-        for (const t of tradesInGroup) {
-          const assetObj = state.assetMaster.find((a: any) => Number(a.amid) === Number(t.amid));
-          const resolvedAssetType = assetObj?.asset_type || (parseFnoSymbol(t.assetName) ? 30 : 50);
-          const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, resolvedAssetType);
-          const gross = Number(t.gross) ? Number(Number(t.gross).toFixed(2)) : Number((t.quantity * t.price).toFixed(2));
-
-          if (t.type === "Buy") {
-            totalBuys += gross;
-            mappedLines.push({
-              ledgerId,
-              amid: t.amid,
-              assetName: t.assetName,
-              debit: gross,
-              credit: 0,
-              quantity: t.quantity,
-              price: t.price
-            });
-          } else {
-            // SELL: Must credit at COST (not sale price) + separate capital gain entry
-            // This matches MProfit double-entry: Cr Stock@Cost + Cr LTCG/STCG@Gain = Dr Broker@Proceeds
-            const saleProceeds = gross;
-
-            // Centralized FIFO cost engine from logic.ts (buildAssetFifoLedger + depleteFifoLots)
-            // Exclude transactions from current contract note voucher so they don't consume lots prematurely
-            const priorTxForAsset = (state.bs1 || [])
-              .filter((r: any) => 
-                Number(r.pfid) === Number(pId) && 
-                Number(r.amid) === Number(t.amid) && 
-                (r.dt || '') <= (t.date || '') && 
-                (!groupCnNo || !String(r.narr || '').includes(groupCnNo)) &&
-                (FIFO_BUY_TRTY.has(Number(r.trty)) || FIFO_SELL_TRTY.has(Number(r.trty)) || [85, 45].includes(Number(r.trty)))
-              )
-              .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trty) - Number(b.trty)));
-
-            const { openLots } = buildAssetFifoLedger(priorTxForAsset, '0001-01-01', t.date, new Map(), {});
-            const { totalCost: fifoTotalCost, matchedLots } = depleteFifoLots(openLots, t.quantity);
-
-            // Fallback 1: Check active holdings in sum_table if FIFO open lots was empty
-            let derivedCost = fifoTotalCost;
-            if (derivedCost <= 0) {
-              const holding = (state.sumTable || []).find((s: any) => Number(s.pfolio_id ?? s.pfid) === Number(pId) && Number(s.amid) === Number(t.amid));
-              if (holding && Number(holding.qnt) > 0 && Number(holding.amtinv) > 0) {
-                const avgPrice = Number(holding.amtinv) / Number(holding.qnt);
-                derivedCost = avgPrice * t.quantity;
-              }
-            }
-
-            // Fallback 2: If still no buy history, cost = proceeds (zero gain)
-            const finalCost = derivedCost > 0 ? derivedCost : saleProceeds;
-            const costBasis = Number(finalCost.toFixed(2));
-
-            // Line 1: Cr Stock/Bond ledger at COST (removes investment from balance sheet)
-            // Pass salePrice and saleAmount so bs1 records the true sale price and proceeds!
-            mappedLines.push({
-              ledgerId,
-              amid: t.amid,
-              assetName: t.assetName,
-              debit: 0,
-              credit: costBasis,
-              quantity: t.quantity,
-              price: t.quantity > 0 ? costBasis / t.quantity : 0,
-              salePrice: t.price,
-              saleAmount: saleProceeds
-            });
-
-            // Exact ledger IDs from Chart of Accounts (Capital Gains group id=180)
-            const GAIN_LEDGERS = {
-              STCG_EQUITY: 460,
-              LTCG_EQUITY: 465,
-              STCG_DEBT:   470,
-              LTCG_DEBT:   475,
-              STCG_BONDS:  490,
-              LTCG_BONDS:  485,
-            };
-
-            const bs1Asset = state.bs1.find((r: any) => Number(r.pfid) === Number(pId) && Number(r.amid) === Number(t.amid));
-            const atyid = bs1Asset?.atyid || resolvedAssetType || 50;
-            const EQUITY_GROUPS = new Set([200050, 200051, 200061, 30, 50, 60, 81]);
-            const DEBT_GROUPS   = new Set([200062, 200058, 61, 62]);
-            const BOND_GROUPS   = new Set([200040, 200070, 40, 70, 100, 110]);
-
-            const getLotGainLedgerId = (lotDate: string): number => {
-              const holdingDays = Math.abs((new Date(t.date).getTime() - new Date(lotDate).getTime()) / 86400000);
-              if (EQUITY_GROUPS.has(atyid)) {
-                return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
-              } else if (DEBT_GROUPS.has(atyid)) {
-                // Section 50AA: post-01-Apr-2023 debt mutual funds are strictly STCG
-                if ((lotDate || '').slice(0, 10) >= '2023-04-01') {
-                  return GAIN_LEDGERS.STCG_DEBT;
-                }
-                return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_DEBT : GAIN_LEDGERS.STCG_DEBT;
-              } else if (BOND_GROUPS.has(atyid)) {
-                return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_BONDS : GAIN_LEDGERS.STCG_BONDS;
-              }
-              return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
-            };
-
-            // Multi-lot gain split: allocate per matched lot to exact STCG / LTCG ledger
-            const gainsByLedger: Record<number, number> = {};
-            const salePricePerUnit = t.quantity > 0 ? (saleProceeds / t.quantity) : 0;
-            let matchedQtySum = 0;
-
-            if (matchedLots.length > 0) {
-              matchedLots.forEach(m => {
-                const lotLedgerId = getLotGainLedgerId(m.date);
-                const lotProceeds = m.qty * salePricePerUnit;
-                const lotCost = m.qty * m.costPerUnit;
-                const lotGain = lotProceeds - lotCost;
-                gainsByLedger[lotLedgerId] = (gainsByLedger[lotLedgerId] || 0) + lotGain;
-                matchedQtySum += m.qty;
-              });
-            }
-
-            if (t.quantity > matchedQtySum) {
-              const unmatchedQty = t.quantity - matchedQtySum;
-              const defaultLedgerId = getLotGainLedgerId(t.date);
-              const unmatchedProceeds = unmatchedQty * salePricePerUnit;
-              const unmatchedCost = Math.max(0, costBasis - matchedLots.reduce((s, m) => s + (m.qty * m.costPerUnit), 0));
-              const unmatchedGain = unmatchedProceeds - unmatchedCost;
-              gainsByLedger[defaultLedgerId] = (gainsByLedger[defaultLedgerId] || 0) + unmatchedGain;
-            }
-
-            // Penny rounding reconciliation to ensure double-entry strict balance
-            const ledgerEntries = Object.entries(gainsByLedger).map(([idStr, amt]) => ({
-              ledgerId: Number(idStr),
-              netGain: Number(amt.toFixed(2))
-            }));
-            const totalGainsRounded = ledgerEntries.reduce((s, e) => s + e.netGain, 0);
-            const expectedTotalGain = Number((saleProceeds - costBasis).toFixed(2));
-            const roundingDiff = Number((expectedTotalGain - totalGainsRounded).toFixed(2));
-            if (Math.abs(roundingDiff) > 0 && ledgerEntries.length > 0) {
-              ledgerEntries.sort((a, b) => Math.abs(b.netGain) - Math.abs(a.netGain));
-              ledgerEntries[0].netGain = Number((ledgerEntries[0].netGain + roundingDiff).toFixed(2));
-            }
-
-            // Line 2+: Capital gain/loss lines
-            for (const entry of ledgerEntries) {
-              if (entry.netGain > 0.01) {
-                mappedLines.push({ ledgerId: entry.ledgerId, debit: 0, credit: entry.netGain });
-              } else if (entry.netGain < -0.01) {
-                mappedLines.push({ ledgerId: entry.ledgerId, debit: Math.abs(entry.netGain), credit: 0 });
-              }
-            }
-
-            totalSells += saleProceeds; // Broker receives full sale proceeds
-          }
-        }
-
-        // Add individual charges under that exact person's MProfit heads (acid)
         const pf = portfolios.find((p: any) => String(p.id) === String(pId));
         const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(pId));
         const acid = pf ? Number(pf.accountId) : (batch?.accountId || (link ? Number(link.acid) : 31));
 
-        if (groupStt > 0) {
-          const l = await ensureLedgerExists("STT - Equity", "stt", acid);
-          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupStt, credit: 0 });
-        }
-        if (groupBrok > 0) {
-          const l = await ensureLedgerExists("Share Transaction Charges", "share_txn_charges", acid)
-                 || await ensureLedgerExists("Brokerage - Equity", "share_txn_charges", acid);
-          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupBrok, credit: 0 });
-        }
-        if (groupGst > 0) {
-          const l = await ensureLedgerExists("GST - Equity", "tax_charges_stocks", acid);
-          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupGst, credit: 0 });
-        }
-        if (groupStamp > 0) {
-          const l = await ensureLedgerExists("Stamp Charges - Equity", "tax_charges_stocks", acid);
-          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupStamp, credit: 0 });
-        }
-        if (groupTrans > 0) {
-          const l = await ensureLedgerExists("Trans. Charges - Equity(T)", "tax_charges_stocks", acid)
-                 || await ensureLedgerExists("Trans. Charges - Equity", "share_txn_charges", acid);
-          if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupTrans, credit: 0 });
-        }
+        let totalBuys = 0;
+        let totalSells = 0;
+        let netPayable = 0;
+        let fnoAssetTrades: any[] | undefined = undefined;
 
-        const sumCharges = Number((groupStt + groupBrok + groupGst + groupStamp + groupTrans).toFixed(2));
-        const netPayable = Number(((totalBuys + sumCharges) - totalSells).toFixed(2));
+        if (isFnoGroup) {
+          // ── MProfit F&O Accounting ──────────────────────────────────────────
+          // F&O contract notes NEVER create individual Stock ledgers under 200050.
+          // They book directly to:
+          // 1. 480: F & O Trading Gain/Loss (Group 155 Income)
+          // 2. 660: STT - F & O (Group 170 STT under Expenses)
+          // 3. 670: Trans. Charges - F & O (Group 175 Share Txn Charges under Expenses)
+          // 4. Broker Ledger (90 Sundry Debtors / 75 Sundry Creditors)
+          let totalBuyValue = 0;
+          let totalSellValue = 0;
+          const perTradeBrkg = tradesInGroup.length > 0 ? Number((groupBrok / tradesInGroup.length).toFixed(2)) : 20;
 
-        if (netPayable > 0) {
-          mappedLines.push({
-            ledgerId: Number(groupBrokerLedgerId),
-            debit: 0,
-            credit: Number(netPayable.toFixed(2))
+          fnoAssetTrades = tradesInGroup.map((t: any) => {
+            const isBuy = t.type === 'Buy' || t.type === 'buy';
+            const gross = Number(t.gross) ? Number(Number(t.gross).toFixed(2)) : Number((t.quantity * t.price).toFixed(2));
+            const netAmt = isBuy ? Number((gross + perTradeBrkg).toFixed(2)) : Number((gross - perTradeBrkg).toFixed(2));
+            if (isBuy) totalBuyValue += netAmt;
+            else totalSellValue += netAmt;
+
+            return {
+              amid: t.amid,
+              assetName: t.assetName,
+              quantity: t.quantity,
+              price: t.price,
+              type: isBuy ? 'buy' : 'sell',
+              atyid: 81,
+              brkg: perTradeBrkg,
+              chrgs: 0,
+              amt: netAmt
+            };
           });
-        } else if (netPayable < 0) {
-          mappedLines.push({
-            ledgerId: Number(groupBrokerLedgerId),
-            debit: Number(Math.abs(netPayable).toFixed(2)),
-            credit: 0
-          });
+
+          const grossPnL = Number((totalSellValue - totalBuyValue).toFixed(2));
+          if (grossPnL > 0) {
+            mappedLines.push({ ledgerId: 480, credit: grossPnL, debit: 0 });
+          } else if (grossPnL < 0) {
+            mappedLines.push({ ledgerId: 480, debit: Math.abs(grossPnL), credit: 0 });
+          }
+
+          if (groupStt > 0) {
+            mappedLines.push({ ledgerId: 660, debit: groupStt, credit: 0 });
+          }
+
+          const otherChrgs = Number((groupGst + groupStamp + groupTrans).toFixed(2));
+          if (otherChrgs > 0) {
+            mappedLines.push({ ledgerId: 670, debit: otherChrgs, credit: 0 });
+          }
+
+          // Net due: if grossPnL > charges, broker owes us (Debit Broker). If grossPnL < charges, we owe broker (Credit Broker).
+          const netReceivable = Number((grossPnL - groupStt - otherChrgs).toFixed(2));
+          netPayable = -netReceivable; // positive netPayable means we pay broker, negative means broker pays us
+
+          if (netReceivable > 0) {
+            mappedLines.push({ ledgerId: Number(groupBrokerLedgerId), debit: netReceivable, credit: 0 });
+          } else if (netReceivable < 0) {
+            mappedLines.push({ ledgerId: Number(groupBrokerLedgerId), credit: Math.abs(netReceivable), debit: 0 });
+          }
+        } else {
+          // ── Standard Equity / Bond Accounting ───────────────────────────────
+          for (const t of tradesInGroup) {
+            const assetObj = state.assetMaster.find((a: any) => Number(a.amid) === Number(t.amid));
+            const resolvedAssetType = assetObj?.asset_type || (parseFnoSymbol(t.assetName) ? 30 : 50);
+            const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, resolvedAssetType);
+            const gross = Number(t.gross) ? Number(Number(t.gross).toFixed(2)) : Number((t.quantity * t.price).toFixed(2));
+
+            if (t.type === "Buy") {
+              totalBuys += gross;
+              mappedLines.push({
+                ledgerId,
+                amid: t.amid,
+                assetName: t.assetName,
+                debit: gross,
+                credit: 0,
+                quantity: t.quantity,
+                price: t.price
+              });
+            } else {
+              const saleProceeds = gross;
+              const priorTxForAsset = (state.bs1 || [])
+                .filter((r: any) => 
+                  Number(r.pfid) === Number(pId) && 
+                  Number(r.amid) === Number(t.amid) && 
+                  (r.dt || '') <= (t.date || '') && 
+                  (!groupCnNo || !String(r.narr || '').includes(groupCnNo)) &&
+                  (FIFO_BUY_TRTY.has(Number(r.trty)) || FIFO_SELL_TRTY.has(Number(r.trty)) || [85, 45].includes(Number(r.trty)))
+                )
+                .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trty) - Number(b.trty)));
+
+              const { openLots } = buildAssetFifoLedger(priorTxForAsset, '0001-01-01', t.date, new Map(), {});
+              const { totalCost: fifoTotalCost, matchedLots } = depleteFifoLots(openLots, t.quantity);
+
+              let derivedCost = fifoTotalCost;
+              if (derivedCost <= 0) {
+                const holding = (state.sumTable || []).find((s: any) => Number(s.pfolio_id ?? s.pfid) === Number(pId) && Number(s.amid) === Number(t.amid));
+                if (holding && Number(holding.qnt) > 0 && Number(holding.amtinv) > 0) {
+                  const avgPrice = Number(holding.amtinv) / Number(holding.qnt);
+                  derivedCost = avgPrice * t.quantity;
+                }
+              }
+
+              const finalCost = derivedCost > 0 ? derivedCost : saleProceeds;
+              const costBasis = Number(finalCost.toFixed(2));
+
+              mappedLines.push({
+                ledgerId,
+                amid: t.amid,
+                assetName: t.assetName,
+                debit: 0,
+                credit: costBasis,
+                quantity: t.quantity,
+                price: t.quantity > 0 ? costBasis / t.quantity : 0,
+                salePrice: t.price,
+                saleAmount: saleProceeds
+              });
+
+              const GAIN_LEDGERS = {
+                STCG_EQUITY: 460,
+                LTCG_EQUITY: 465,
+                STCG_DEBT:   470,
+                LTCG_DEBT:   475,
+                STCG_BONDS:  490,
+                LTCG_BONDS:  485,
+              };
+
+              const bs1Asset = state.bs1.find((r: any) => Number(r.pfid) === Number(pId) && Number(r.amid) === Number(t.amid));
+              const atyid = bs1Asset?.atyid || resolvedAssetType || 50;
+              const EQUITY_GROUPS = new Set([200050, 200051, 200061, 30, 50, 60, 81]);
+              const DEBT_GROUPS   = new Set([200062, 200058, 61, 62]);
+              const BOND_GROUPS   = new Set([200040, 200070, 40, 70, 100, 110]);
+
+              const getLotGainLedgerId = (lotDate: string): number => {
+                const holdingDays = Math.abs((new Date(t.date).getTime() - new Date(lotDate).getTime()) / 86400000);
+                if (EQUITY_GROUPS.has(atyid)) {
+                  return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
+                } else if (DEBT_GROUPS.has(atyid)) {
+                  if ((lotDate || '').slice(0, 10) >= '2023-04-01') {
+                    return GAIN_LEDGERS.STCG_DEBT;
+                  }
+                  return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_DEBT : GAIN_LEDGERS.STCG_DEBT;
+                } else if (BOND_GROUPS.has(atyid)) {
+                  return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_BONDS : GAIN_LEDGERS.STCG_BONDS;
+                }
+                return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
+              };
+
+              const gainsByLedger: Record<number, number> = {};
+              const salePricePerUnit = t.quantity > 0 ? (saleProceeds / t.quantity) : 0;
+              let matchedQtySum = 0;
+
+              if (matchedLots.length > 0) {
+                matchedLots.forEach(m => {
+                  const lotLedgerId = getLotGainLedgerId(m.date);
+                  const lotProceeds = m.qty * salePricePerUnit;
+                  const lotCost = m.qty * m.costPerUnit;
+                  const lotGain = lotProceeds - lotCost;
+                  gainsByLedger[lotLedgerId] = (gainsByLedger[lotLedgerId] || 0) + lotGain;
+                  matchedQtySum += m.qty;
+                });
+              }
+
+              if (t.quantity > matchedQtySum) {
+                const unmatchedQty = t.quantity - matchedQtySum;
+                const defaultLedgerId = getLotGainLedgerId(t.date);
+                const unmatchedProceeds = unmatchedQty * salePricePerUnit;
+                const unmatchedCost = Math.max(0, costBasis - matchedLots.reduce((s, m) => s + (m.qty * m.costPerUnit), 0));
+                const unmatchedGain = unmatchedProceeds - unmatchedCost;
+                gainsByLedger[defaultLedgerId] = (gainsByLedger[defaultLedgerId] || 0) + unmatchedGain;
+              }
+
+              const ledgerEntries = Object.entries(gainsByLedger).map(([idStr, amt]) => ({
+                ledgerId: Number(idStr),
+                netGain: Number(amt.toFixed(2))
+              }));
+              const totalGainsRounded = ledgerEntries.reduce((s, e) => s + e.netGain, 0);
+              const expectedTotalGain = Number((saleProceeds - costBasis).toFixed(2));
+              const roundingDiff = Number((expectedTotalGain - totalGainsRounded).toFixed(2));
+              if (Math.abs(roundingDiff) > 0 && ledgerEntries.length > 0) {
+                ledgerEntries.sort((a, b) => Math.abs(b.netGain) - Math.abs(a.netGain));
+                ledgerEntries[0].netGain = Number((ledgerEntries[0].netGain + roundingDiff).toFixed(2));
+              }
+
+              for (const entry of ledgerEntries) {
+                if (entry.netGain > 0.01) {
+                  mappedLines.push({ ledgerId: entry.ledgerId, debit: 0, credit: entry.netGain });
+                } else if (entry.netGain < -0.01) {
+                  mappedLines.push({ ledgerId: entry.ledgerId, debit: Math.abs(entry.netGain), credit: 0 });
+                }
+              }
+
+              totalSells += saleProceeds;
+            }
+          }
+
+          if (groupStt > 0) {
+            const l = await ensureLedgerExists("STT - Equity", "stt", acid);
+            if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupStt, credit: 0 });
+          }
+          if (groupBrok > 0) {
+            const l = await ensureLedgerExists("Trans. Charges - Equity", "share_txn_charges", acid)
+                   || await ensureLedgerExists("Brokerage - Equity", "share_txn_charges", acid);
+            if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupBrok, credit: 0 });
+          }
+          if (groupGst > 0) {
+            const l = await ensureLedgerExists("GST - Equity", "tax_charges_stocks", acid);
+            if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupGst, credit: 0 });
+          }
+          if (groupStamp > 0) {
+            const l = await ensureLedgerExists("Stamp Duty - Equity", "tax_charges_stocks", acid)
+                   || await ensureLedgerExists("Stamp Charges - Equity", "tax_charges_stocks", acid);
+            if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupStamp, credit: 0 });
+          }
+          if (groupTrans > 0) {
+            const l = await ensureLedgerExists("Trans. Charges - Equity", "share_txn_charges", acid);
+            if (l?.id) mappedLines.push({ ledgerId: Number(l.id), debit: groupTrans, credit: 0 });
+          }
+
+          const sumCharges = Number((groupStt + groupBrok + groupGst + groupStamp + groupTrans).toFixed(2));
+          netPayable = Number(((totalBuys + sumCharges) - totalSells).toFixed(2));
+
+          if (netPayable > 0) {
+            mappedLines.push({
+              ledgerId: Number(groupBrokerLedgerId),
+              debit: 0,
+              credit: Number(netPayable.toFixed(2))
+            });
+          } else if (netPayable < 0) {
+            mappedLines.push({
+              ledgerId: Number(groupBrokerLedgerId),
+              debit: Number(Math.abs(netPayable).toFixed(2)),
+              credit: 0
+            });
+          }
         }
 
         // Rounding Off check
@@ -1670,6 +1726,8 @@ function ImportPageInner() {
           lines: mappedLines,
           // Contract note metadata — required for scnote1 header creation
           isContractNote: true,
+          isFno: isFnoGroup,
+          assetTrades: isFnoGroup ? fnoAssetTrades : undefined,
           cnNo: groupCnNo || '',
           brokerLedgerId: Number(groupBrokerLedgerId),
           cnCharges: groupCharges,
@@ -2012,10 +2070,14 @@ function ImportPageInner() {
     const brokerLedgersList = allLedgers.filter(l => l.groupId === '75' || l.groupId === '90' || (l as any).parent_id === 75 || (l as any).parent_id === 90);
 
     const matchKeys = BROKER_MATCHERS[detectedBroker] || [detectedBroker];
-    const matchedLedger = brokerLedgersList.find(b => {
-      const bName = b.name.toLowerCase();
-      return matchKeys.some(k => bName.includes(k.toLowerCase()));
-    });
+    const matchedLedger = brokerLedgersList
+      .slice()
+      .sort((a, b) => (Number(b.id) >= 100000 ? 1 : 0) - (Number(a.id) >= 100000 ? 1 : 0))
+      .find(b => {
+        if (Number(b.id) === 155) return false;
+        const bName = b.name.toLowerCase();
+        return matchKeys.some(k => bName.includes(k.toLowerCase()));
+      });
 
     let resolvedBrokerLedgerId = '';
     let resolvedBrokerLedgerName = BROKER_NAMES[detectedBroker] || 'Zerodha';

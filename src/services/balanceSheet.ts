@@ -15,17 +15,21 @@ const SYNTHETIC_MAID_GROUP: Record<number, string> = {
   465: '180',     // Capital Gains – Equity STCG
   470: '180',     // Capital Gains – Debt LTCG
   475: '180',     // Capital Gains – Debt STCG
-  480: '180',     // Capital Gains – Other
+  480: '155',     // F & O Trading Gain/Loss (Group 155: Income)
   485: '180',     // Capital Gains – Exempted
   490: '180',     // Capital Gains – STT Paid
   603: '180',     // Capital Gains – Misc
-  650: '160',     // STT – Equity Delivery (Expenses)
-  655: '160',     // STT – Equity Intraday
-  660: '160',     // STT – Futures
-  665: '160',     // STT – Options
-  670: '160',     // Transaction Charges
+  650: '170',     // STT – Equity (Group 170: STT under Expenses)
+  651: '171',     // GST – Equity (Group 171 under Expenses)
+  652: '171',     // Stamp Duty – Equity
+  653: '171',     // SEBI Charges
+  654: '171',     // Turnover Charges
+  655: '170',     // STT – Intraday
+  660: '170',     // STT – F & O (Group 170: STT under Expenses)
+  665: '175',     // Trans. Charges - Equity (Group 175: Share Transaction Charges)
+  670: '175',     // Trans. Charges - F & O (Group 175: Share Transaction Charges)
   235: '75',      // Sundry Creditors (net credit balance)
-  // Broker clearing/settlement accounts — MProfit classifies brokers in Sundry Creditors (75)
+  // Broker clearing/settlement accounts
   100001: '75',   // R K Global settlement
   100002: '75',   // RKSV / Kotak Securities settlement
   100003: '75',
@@ -34,8 +38,9 @@ const SYNTHETIC_MAID_GROUP: Record<number, string> = {
   100006: '75',
   100007: '75',   // Zerodha settlement
   100008: '75',   // MStock / Mirae Asset settlement
-  100009: '75',
+  100009: '90',   // Raise Securities / Dhan settlement (Sundry Debtors 90 / Creditors 75)
   100010: '75',
+  100011: '75',
 };
 
 // Synthetic maid display names matching MProfit
@@ -50,20 +55,27 @@ const SYNTHETIC_MAID_NAME: Record<number, string> = {
   465: 'Capital Gains – Eq STCG',
   470: 'Capital Gains – Debt LTCG',
   475: 'Capital Gains – Debt STCG',
-  480: 'Capital Gains – Other',
+  480: 'F & O Trading Gain/Loss',
   485: 'Capital Gains – Exempted',
   490: 'Capital Gains – STT Paid',
   603: 'Capital Gains – Misc',
-  650: 'STT – Delivery',
+  650: 'STT – Equity',
+  651: 'GST – Equity',
+  652: 'Stamp Duty – Equity',
+  653: 'SEBI Charges',
+  654: 'Turnover Charges',
   655: 'STT – Intraday',
-  660: 'STT – Futures',
-  665: 'STT – Options',
-  670: 'Transaction Charges',
+  660: 'STT – F & O',
+  665: 'Trans. Charges - Equity',
+  670: 'Trans. Charges - F & O',
   100001: 'R K Global',
   100002: 'RKSV',
   100004: 'Direct',
   100007: 'Zerodha',
   100008: 'MStock',
+  100009: 'Raise Securities',
+  100010: 'nuvama',
+  100011: 'Stallion',
   235: 'Sundry Creditors',
 };
 
@@ -86,7 +98,9 @@ function resolveSyntheticGroup(lidNum: number, stateRef: any): string {
   if (SYNTHETIC_MAID_GROUP[lidNum]) return SYNTHETIC_MAID_GROUP[lidNum];
   if (lidNum >= 100001 && lidNum <= 100099) return '75'; // Broker clearing → Sundry Creditors
   if (lidNum >= 460 && lidNum <= 499) return '180';      // Capital Gains
-  if (lidNum >= 600 && lidNum <= 699) return '160';      // STT/Charges (Expenses)
+  if (lidNum >= 650 && lidNum <= 664) return '170';      // STT (Expenses)
+  if (lidNum >= 665 && lidNum <= 675) return '175';      // Share Txn Charges (Expenses)
+  if (lidNum >= 600 && lidNum <= 699) return '160';      // Other Expenses
   if (lidNum >= 500000) {
     // SAM investment asset
     const sam = (stateRef.sam || []).find((s: any) => Number(s.amid) === lidNum);
@@ -256,7 +270,9 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
           name = samRow?.anm || samRow?.alias || samRow?.isr || `Inv-${samAmid}`;
         }
       } else {
-        name = getAssetName(lidNum) || `Acct-${lidNum}`;
+        // Accounting ledgers (lidNum < 500000, including < 100000): Look up in state.acmac1, NEVER in SAM!
+        const acm = (state.acmac1 || []).find((a: any) => Number(a.id) === lidNum && !a.is_group && (Number(a.acid) === Number(accountId) || !a.acid));
+        name = acm?.name || SYNTHETIC_MAID_NAME[lidNum] || `Acct-${lidNum}`;
       }
 
       ledgersToInclude.push({
