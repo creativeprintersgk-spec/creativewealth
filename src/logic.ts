@@ -504,7 +504,7 @@ async function performBackgroundSync() {
         console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
         return;
       }
-      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v31') : null;
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v32') : null;
       if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
         console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
         Object.assign(state, cachedState);
@@ -657,7 +657,7 @@ async function performBackgroundSync() {
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v31', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v32', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -675,7 +675,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v31') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v32') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -732,7 +732,7 @@ export async function initDatabase() {
 export async function persistStateToIDB() {
   if (typeof indexedDB !== 'undefined') {
     try {
-      await set('wealthcore_state_v31', JSON.parse(JSON.stringify(state)));
+      await set('wealthcore_state_v32', JSON.parse(JSON.stringify(state)));
       console.log('✅ WealthCore state saved to IndexedDB');
     } catch (e) {
       console.warn('Failed to persist state to IndexedDB:', e);
@@ -1354,14 +1354,38 @@ export function getHoldings(
 ): AssetHolding[] {
   const pSet = new Set(portfolioIds.map(Number));
   
-  // 1. Filter sum_table for active holdings (qnt > 0 or currv > 0)
-  // We exclude amtinv > 0 because sold assets often still retain an amtinv value in the sumTable
-  // Safeguard: Exclude rogue / phantom records (amid 1490)
-  const rows = state.sumTable.filter((s: any) => 
-    pSet.has(Number(s.pfolio_id)) && 
-    Number(s.amid) !== 1490 &&
-    (includeZeroQty || Math.abs(Number(s.qnt)) > 0.0001 || Math.abs(Number(s.currv)) > 0.01)
-  );
+  // Group bs1 by pfid for fast O(1) historical transaction lookup
+  const bsByPf = new Map<number, Set<number>>();
+  (state.bs1 || []).forEach((b: any) => {
+    const pf = Number(b.pfid);
+    if (!bsByPf.has(pf)) bsByPf.set(pf, new Set());
+    const s = bsByPf.get(pf)!;
+    if (b.sid) s.add(Number(b.sid));
+    if (b.amid) s.add(Number(b.amid));
+  });
+
+  // 1. Filter sum_table for active holdings or closed positions with actual historical entries
+  // If an asset has 0 quantity and 0 value, it must ONLY be shown if includeZeroQty is true
+  // AND the asset actually has historical transactions in bs1 for this portfolio since inception!
+  // Phantom records with 0 entries since inception are NEVER shown.
+  const rows = state.sumTable.filter((s: any) => {
+    const pf = Number(s.pfolio_id);
+    if (!pSet.has(pf)) return false;
+    if (Number(s.amid) === 1490) return false;
+
+    const hasQty = Math.abs(Number(s.qnt)) > 0.0001;
+    const hasCurrv = Math.abs(Number(s.currv)) > 0.01;
+
+    // Active position
+    if (hasQty || hasCurrv) return true;
+
+    // Zero quantity / closed position: only show if explicitly requested AND has entries since inception
+    if (!includeZeroQty) return false;
+
+    const pfBs = bsByPf.get(pf);
+    const hasHistoricalEntries = pfBs ? (pfBs.has(Number(s.sid)) || pfBs.has(Number(s.amid))) : false;
+    return hasHistoricalEntries;
+  });
 
   // 2. Pre-resolve asset types for all active rows
   const resolvedRows = rows.map((s: any) => {
@@ -4442,7 +4466,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // Cache updated state in IndexedDB
     if (typeof indexedDB !== 'undefined') {
       try {
-        await set('wealthcore_state_v31', JSON.parse(JSON.stringify(state)));
+        await set('wealthcore_state_v32', JSON.parse(JSON.stringify(state)));
       } catch (idbErr) {
         console.warn('IDB price update failed:', idbErr);
       }
