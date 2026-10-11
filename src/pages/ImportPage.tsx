@@ -1493,11 +1493,14 @@ function ImportPageInner() {
               assetName: t.assetName,
               quantity: t.quantity,
               price: t.price,
-              type: isBuy ? 'buy' : 'sell',
+              type: isBuy ? 'Buy' : 'Sell',
+              tradeType: isBuy ? 'BUY' : 'SELL',
               atyid: 81,
               brkg: perTradeBrkg,
               chrgs: 0,
-              amt: netAmt
+              amt: netAmt,
+              debit: isBuy ? netAmt : 0,
+              credit: isBuy ? 0 : netAmt
             };
           });
 
@@ -1794,6 +1797,8 @@ function ImportPageInner() {
       setPdfFinalNet(null);
       setCnActiveFileName("");
 
+      setIsImporting(false);
+
       // Automatically parse and display the next Contract Note in the queue (if any)!
       if (pendingFilesQueueRef.current.length > 0) {
         await advanceCnQueue();
@@ -2005,9 +2010,27 @@ function ImportPageInner() {
       }
     }
 
-    // 3. Auto-Create New Portfolio in the Individual's Name!
-    const finalName = clientName.trim() || (normPan ? `Investor (${normPan})` : `Client ${Date.now()}`);
-    console.log(`[CN Import] Auto-creating new portfolio for individual: "${finalName}", PAN: ${normPan}`);
+    // 3. Fallback to existing active portfolio or create ONLY IF an explicit real client name was parsed from the note
+    const activeList = (state.portfolios || []).filter(isActPf);
+    const trimmedParsedName = clientName.trim();
+
+    if (!trimmedParsedName || trimmedParsedName.toLowerCase().startsWith('client ')) {
+      // No explicit client name parsed - fallback to currently selected or first active portfolio!
+      const fallbackPf = (selectedPortfolio ? activeList.find(p => String(p.id) === String(selectedPortfolio)) : null) 
+        || activeList[0] 
+        || (state.portfolios || [])[0];
+      if (fallbackPf) {
+        const link = (state.accPflink || []).find((l: any) => Number(l.pfid) === Number(fallbackPf.id));
+        return {
+          portfolioId: String(fallbackPf.id),
+          portfolioName: fallbackPf.investor_name || fallbackPf.full_name || `Portfolio ${fallbackPf.id}`,
+          accountId: link ? String(link.acid) : (isHuf ? '62' : '31')
+        };
+      }
+    }
+
+    const finalName = trimmedParsedName;
+    console.log(`[CN Import] Creating new portfolio for parsed individual: "${finalName}", PAN: ${normPan}`);
 
     let nextPfid = 101;
     const existingIds = (state.portfolios || []).map((p: any) => Number(p.id)).filter((n: number) => !isNaN(n));
@@ -2019,7 +2042,7 @@ function ImportPageInner() {
       id: nextPfid,
       client_id: 1,
       investor_name: finalName,
-      full_name: clientName.trim() || finalName,
+      full_name: finalName,
       pan: isUnmaskedPan ? normPan : null,
       is_group: false,
       pfolio_type: isFno ? 5 : 0,
@@ -3774,8 +3797,28 @@ function ImportPageInner() {
           {cnTrades.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center' }}>
               {isDuplicateCN && (
-                <div style={{ padding: '10px 16px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '8px', color: '#92400e', fontSize: '13px', fontWeight: 600 }}>
-                  ⚠️ CN No. {cnNo} already exists in database
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ padding: '10px 16px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '8px', color: '#92400e', fontSize: '13px', fontWeight: 600 }}>
+                    ⚠️ CN No. {cnNo} already exists in database
+                  </div>
+                  {pendingFilesQueueRef.current.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleSkipCurrentCnInQueue}
+                      style={{
+                        padding: '10px 18px',
+                        background: '#2563eb',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ⏭️ Skip Duplicate & Next ({pendingFilesQueueRef.current.length} remaining) →
+                    </button>
+                  )}
                 </div>
               )}
               {!selectedBrokerLedger && (

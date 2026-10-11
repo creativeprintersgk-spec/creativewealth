@@ -3393,7 +3393,12 @@ export function resolveAssetLineToBsRow(
   if (!amid) return null;
 
   const isAddQtyType = data.type === 'bonus' || data.type === 'split' || data.type === 'rights' || data.type === 'ipo' || data.type === 'reinvest';
-  const isBuy = isAddQtyType || (assetLine ? (assetLine.tradeType === 'BUY' || Number(assetLine.debit) > 0) : (data.type !== 'dividend' && data.type !== 'buyback' && data.type !== 'writeoff'));
+  const isBuy = isAddQtyType || (assetLine 
+    ? (
+        String(assetLine.tradeType || assetLine.type || '').toUpperCase() === 'BUY' || 
+        Number(assetLine.debit) > 0
+      ) 
+    : (data.type !== 'dividend' && data.type !== 'buyback' && data.type !== 'writeoff'));
   const qty = Number(assetLine.quantity) || (linesToProcessCount === 1 ? Number(data.quantity) || 0 : 0);
   const price = (!isBuy && Number(assetLine.salePrice) > 0)
     ? Number(assetLine.salePrice)
