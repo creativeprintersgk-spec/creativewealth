@@ -2582,6 +2582,7 @@ function ImportPageInner() {
   const advanceCnQueue = async (totalCount?: number, startIdx?: number) => {
     let idx = startIdx !== undefined ? startIdx : cnCurrentFileIndex;
     const total = totalCount !== undefined ? totalCount : cnTotalQueued;
+    let dupCount = 0;
 
     while (pendingFilesQueueRef.current.length > 0) {
       const nextFile = pendingFilesQueueRef.current.shift()!;
@@ -2598,6 +2599,9 @@ function ImportPageInner() {
         // Paused waiting for PDF password prompt; remaining files stay in pendingFilesQueueRef
         return;
       }
+      if (status === 'duplicate_skipped') {
+        dupCount += 1;
+      }
       // If 'duplicate_skipped' or 'error', automatically continue to the next file in queue!
     }
 
@@ -2609,6 +2613,10 @@ function ImportPageInner() {
       setCnNo("");
       setPdfFinalNet(null);
       setCnActiveFileName("");
+
+      if (dupCount > 0 && dupCount === total) {
+        alert(`Duplicate Notice: All ${total} selected contract note file(s) have already been imported into WealthCore. Duplicates are skipped to avoid double entry.`);
+      }
     }
   };
 
@@ -2628,10 +2636,12 @@ function ImportPageInner() {
   };
 
   const handleBrokerCnFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    e.target.value = '';
-    if (files && files.length > 0) {
-      await processBrokerCnFiles(files);
+    const selectedFiles = Array.from(e.target.files || []);
+    if (e.target) {
+      e.target.value = '';
+    }
+    if (selectedFiles.length > 0) {
+      await processBrokerCnFiles(selectedFiles);
     }
   };
 
@@ -3386,8 +3396,35 @@ function ImportPageInner() {
           <div style={{ marginBottom: '28px' }}>
             <label style={labelStyle}>Upload Contract Note File(s) — Select Multiple, Commit One by One</label>
 
-            <label
-              htmlFor="cn-file-input"
+            {/* Hidden native file input completely separated from container */}
+            <input
+              id="cn-file-input"
+              ref={cnFileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.html,.htm,.csv,.txt"
+              style={{ display: 'none' }}
+              onChange={handleBrokerCnFileSelect}
+            />
+
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (cnFileInputRef.current) {
+                  cnFileInputRef.current.value = '';
+                  cnFileInputRef.current.click();
+                }
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  if (cnFileInputRef.current) {
+                    cnFileInputRef.current.value = '';
+                    cnFileInputRef.current.click();
+                  }
+                }
+              }}
               onDragOver={e => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -3406,7 +3443,8 @@ function ImportPageInner() {
                 e.currentTarget.style.borderColor = '#cbd5e1';
                 e.currentTarget.style.background = '#f8fafc';
                 if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-                  await processBrokerCnFiles(e.dataTransfer.files);
+                  const droppedFiles = Array.from(e.dataTransfer.files);
+                  await processBrokerCnFiles(droppedFiles);
                 }
               }}
               style={{
@@ -3419,35 +3457,27 @@ function ImportPageInner() {
                 cursor: 'pointer',
                 background: '#f8fafc',
                 transition: 'all 0.2s',
-                overflow: 'hidden'
+                outline: 'none'
               }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = '#1d4ed8')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = '#2563eb')}
             >
-              <input
-                id="cn-file-input"
-                ref={cnFileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.html,.htm,.csv,.txt"
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  opacity: 0,
-                  cursor: 'pointer',
-                  zIndex: 20
-                }}
-                onChange={handleBrokerCnFileSelect}
-              />
-              <div style={{ pointerEvents: 'none', position: 'relative', zIndex: 5 }}>
+              <div style={{ pointerEvents: 'none' }}>
                 <div style={{ fontSize: '36px', marginBottom: '8px' }}>📂</div>
                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '15px' }}>Click or Drag & Drop One or Multiple Contract Note files here</div>
                 <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>Select multiple files across any brokers — each file is parsed and presented one by one for commitment (duplicates auto-skipped)</div>
-                <div style={{ marginTop: '14px' }}>
-                  <span style={{
+              </div>
+              <div style={{ marginTop: '14px' }}>
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (cnFileInputRef.current) {
+                      cnFileInputRef.current.value = '';
+                      cnFileInputRef.current.click();
+                    }
+                  }}
+                  style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
@@ -3457,13 +3487,15 @@ function ImportPageInner() {
                     borderRadius: '8px',
                     fontWeight: 600,
                     fontSize: '13px',
-                    boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
-                  }}>
-                    Browse Files
-                  </span>
-                </div>
+                    boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Browse Files
+                </button>
               </div>
-            </label>
+            </div>
 
             {/* Password prompt — shown inline when PDF is pending */}
             {passwordPromptOpen && (
