@@ -10,6 +10,7 @@ import {
   ensureLedgerExists,
   getStoredGroups,
   getAccountForPortfolio,
+  state,
 } from '../../logic';
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
   voucherId?: string;
   /** 'ncd' | 'bonds' — affects labels and groupId used for ensureLedgerExists */
   assetCategory?: 'ncd' | 'bonds';
+  initialMode?: 'buy' | 'sell';
   onClose: () => void;
   onSaved: () => void;
 }
@@ -29,9 +31,11 @@ export default function PMSNCDBondModal({
   portfolioIds,
   voucherId,
   assetCategory = 'ncd',
+  initialMode = 'buy',
   onClose,
   onSaved,
 }: Props) {
+  const [mode, setMode] = useState<'buy' | 'sell'>(initialMode);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [title, setTitle] = useState(assetName || '');
   const [lockInPeriod, setLockInPeriod] = useState('');
@@ -49,12 +53,15 @@ export default function PMSNCDBondModal({
   const [isSaving, setIsSaving] = useState(false);
 
   const isNCD = assetCategory === 'ncd';
+  const isSell = mode === 'sell';
   const categoryLabel = isNCD ? 'NCD / Debenture' : 'Bond';
-  const categoryBadge = isNCD ? 'BUY — NCD' : 'BUY — BOND';
-  const badgeBg = isNCD ? '#fef3c7' : '#eff6ff';
-  const badgeColor = isNCD ? '#92400e' : '#1d4ed8';
-  const saveBtnBg = isNCD ? '#d97706' : '#2563eb';
-  const saveBtnBgDisabled = isNCD ? '#fcd34d' : '#93c5fd';
+  const categoryBadge = isSell 
+    ? (isNCD ? 'SELL — NCD' : 'SELL — BOND')
+    : (isNCD ? 'BUY — NCD' : 'BUY — BOND');
+  const badgeBg = isSell ? '#fee2e2' : (isNCD ? '#fef3c7' : '#eff6ff');
+  const badgeColor = isSell ? '#b91c1c' : (isNCD ? '#92400e' : '#1d4ed8');
+  const saveBtnBg = isSell ? '#dc2626' : (isNCD ? '#d97706' : '#2563eb');
+  const saveBtnBgDisabled = isSell ? '#fca5a5' : (isNCD ? '#fcd34d' : '#93c5fd');
 
   const amount = quantity * rate;
 
@@ -125,6 +132,24 @@ export default function PMSNCDBondModal({
     }
   }, [voucherId, assetId]);
 
+  useEffect(() => {
+    if (mode === 'sell' && (!quantity || quantity === 0)) {
+      const pfidNum = Number(portfolioIds[0]);
+      const amidNum = Number(assetId);
+      const sumRow = state.sumTable?.find((s: any) =>
+        s.pfolio_id === pfidNum && (Number(s.sid) === amidNum || Number(s.amid) === amidNum)
+      );
+      if (sumRow && Number(sumRow.qnt) > 0) {
+        setQuantity(Number(sumRow.qnt));
+        if (Number(sumRow.currv) > 0) {
+          setRate(Number((Number(sumRow.currv) / Number(sumRow.qnt)).toFixed(2)));
+        } else if (Number(sumRow.amtinv) > 0) {
+          setRate(Number((Number(sumRow.amtinv) / Number(sumRow.qnt)).toFixed(2)));
+        }
+      }
+    }
+  }, [mode, assetId, portfolioIds, quantity]);
+
   const handleSave = async () => {
     if (!quantity || quantity <= 0) { alert('Please enter a valid quantity.'); return; }
     if (!rate || rate <= 0) { alert('Please enter a valid rate/price.'); return; }
@@ -148,7 +173,20 @@ export default function PMSNCDBondModal({
       const bondLedger = await ensureLedgerExists(title || assetName, groupId, acidNum);
       const bondLedgerId = bondLedger?.id ?? assetId;
 
-      const lines = [
+      const lines = isSell ? [
+        {
+          ledgerId: bondLedgerId,
+          amid: Number(assetId) > 0 ? Number(assetId) : undefined,
+          debit: 0,
+          credit: totalAmount,
+          quantity,
+          price: rate,
+          salePrice: rate,
+          saleAmount: totalAmount,
+          tradeType: 'SELL',
+        },
+        { ledgerId: finalBankId, debit: totalAmount, credit: 0 },
+      ] : [
         {
           ledgerId: bondLedgerId,
           amid: Number(assetId) > 0 ? Number(assetId) : undefined,
@@ -163,11 +201,11 @@ export default function PMSNCDBondModal({
 
       const voucherData = {
         date,
-        type: 'journal' as const,
+        type: isSell ? ('sale' as const) : ('journal' as const),
         accountId: acidNum,
         portfolioId: portfolioIds[0],
         assetId,
-        narration: narration || `${categoryLabel} Buy — ${title || assetName} (${quantity} @ ${rate})`,
+        narration: narration || `${categoryLabel} ${isSell ? 'Sale / Redemption' : 'Buy'} — ${title || assetName} (${quantity} @ ${rate})`,
         title,
         lockInPeriod,
         interestRate,
@@ -220,25 +258,65 @@ export default function PMSNCDBondModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ background: badgeBg, color: badgeColor, fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>{categoryBadge}</div>
             <div>
-              <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{categoryLabel} Purchase Entry</div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{categoryLabel} {isSell ? 'Sale / Redemption' : 'Purchase'} Entry</div>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{assetName}</div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#475569', background: '#f1f5f9', padding: '5px 10px', borderRadius: '7px', border: '1px solid #e2e8f0' }}>
-              <FolderOpen size={14} color={isNCD ? '#d97706' : '#2563eb'} />
+              <FolderOpen size={14} color={isSell ? '#dc2626' : (isNCD ? '#d97706' : '#2563eb')} />
               {portfolioName}
             </div>
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px', display: 'flex' }}><X size={20} /></button>
           </div>
         </div>
 
+        {/* Mode Switcher Tabs */}
+        {!voucherId && (
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', padding: '4px 24px 0 24px', gap: '8px' }}>
+            <button
+              onClick={() => setMode('buy')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderBottom: !isSell ? (isNCD ? '2px solid #d97706' : '2px solid #2563eb') : '2px solid transparent',
+                background: !isSell ? '#fff' : 'transparent',
+                borderRadius: '6px 6px 0 0',
+                fontWeight: !isSell ? 700 : 600,
+                color: !isSell ? (isNCD ? '#92400e' : '#1d4ed8') : '#64748b',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              ➕ Buy
+            </button>
+            <button
+              onClick={() => setMode('sell')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderBottom: isSell ? '2px solid #dc2626' : '2px solid transparent',
+                background: isSell ? '#fff' : 'transparent',
+                borderRadius: '6px 6px 0 0',
+                fontWeight: isSell ? 700 : 600,
+                color: isSell ? '#b91c1c' : '#64748b',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              🔻 Sell / Redeem
+            </button>
+          </div>
+        )}
+
         {/* Body */}
         <div style={{ padding: '24px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
           {/* Investment Details */}
           <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Investment Details</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {categoryLabel} Details
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={labelStyle}>Title / Description</label>
@@ -277,7 +355,7 @@ export default function PMSNCDBondModal({
             </div>
           </div>
 
-          {/* Transaction Details */}
+          {/* Transaction Section */}
           <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Transaction</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
@@ -300,12 +378,12 @@ export default function PMSNCDBondModal({
 
               {/* Amount display */}
               <div style={{ gridColumn: '1 / -1', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Total Amount (Qty × Rate)</span>
-                <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>₹{fmt(amount)}</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Total {isSell ? 'Sale Proceeds' : 'Amount'} (Qty × Rate)</span>
+                <span style={{ fontSize: '18px', fontWeight: 800, color: isSell ? '#b91c1c' : '#0f172a' }}>₹{fmt(amount)}</span>
               </div>
 
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>Bank / Cash Account (Source)</label>
+                <label style={labelStyle}>{isSell ? 'Bank / Broker Account (Credited)' : 'Bank / Cash Account (Source)'}</label>
                 <select value={bankLedgerId} onChange={e => setBankLedgerId(e.target.value)} style={{ ...inputStyle, background: '#fff' }}>
                   <option value="">Select Bank / Cash Account...</option>
                   {bankLedgers.map((l: any) => (
@@ -333,7 +411,7 @@ export default function PMSNCDBondModal({
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
             <button onClick={handleSave} disabled={isSaving} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 20px', borderRadius: '8px', border: 'none', background: isSaving ? saveBtnBgDisabled : saveBtnBg, color: '#fff', fontWeight: 700, fontSize: '13px', cursor: isSaving ? 'wait' : 'pointer' }}>
-              <Save size={14} /> {isSaving ? 'Saving...' : 'Save'}
+              <Save size={14} /> {isSaving ? 'Saving...' : (isSell ? `Sell / Redeem ${categoryLabel}` : `Buy ${categoryLabel}`)}
             </button>
           </div>
         </div>

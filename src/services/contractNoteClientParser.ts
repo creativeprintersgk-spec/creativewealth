@@ -68,8 +68,13 @@ function cleanNum(val: any): number {
 }
 
 function parseDateStr(text: string): string | null {
+  const months: Record<string, string> = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+  };
+
   // Prioritize explicit Trade Date label first (avoids picking up Settlement Date or registration dates)
-  const tradeDateLine = text.match(/Trade\s*Date[\s:./-]*(\d{2}[/-]\d{2}[/-]\d{4}|\d{4}[/-]\d{2}[/-]\d{2}|\d{1,2}\s+[A-Za-z]{3,9}[\s,-]+\d{4})/i);
+  const tradeDateLine = text.match(/Trade\s*Date[\s:./-]*(\d{2}[/-]\d{2}[/-]\d{4}|\d{4}[/-]\d{2}[/-]\d{2}|\d{1,2}\s+[A-Za-z]{3,9}[\s,-]+\d{4}|[A-Za-z]{3,9}\s+\d{1,2}[\s,-]+\d{4})/i);
   const target = tradeDateLine ? tradeDateLine[1] : text;
 
   // DD/MM/YYYY or DD-MM-YYYY
@@ -82,16 +87,19 @@ function parseDateStr(text: string): string | null {
   if (m2) {
     return `${m2[1]}-${m2[2]}-${m2[3]}`;
   }
-  // DD Mon YYYY
+  // DD Mon YYYY (e.g. 09 Oct 2026)
   const m3 = target.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]+(\d{4})\b/i);
   if (m3) {
-    const months: Record<string, string> = {
-      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
-    };
     const mm = months[m3[2].toLowerCase().slice(0, 3)] || '01';
     const dd = m3[1].padStart(2, '0');
     return `${m3[3]}-${mm}-${dd}`;
+  }
+  // Mon DD YYYY (e.g. Oct 09 2026, Sep 30 2026)
+  const m4 = target.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})[\s,-]+(\d{4})\b/i);
+  if (m4) {
+    const mm = months[m4[1].toLowerCase().slice(0, 3)] || '01';
+    const dd = m4[2].padStart(2, '0');
+    return `${m4[3]}-${mm}-${dd}`;
   }
   return null;
 }
@@ -126,7 +134,7 @@ export function extractClientName(text: string, lines: string[] = []): string {
   }
 
   // 2. Explicit labels: "Client Name : <NAME>", "Name of the Client :- <NAME>", etc.
-  const nameLabelMatch = text.match(/(?:Client\s+Name|Name\s+of\s+(?:the\s+)?Client|Name\s+of\s+Constituent|Constituent\s+Name|Investor\s+Name)[\s:./-]+([A-Za-z\s.]{3,60})(?:\r?\n|$|[,\t])/i);
+  const nameLabelMatch = text.match(/(?:Client\s+Name|Name\s+of\s+(?:the\s+)?Client|Name\s+of\s+Constituent|Constituent\s+Name|Investor\s+Name)[\s:./-]+([A-Za-z\s.]{3,50}?)(?=\s+(?:SETTLEMENT|TRADE|DATE|ADDRESS|PAN|UCC|STATE)|$|\r?\n|[,\t])/i);
   if (nameLabelMatch) {
     const n = nameLabelMatch[1].trim().replace(/\s+/g, ' ');
     if (n.length >= 3 && !/address|pan|ucc|trade|date|contract|tax\s+invoice/i.test(n)) {
@@ -253,6 +261,34 @@ function extractCharges(text: string): ParsedCharges {
     other: 0
   };
 
+  // Check for Obligation Details section in Mirae / MStock
+  const obligationIdx = text.search(/Obligation\s+Details/i);
+  const obligationText = obligationIdx !== -1 ? text.slice(obligationIdx) : text;
+
+  const cgstM = obligationText.match(/CGST[\s\S]*?Amount\s*\(Rs\.\)\s*([\d.]+)/i);
+  const sgstM = obligationText.match(/SGST[\s\S]*?Amount\s*\(Rs\.\)\s*([\d.]+)/i);
+  const igstM = obligationText.match(/IGST[\s\S]*?Amount\s*\(Rs\.\)\s*([\d.]+)/i);
+  if (cgstM || sgstM || igstM) {
+    charges.gst = Number(((parseFloat(cgstM?.[1] || '0')) + (parseFloat(sgstM?.[1] || '0')) + (parseFloat(igstM?.[1] || '0'))).toFixed(2));
+  }
+
+  // Check for Exchange Transaction charges in Mirae
+  const exchM = obligationText.match(/Exchange\s+Transaction\s+Charges\)\s*\(Rs\.\)\s*([\d.]+)/i);
+  if (exchM) charges.transCharges = parseFloat(exchM[1]);
+
+  // Check for SEBI turnover fees in Mirae
+  const sebiM = obligationText.match(/SEBI\s+Turnover\s+Fees\)\s*\(Rs\.\)\s*([\d.]+)/i);
+  if (sebiM) charges.other = Number((charges.other + parseFloat(sebiM[1])).toFixed(2));
+
+  // Check for Brokerage in Mirae (avoid footnote 3 superscript)
+  const brkLineM = obligationText.match(/Value\s+of\s+Supply\s*\(Brokerage\)[^\n]*/i);
+  if (brkLineM) {
+    const nums = brkLineM[0].match(/\b\d+\.\d{2}\b/g);
+    if (nums && nums.length > 0) {
+      charges.brokerage = parseFloat(nums[nums.length - 1]);
+    }
+  }
+
   const lines = text.split('\n');
   for (const line of lines) {
     if (/Notes:/i.test(line)) continue;
@@ -269,23 +305,31 @@ function extractCharges(text: string): ParsedCharges {
     }
     // 3. Exchange / Transaction charges (skip Total Taxable Value lines)
     else if (/(?:NSE|BSE)?\s*Transaction\s+charges|Exchange\s+transaction\s+charges|Trans(?:action)?\s+charges/i.test(line) && !/Total/i.test(line)) {
-      const v = extractChargeVal(line);
-      if (v > 0) charges.transCharges = v;
+      if (charges.transCharges === 0) {
+        const v = extractChargeVal(line);
+        if (v > 0) charges.transCharges = v;
+      }
     }
     // 4. Brokerage (Taxable value of supply - must not match Total Taxable Value of Supply)
     else if ((/Brokerage|\bTaxable\s+value\s+of\s+Supply\s*\(\s*Brokerage\s*\)/i.test(line)) && !/of\s+Brok/i.test(line) && !/Charges|Fees|GST|Total/i.test(line)) {
-      const v = extractChargeVal(line);
-      if (v > 0) charges.brokerage = v;
+      if (charges.brokerage === 0) {
+        const v = extractChargeVal(line);
+        if (v > 0) charges.brokerage = v;
+      }
     }
     // 5. GST (IGST, CGST, SGST)
     else if ((/\b(IGST|CGST|SGST)\b/i.test(line) || /Total\s+GST/i.test(line)) && !/is\s+calculated/i.test(line)) {
-      const v = extractChargeVal(line);
-      if (v > 0) charges.gst = Number((charges.gst + v).toFixed(2));
+      if (charges.gst === 0) {
+        const v = extractChargeVal(line);
+        if (v > 0) charges.gst = Number((charges.gst + v).toFixed(2));
+      }
     }
     // 6. SEBI / Clearing charges / Other
     else if (/SEBI\s+turnover|SEBI\s+fees|Clearing\s+charges/i.test(line)) {
-      const v = extractChargeVal(line);
-      if (v > 0) charges.other = Number((charges.other + v).toFixed(2));
+      if (charges.other === 0) {
+        const v = extractChargeVal(line);
+        if (v > 0) charges.other = Number((charges.other + v).toFixed(2));
+      }
     }
   }
 
@@ -295,7 +339,7 @@ function extractCharges(text: string): ParsedCharges {
 function extractFinalNet(text: string): number | null {
   const lines = text.split('\n');
   for (const line of lines) {
-    if (/Net\s+amount\s+receivable|Net\s+Payable|Receivable\s*\(\+\)\s*\/\s*Payable\s*\(-\)/i.test(line) && !/Notes:/i.test(line)) {
+    if (/Net\s+(?:amount\s+)?(?:receivable|payable)|Receivable\s*\(\+\)\s*\/\s*Payable\s*\(-\)/i.test(line) && !/Notes:/i.test(line)) {
       let clean = line.replace(/\(\s*₹\s*\)[0-9]*/gi, '').replace(/\(₹\)[0-9]*/gi, '');
       const decMatches = clean.match(/[-+]?[0-9,]+\.[0-9]{2,4}/g);
       if (decMatches && decMatches.length > 0) {
@@ -319,6 +363,95 @@ function extractFinalNet(text: string): number | null {
     }
   }
   return null;
+}
+
+function extractMiraeTrades(fullText: string, lines: string[]): ParsedTrade[] {
+  const trades: ParsedTrade[] = [];
+
+  // Build ISIN to AssetName mapping from Summary Table
+  const isinMap = new Map<string, string>();
+  const isinSummaryRe = /\b(IN[A-Z0-9]{10})\s+([A-Za-z0-9\s.%\/\-]+?)\s+(\d+)\s+([\d.]+)/g;
+  let isinM: RegExpExecArray | null;
+  while ((isinM = isinSummaryRe.exec(fullText)) !== null) {
+    const isin = isinM[1].toUpperCase();
+    const name = isinM[2].trim();
+    if (name.length > 2) {
+      isinMap.set(name.toLowerCase(), isin);
+      isinMap.set(name.replace(/\s+/g, ' ').toLowerCase(), isin);
+    }
+  }
+
+  // 1. Check Annexure Trades
+  // Format: OrderNo OrderTime TradeNo TradeTime Exch - Seg Description (BUY|SELL) Qty GrossRate Brokerage NetRate ClosingRate NetTotal
+  const annexRe = /\d{12,20}\s+\d{2}:\d{2}:\d{2}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+(?:NSE|BSE|MCX|NCDEX)\s*-\s*[A-Z0-9]+\s+(.+?)\s+(BUY|SELL)\s+(\d+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([-\d.,]+)/gi;
+  
+  let match: RegExpExecArray | null;
+  while ((match = annexRe.exec(fullText)) !== null) {
+    const assetName = match[1].trim();
+    const side = match[2].toUpperCase();
+    const qty = parseInt(match[3], 10);
+    const grossRate = parseFloat(match[4].replace(/,/g, ''));
+    const netTotal = Math.abs(parseFloat(match[8].replace(/,/g, '')));
+    
+    // Find ISIN either in forward window (up to 1500 chars) or from isinMap
+    const subText = fullText.slice(match.index, match.index + 1500);
+    const subIsinM = subText.match(/ISIN:\s*(IN[A-Z0-9]{10})/i);
+    let isin = subIsinM ? subIsinM[1].toUpperCase() : '';
+    if (!isin && isinMap.has(assetName.toLowerCase())) {
+      isin = isinMap.get(assetName.toLowerCase())!;
+    }
+    const isBuy = side === 'BUY';
+    if (qty > 0) {
+      trades.push({
+        assetName,
+        isin,
+        buyQty: isBuy ? qty : 0,
+        buyWap: isBuy ? grossRate : 0,
+        buyVal: isBuy ? netTotal : 0,
+        sellQty: !isBuy ? qty : 0,
+        sellWap: !isBuy ? grossRate : 0,
+        sellVal: !isBuy ? netTotal : 0
+      });
+    }
+  }
+
+  // 2. If no Annexure trades found, parse from Summary Table
+  if (trades.length === 0) {
+    for (const line of lines) {
+      const isinMatch = line.match(/\b(IN[A-Z0-9]{10})\b/);
+      if (!isinMatch) continue;
+      const isin = isinMatch[1].toUpperCase();
+      const afterIsin = line.slice(isinMatch.index! + isin.length).trim();
+      const numTokens = afterIsin.match(/[-+]?[0-9,]+(?:\.[0-9]+)?/g);
+      if (numTokens && numTokens.length >= 4) {
+        const lastNums = numTokens.slice(-6).map(cleanNum);
+        const netObligation = lastNums[lastNums.length - 1];
+        const netQty = Math.abs(lastNums[lastNums.length - 2] || lastNums[0]);
+        const isSell = netObligation > 0;
+        const isBuy = netObligation < 0;
+        const val = Math.abs(netObligation);
+        const wap = netQty > 0 ? Number((val / netQty).toFixed(6)) : 0;
+
+        const namePart = afterIsin.replace(/[-+]?[0-9,]+(?:\.[0-9]+)?/g, ' ').replace(/\s+/g, ' ').trim();
+        const assetName = namePart || 'BOND';
+
+        if (netQty > 0) {
+          trades.push({
+            assetName,
+            isin,
+            buyQty: isBuy ? netQty : 0,
+            buyWap: isBuy ? wap : 0,
+            buyVal: isBuy ? val : 0,
+            sellQty: isSell ? netQty : 0,
+            sellWap: isSell ? wap : 0,
+            sellVal: isSell ? val : 0
+          });
+        }
+      }
+    }
+  }
+
+  return trades;
 }
 
 // ── In-Browser PDF.js Loader ──────────────────────────────────────────────────
@@ -425,8 +558,17 @@ export async function parseContractNoteClientPdf(
   const summaryTrades: ParsedTrade[] = [];
   const annexureTrades: ParsedTrade[] = [];
 
+  // Mirae Asset / MStock specific trade extraction
+  if (detected === 'mirae') {
+    const miraeTrades = extractMiraeTrades(fullText, lines);
+    if (miraeTrades.length > 0) {
+      summaryTrades.push(...miraeTrades);
+    }
+  }
+
   // Pass 1: Parse Stock Summary Table with ISIN (Zerodha, Motilal, Kotak, HDFC, Groww)
-  for (let i = 0; i < lines.length; i++) {
+  if (summaryTrades.length === 0) {
+    for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const parts = line.split(/\s+/);
     if (ISIN_REGEX.test(parts[0])) {
@@ -456,6 +598,7 @@ export async function parseContractNoteClientPdf(
           });
         }
       }
+    }
     }
   }
 
@@ -689,6 +832,13 @@ export function parseContractNoteClientText(
 
   const rawTrades: ParsedTrade[] = [];
 
+  if (detected === 'mirae') {
+    const miraeTrades = extractMiraeTrades(normalizedText, lines);
+    if (miraeTrades.length > 0) {
+      rawTrades.push(...miraeTrades);
+    }
+  }
+
   if (isHtml) {
     const cleanCell = (s: string) =>
       s
@@ -842,25 +992,27 @@ export function parseContractNoteClientText(
   }
 
   // F&O in text/CSV/HTML
-  const fnoAnnexRegex = /\b(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Za-z0-9\s-]+?(?:CE|PE|FUT)(?:\s*-\s*[A-Z]+)?)\s+([BS])\s+(-?\d+)\s+([\d.,]+)\s+([\d.,]+)\s+([-\d.,]+)/gi;
-  for (const m of normalizedText.matchAll(fnoAnnexRegex)) {
-    const rawSymbol = (m[1] + ' ' + m[2]).replace(/\s*-\s*(?:NSE|BSE)$/i, '').replace(/\s+/g, ' ').trim();
-    const side = m[3].toUpperCase();
-    const qty = Math.abs(parseInt(m[4], 10));
-    const price = cleanNum(m[5]);
-    const val = cleanNum(m[7]) || (qty * price);
-    const isBuy = side === 'B';
-    if (qty > 0) {
-      rawTrades.push({
-        assetName: rawSymbol,
-        isin: '',
-        buyQty: isBuy ? qty : 0,
-        buyWap: isBuy ? price : 0,
-        buyVal: isBuy ? Math.abs(val) : 0,
-        sellQty: !isBuy ? qty : 0,
-        sellWap: !isBuy ? price : 0,
-        sellVal: !isBuy ? Math.abs(val) : 0
-      });
+  if (rawTrades.length === 0) {
+    const fnoAnnexRegex = /\b(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Za-z0-9\s-]+?(?:CE|PE|FUT)(?:\s*-\s*[A-Z]+)?)\s+([BS])\s+(-?\d+)\s+([\d.,]+)\s+([\d.,]+)\s+([-\d.,]+)/gi;
+    for (const m of normalizedText.matchAll(fnoAnnexRegex)) {
+      const rawSymbol = (m[1] + ' ' + m[2]).replace(/\s*-\s*(?:NSE|BSE)$/i, '').replace(/\s+/g, ' ').trim();
+      const side = m[3].toUpperCase();
+      const qty = Math.abs(parseInt(m[4], 10));
+      const price = cleanNum(m[5]);
+      const val = cleanNum(m[7]) || (qty * price);
+      const isBuy = side === 'B';
+      if (qty > 0) {
+        rawTrades.push({
+          assetName: rawSymbol,
+          isin: '',
+          buyQty: isBuy ? qty : 0,
+          buyWap: isBuy ? price : 0,
+          buyVal: isBuy ? Math.abs(val) : 0,
+          sellQty: !isBuy ? qty : 0,
+          sellWap: !isBuy ? price : 0,
+          sellVal: !isBuy ? Math.abs(val) : 0
+        });
+      }
     }
   }
 

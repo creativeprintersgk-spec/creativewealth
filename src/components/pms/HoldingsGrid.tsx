@@ -13,6 +13,7 @@ interface Props {
   onDataChange?: (enrichedData: AssetHolding[]) => void;
   areAllExpanded?: boolean;
   sortBy?: 'name' | 'value' | 'todaysGainPct' | 'overallGainPct' | 'overallGain' | 'todaysGain';
+  onSellClick?: (holding: AssetHolding) => void;
 }
  
 const COLS = [
@@ -80,7 +81,8 @@ export default function HoldingsGrid({
   categoryLabels = {}, 
   onDataChange,
   areAllExpanded,
-  sortBy = 'value'
+  sortBy = 'value',
+  onSellClick
 }: Props) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [enrichedData, setEnrichedData] = useState<AssetHolding[]>(data);

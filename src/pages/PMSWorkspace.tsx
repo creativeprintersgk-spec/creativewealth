@@ -229,11 +229,33 @@ export default function PMSWorkspace() {
   const [isSelectorOpen, setIsSelectorOpen] = useState<'port' | 'group' | null>(null);
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
-  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
-  const [incomeAsset, setIncomeAsset] = useState<{ id: string; name: string; portIds: string[] } | null>(null);
+  const [incomeAsset, setIncomeAsset] = useState<{ id: string; name: string; portIds: string[]; } | null>(null);
+  const [editingTx, setEditingTx] = useState<{
+    voucherId: string;
+    assetId?: string;
+    assetName?: string;
+    portfolioId?: string;
+    tradeType?: 'BUY' | 'SELL';
+  } | null>(null);
+
+  const handleOpenTx = (
+    voucherId: string,
+    assetId?: string,
+    assetName?: string,
+    portfolioId?: string,
+    tradeType: 'BUY' | 'SELL' = 'BUY'
+  ) => {
+    setEditingTx({
+      voucherId,
+      assetId,
+      assetName,
+      portfolioId: portfolioId || currentTab?.portfolioIds[0] || (portfolios[0] ? String(portfolios[0].id) : undefined),
+      tradeType
+    });
+  };
   const [priceAsset, setPriceAsset] = useState<{ id: string; name: string; currentPrice: number } | null>(null);
   const [specialModal, setSpecialModal] = useState<{
-    type: 'fd' | 'ppf' | 'bond' | 'ncd' | 'gold_buy' | 'gold_sell' | 'silver_buy' | 'silver_sell' | 'ulip' | 'ulip_renewal';
+    type: 'fd' | 'fd_closure' | 'ppf' | 'bond' | 'bond_sell' | 'ncd' | 'ncd_sell' | 'gold_buy' | 'gold_sell' | 'silver_buy' | 'silver_sell' | 'ulip' | 'ulip_renewal';
     voucherId?: string;
     assetId?: string;
     assetName?: string;
@@ -511,6 +533,29 @@ export default function PMSWorkspace() {
               )}
             </div>
 
+            {/* GLOBAL UNIFIED QUICK ACTION: ADD TRANSACTION (ASSET) */}
+            <button
+              onClick={() => handleOpenTx('new', undefined, undefined, undefined, 'BUY')}
+              style={{
+                height: '34px',
+                padding: '0 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#2563eb',
+                background: '#eff6ff',
+                border: '1.5px solid #93c5fd',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+              title="Add Transaction (Buy or Sell for Stocks, Mutual Funds, Traded Bonds)"
+            >
+              <Plus size={14} /> Add Transaction (Asset)
+            </button>
+
             {/* ACTIVITY MENU DROPDOWN */}
             <div style={{ position: 'relative', zIndex: 10000 }}>
               <button onClick={(e) => { e.stopPropagation(); setIsActivityMenuOpen(!isActivityMenuOpen); setIsViewsMenuOpen(false); }} className="btn-amber" style={{ height: '34px', padding: '0 12px', gap: '6px', fontSize: '12px' }}>
@@ -519,13 +564,15 @@ export default function PMSWorkspace() {
               {isActivityMenuOpen && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'var(--bbg-surface)', border: '1px solid var(--bbg-border)', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10000, padding: '4px' }}>
                   <button className="dropdown-item" onClick={() => { setIsActivityOpen(true); setIsActivityMenuOpen(false); }}>View Transactions</button>
-                  <button className="dropdown-item" onClick={() => { setEditingVoucherId('new'); setIsActivityMenuOpen(false); }}>Add Transaction (Stocks / MF)</button>
+                  <button className="dropdown-item" onClick={() => { handleOpenTx('new', undefined, undefined, undefined, 'BUY'); setIsActivityMenuOpen(false); }}>➕ Buy Trade (Stocks / MF / Bonds)</button>
+                  <button className="dropdown-item" onClick={() => { handleOpenTx('new', undefined, undefined, undefined, 'SELL'); setIsActivityMenuOpen(false); }} style={{ color: '#dc2626', fontWeight: 700 }}>🔻 Trade Sell (Stocks / MF / Bonds)</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd' }); setIsActivityMenuOpen(false); }}>+ Add Fixed Deposit (FD)</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd_closure' }); setIsActivityMenuOpen(false); }} style={{ color: '#047857', fontWeight: 600 }}>🏁 Close Fixed Deposit (FD)</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ppf' }); setIsActivityMenuOpen(false); }}>+ Add PPF / EPF Contribution</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ncd' }); setIsActivityMenuOpen(false); }}>+ Add Unlisted NCD / Bond Buy</button>
-                  <button className="dropdown-item" onClick={() => { setEditingVoucherId('new'); setIsActivityMenuOpen(false); }}>+ Add Traded Bond (Contract Note)</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ncd_sell' }); setIsActivityMenuOpen(false); }} style={{ color: '#dc2626', fontWeight: 600 }}>🔻 Sell / Redeem NCD / Bond</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_buy' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Purchase</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_sell' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Sale</button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_sell' }); setIsActivityMenuOpen(false); }} style={{ color: '#dc2626', fontWeight: 600 }}>+ Add Gold / Silver Sale</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ulip' }); setIsActivityMenuOpen(false); }}>+ Add ULIP Policy</button>
                   <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ulip_renewal' }); setIsActivityMenuOpen(false); }}>+ Add ULIP Renewal Premium</button>
                   <div style={{ height: '1px', background: 'var(--bbg-border)', margin: '4px 0' }} />
@@ -688,28 +735,52 @@ export default function PMSWorkspace() {
               {/* Quick Action Button for the active asset type */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, paddingLeft: '12px' }}>
                 {activeAssetType === 'stocks' && (
-                  <button
-                    onClick={() => setAddAssetModalType('stock')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add Stock (ISIN)
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleOpenTx('new', undefined, undefined, undefined, 'BUY')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#2563eb', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add Transaction (Stock)
+                    </button>
+                    <button
+                      onClick={() => setAddAssetModalType('stock')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 600, color: '#64748b', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      Add Security (ISIN)
+                    </button>
+                  </>
                 )}
                 {(activeAssetType === 'mf_eq' || activeAssetType === 'mf_debt') && (
-                  <button
-                    onClick={() => setAddAssetModalType('mf')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#d97706', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add Mutual Fund (ISIN)
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleOpenTx('new', undefined, undefined, undefined, 'BUY')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#2563eb', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add Transaction (MF)
+                    </button>
+                    <button
+                      onClick={() => setAddAssetModalType('mf')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 600, color: '#64748b', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      Add Security (ISIN)
+                    </button>
+                  </>
                 )}
                 {activeAssetType === 'bonds' && (
-                  <button
-                    onClick={() => setAddAssetModalType('bond')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1e40af', background: 'var(--bbg-active-bg)', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add Traded Bond (ISIN)
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleOpenTx('new', undefined, undefined, undefined, 'BUY')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#2563eb', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add Transaction (Bond)
+                    </button>
+                    <button
+                      onClick={() => setAddAssetModalType('bond')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 600, color: '#64748b', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      Add Security (ISIN)
+                    </button>
+                  </>
                 )}
                 {activeAssetType === 'nps' && (
                   <>
@@ -728,12 +799,20 @@ export default function PMSWorkspace() {
                   </>
                 )}
                 {activeAssetType === 'fds' && (
-                  <button
-                    onClick={() => setSpecialModal({ type: 'fd' })}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1d4ed8', background: 'var(--bbg-active-bg)', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add FD
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'fd' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1d4ed8', background: 'var(--bbg-active-bg)', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add FD
+                    </button>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'fd_closure' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Close FD
+                    </button>
+                  </>
                 )}
                 {activeAssetType === 'ppf' && (
                   <button
@@ -744,12 +823,20 @@ export default function PMSWorkspace() {
                   </button>
                 )}
                 {activeAssetType === 'ncd' && (
-                  <button
-                    onClick={() => setSpecialModal({ type: 'ncd' })}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} /> Add NCD
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'ncd' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Add NCD
+                    </button>
+                    <button
+                      onClick={() => setSpecialModal({ type: 'ncd_sell' })}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Plus size={13} /> Sell NCD
+                    </button>
+                  </>
                 )}
                 {activeAssetType === 'gold' && (
                   <>
@@ -824,7 +911,7 @@ export default function PMSWorkspace() {
               String(state.accPflink.find((l: any) => l.pfid === Number(selectedAssetForLedger.portIds[0]))?.accountId)
             }
             onClose={() => setSelectedAssetForLedger(null)}
-            onVoucherClick={setEditingVoucherId}
+            onVoucherClick={(vId) => handleOpenTx(vId)}
             onNewVoucher={() => {}}
           />
         </div>
@@ -838,17 +925,21 @@ export default function PMSWorkspace() {
             portfolioIds={selectedAssetForLedger.portIds}
             atty={selectedAssetForLedger.atty}
             onClose={() => setSelectedAssetForLedger(null)} 
-            onEditTransaction={setEditingVoucherId}
+            onEditTransaction={(vId, aId, aName, pId, tType) => handleOpenTx(vId, aId, aName, pId, tType || 'BUY')}
           />
         </ModalErrorBoundary>
       )}
-      {editingVoucherId && (
-        <ModalErrorBoundary onClose={() => setEditingVoucherId(null)}>
+      {editingTx && (
+        <ModalErrorBoundary onClose={() => setEditingTx(null)}>
           <PMSTransactionModal 
-            voucherId={editingVoucherId}
-            onClose={() => setEditingVoucherId(null)}
+            voucherId={editingTx.voucherId}
+            initialAssetId={editingTx.assetId}
+            initialAssetName={editingTx.assetName}
+            initialPortfolioId={editingTx.portfolioId}
+            initialTradeType={editingTx.tradeType}
+            onClose={() => setEditingTx(null)}
             onSaved={() => {
-              setEditingVoucherId(null);
+              setEditingTx(null);
               setTick(t => t + 1);
               triggerGlobalRefresh();
             }}
@@ -857,12 +948,13 @@ export default function PMSWorkspace() {
       )}
 
       {/* ── SPECIAL ASSET MODALS (DIRECT ACCESS) ── */}
-      {specialModal?.type === 'fd' && (
+      {(specialModal?.type === 'fd' || specialModal?.type === 'fd_closure') && (
         <PMSFDInvestmentModal
           assetId={specialModal.assetId || '0'}
           assetName={specialModal.assetName || ''}
           portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
           voucherId={specialModal.voucherId}
+          initialMode={specialModal.type === 'fd_closure' ? 'closure' : 'investment'}
           onClose={() => setSpecialModal(null)}
           onSaved={() => {
             setSpecialModal(null);
@@ -885,13 +977,14 @@ export default function PMSWorkspace() {
           }}
         />
       )}
-      {(specialModal?.type === 'ncd' || specialModal?.type === 'bond') && (
+      {(specialModal?.type === 'ncd' || specialModal?.type === 'ncd_sell' || specialModal?.type === 'bond' || specialModal?.type === 'bond_sell') && (
         <PMSNCDBondModal
           assetId={specialModal.assetId || '0'}
           assetName={specialModal.assetName || ''}
           portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
           voucherId={specialModal.voucherId}
-          assetCategory={specialModal.type === 'ncd' ? 'ncd' : 'bonds'}
+          assetCategory={specialModal.type.startsWith('ncd') ? 'ncd' : 'bonds'}
+          initialMode={specialModal.type.endsWith('sell') ? 'sell' : 'buy'}
           onClose={() => setSpecialModal(null)}
           onSaved={() => {
             setSpecialModal(null);
@@ -1006,7 +1099,7 @@ export default function PMSWorkspace() {
         </div>
       )}
       <FamilySelectorModal isOpen={isFamilySelectorOpen} onClose={() => setIsFamilySelectorOpen(false)} />
-      <PortfolioActivityModal open={isActivityOpen} onClose={() => setIsActivityOpen(false)} portfolioIds={currentTab?.portfolioIds || []} title={currentTab?.label || ''} onEditTransaction={setEditingVoucherId} />
+      <PortfolioActivityModal open={isActivityOpen} onClose={() => setIsActivityOpen(false)} portfolioIds={currentTab?.portfolioIds || []} title={currentTab?.label || ''} onEditTransaction={(vId) => handleOpenTx(vId)} />
       
       {incomeAsset && (
         <PMSIncomeModal 

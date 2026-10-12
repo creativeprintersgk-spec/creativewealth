@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, FolderOpen, Plus, Trash } from 'lucide-react';
-import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, getStoredAccounts, getAccountForPortfolio } from '../../logic';
+import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, getStoredAccounts, getAccountForPortfolio, state } from '../../logic';
 import { useFamily } from '../../contexts/FamilyContext';
 import { searchAssets, type AssetMaster } from '../../services/assetMasterService';
 import AddAssetModal from './AddAssetModal';
@@ -12,6 +12,7 @@ interface Props {
   initialAssetId?: string;
   initialAssetName?: string;
   initialPortfolioId?: string;
+  initialTradeType?: 'BUY' | 'SELL';
 }
 
 interface TradeRow {
@@ -32,6 +33,7 @@ export default function PMSTransactionModal({
   initialAssetId,
   initialAssetName,
   initialPortfolioId,
+  initialTradeType = 'BUY',
 }: Props) {
   const [date, setDate] = useState('');
   const [voucherNo, setVoucherNo] = useState('');
@@ -165,16 +167,34 @@ export default function PMSTransactionModal({
       }
       setAssetType(isMf ? 'MF' : 'EQ');
 
+      let prefillQty = 0;
+      let prefillPrice = 0;
+      if (initialTradeType === 'SELL' && initialAssetId) {
+        const pfidNum = Number(pId);
+        const amidNum = Number(initialAssetId);
+        const sumRow = state.sumTable?.find((s: any) =>
+          s.pfolio_id === pfidNum && (Number(s.sid) === amidNum || Number(s.amid) === amidNum)
+        );
+        if (sumRow && Number(sumRow.qnt) > 0) {
+          prefillQty = Number(sumRow.qnt);
+          if (Number(sumRow.currv) > 0) {
+            prefillPrice = Number((Number(sumRow.currv) / Number(sumRow.qnt)).toFixed(2));
+          } else if (Number(sumRow.amtinv) > 0) {
+            prefillPrice = Number((Number(sumRow.amtinv) / Number(sumRow.qnt)).toFixed(2));
+          }
+        }
+      }
+
       setTrades([
         {
           id: 'initial',
           ledgerId: initialAssetId ? String(initialAssetId) : '',
           amid: initialAssetId ? Number(initialAssetId) : undefined,
           assetName: initialAssetName || '',
-          type: 'BUY',
-          quantity: 0,
-          price: 0,
-          amount: 0
+          type: initialTradeType,
+          quantity: prefillQty,
+          price: prefillPrice,
+          amount: Number((prefillQty * prefillPrice).toFixed(2))
         }
       ]);
       setStt(0);
@@ -744,11 +764,51 @@ export default function PMSTransactionModal({
         {/* Title Bar */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: assetType === 'EQ' ? '#eff6ff' : '#fef3c7', color: assetType === 'EQ' ? '#1d4ed8' : '#b45309', fontSize: '12px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>
-              {assetType === 'EQ' ? 'CONTRACT NOTE' : 'MF CONTRA'}
+            <div style={{
+              background: trades[0]?.type === 'SELL' ? '#fee2e2' : '#dcfce7',
+              color: trades[0]?.type === 'SELL' ? '#dc2626' : '#16a34a',
+              fontSize: '12px',
+              fontWeight: 800,
+              padding: '4px 10px',
+              borderRadius: '6px',
+              letterSpacing: '0.5px'
+            }}>
+              {trades[0]?.type === 'SELL' ? 'SELL TRADE' : 'BUY TRADE'}
             </div>
             <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {assetType === 'MF' ? 'Mutual Fund Transaction' : (trades[0]?.assetName ? `${trades[0].assetName} Transaction` : 'Trade Transaction')}
+              {trades[0]?.assetName ? `${trades[0].assetName} (${trades[0]?.type})` : `Add Transaction (${trades[0]?.type || 'BUY'})`}
+              <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+                <button
+                  type="button"
+                  onClick={() => handleTradeChange(0, 'type', 'BUY')}
+                  style={{
+                    padding: '3px 10px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    background: trades[0]?.type === 'BUY' ? '#16a34a' : '#f8fafc',
+                    color: trades[0]?.type === 'BUY' ? '#fff' : '#64748b',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  BUY
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTradeChange(0, 'type', 'SELL')}
+                  style={{
+                    padding: '3px 10px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    background: trades[0]?.type === 'SELL' ? '#dc2626' : '#f8fafc',
+                    color: trades[0]?.type === 'SELL' ? '#fff' : '#64748b',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  SELL
+                </button>
+              </div>
               {voucherId === 'new' && (
                 <button onClick={() => setAssetType(t => t === 'EQ' ? 'MF' : 'EQ')} style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', fontWeight: 700 }}>
                   Switch to {assetType === 'EQ' ? 'MF' : 'EQ'}

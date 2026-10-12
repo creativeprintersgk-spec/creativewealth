@@ -441,7 +441,15 @@ function ImportPageInner() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Tabs: 'db' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'
-  const [activeTab, setActiveTab] = useState<'db' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'>('db');
+  const [activeTab, setActiveTab] = useState<'db' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'>(() => {
+    try {
+      const qTab = new URLSearchParams(window.location.search).get('tab');
+      if (qTab && ['db', 'contract-note', 'mf-cas', 'ecas', 'sql-restore', 'db-converter'].includes(qTab)) {
+        return qTab as any;
+      }
+    } catch {}
+    return 'db';
+  });
 
   // SQL Restore States
   const sqlFileInputRef = useRef<HTMLInputElement>(null);

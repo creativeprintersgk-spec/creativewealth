@@ -504,7 +504,7 @@ async function performBackgroundSync() {
         console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
         return;
       }
-      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v32') : null;
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v33') : null;
       if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
         console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
         Object.assign(state, cachedState);
@@ -521,12 +521,12 @@ async function performBackgroundSync() {
           }
         });
         (state.sam || []).forEach((s: any) => {
-          if (Number(s.amid) >= 100000) state.assetNameMap[s.amid] = s.anm;
+          state.assetNameMap[s.amid] = s.anm;
           state.assetNameMap[500000 + Number(s.amid)] = s.anm;
         });
         (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
         (state.acmac1 || []).forEach((a: any) => {
-          if (a.name) {
+          if (a.name && Number(a.parent_id) >= 200000) {
             state.assetNameMap[a.id] = a.name;
           }
         });
@@ -633,7 +633,7 @@ async function performBackgroundSync() {
       state.priceMap[103605] = { curr: 18.60, prev: 18.60 }; // Mayur Floorings Ltd (BSE: 531221)
     }
     newState.sam.forEach((s: any) => {
-      if (Number(s.amid) >= 100000) state.assetNameMap[s.amid] = s.anm;
+      state.assetNameMap[s.amid] = s.anm;
       // MProfit v10: Trans1 investment maids use 500000 + SAM.amid
       // Register both keys so getAssetName works for both raw and prefixed amids
       state.assetNameMap[500000 + Number(s.amid)] = s.anm;
@@ -646,7 +646,7 @@ async function performBackgroundSync() {
       if (isinVal) state.isinMap[a.amid] = String(isinVal).trim();
     });
     newState.acmac1.forEach((a: any) => {
-      if (a.name) {
+      if (a.name && Number(a.parent_id) >= 200000) {
         state.assetNameMap[a.id] = a.name;
       }
       const isinVal = a.isin || a.isincode;
@@ -657,7 +657,7 @@ async function performBackgroundSync() {
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v32', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v33', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -675,7 +675,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v32') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v33') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -699,12 +699,12 @@ export async function initDatabase() {
         state.priceMap[103605] = { curr: 18.60, prev: 18.60 }; // Mayur Floorings Ltd (BSE: 531221)
       }
       (state.sam || []).forEach((s: any) => {
-        if (Number(s.amid) >= 100000) state.assetNameMap[s.amid] = s.anm;
+        state.assetNameMap[s.amid] = s.anm;
         state.assetNameMap[500000 + Number(s.amid)] = s.anm; // MProfit v10: maid = 500000 + SAM.amid
       });
       (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
       (state.acmac1 || []).forEach((a: any) => {
-        if (a.name) {
+        if (a.name && Number(a.parent_id) >= 200000) {
           state.assetNameMap[a.id] = a.name;
         }
       });
@@ -732,7 +732,7 @@ export async function initDatabase() {
 export async function persistStateToIDB() {
   if (typeof indexedDB !== 'undefined') {
     try {
-      await set('wealthcore_state_v32', JSON.parse(JSON.stringify(state)));
+      await set('wealthcore_state_v33', JSON.parse(JSON.stringify(state)));
       console.log('✅ WealthCore state saved to IndexedDB');
     } catch (e) {
       console.warn('Failed to persist state to IndexedDB:', e);
@@ -4491,7 +4491,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // Cache updated state in IndexedDB
     if (typeof indexedDB !== 'undefined') {
       try {
-        await set('wealthcore_state_v32', JSON.parse(JSON.stringify(state)));
+        await set('wealthcore_state_v33', JSON.parse(JSON.stringify(state)));
       } catch (idbErr) {
         console.warn('IDB price update failed:', idbErr);
       }
@@ -4560,6 +4560,9 @@ export async function ensureLedgerExists(name: string, groupId: string, acid?: n
     share_txn_charges: 175,
     tds: 55,
     capital: 1,
+    interest: 150,
+    interest_income: 150,
+    dividend: 140,
   };
 
   const parentId = groupMapping[groupId.toLowerCase()] || 50;

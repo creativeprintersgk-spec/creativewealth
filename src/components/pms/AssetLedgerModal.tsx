@@ -22,7 +22,8 @@ interface Props {
     voucherId: string,
     initialAssetId?: string,
     initialAssetName?: string,
-    initialPortfolioId?: string
+    initialPortfolioId?: string,
+    initialTradeType?: 'BUY' | 'SELL'
   ) => void;
 }
 
@@ -106,15 +107,15 @@ export default function AssetLedgerModal({
 
   // Handler: open the correct "new" entry modal for this asset type
   const handleNewEntry = (mode: 'addition' | 'sale' = 'addition') => {
-    if (isFD) { setFdModalVoucherId('__new__'); return; }
+    if (isFD) { setFdModalVoucherId(mode === 'sale' ? '__closure__' : '__new__'); return; }
     if (isPPF) { setPpfModalVoucherId('__new__'); return; }
-    if (isUnlistedNCD) { setNcdModalVoucherId({ voucherId: '__new__', category: 'ncd' }); return; }
-    if (isUnlistedBond) { setNcdModalVoucherId({ voucherId: '__new__', category: 'bonds' }); return; }
+    if (isUnlistedNCD) { setNcdModalVoucherId({ voucherId: mode === 'sale' ? '__sell__' : '__new__', category: 'ncd' }); return; }
+    if (isUnlistedBond) { setNcdModalVoucherId({ voucherId: mode === 'sale' ? '__sell__' : '__new__', category: 'bonds' }); return; }
     if (isGold) { setGoldSilverModal({ voucherId: null, metal: 'gold', mode }); return; }
     if (isSilver) { setGoldSilverModal({ voucherId: null, metal: 'silver', mode }); return; }
     if (isULIP) { setUlipModalVoucherId('__new__'); return; }
     // Standard equity / MF / Traded Bond transaction modal (Contract Note style)
-    onEditTransaction?.('new', assetId, assetName, portfolioIds[0]);
+    onEditTransaction?.('new', assetId, assetName, portfolioIds[0], mode === 'sale' ? 'SELL' : 'BUY');
   };
 
   // Handler: open correct edit modal for a clicked transaction
@@ -268,22 +269,49 @@ export default function AssetLedgerModal({
 
         {/* ACTION BAR */}
         <div style={{ padding: '8px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '16px', fontSize: '13px', fontWeight: 600, background: '#fff', alignItems: 'center' }}>
-          {/* Primary action button — label changes by asset type */}
+          {/* Action buttons: Addition / Buy */}
           <button 
             onClick={() => handleNewEntry('addition')} 
             style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
           >
             <Plus size={14} />
-            {isULIP ? 'Add Renewal Premium' : isMetalAsset ? 'Add Purchase' : isFD ? 'New Investment' : isPPF ? 'New Contribution' : (isNCD || isBond) ? 'New Buy' : 'Buy Sell'}
+            {isULIP ? 'Add Renewal Premium' : isMetalAsset ? 'Add Purchase' : isFD ? 'New Investment' : isPPF ? 'New Contribution' : (isNCD || isBond) ? 'New Buy' : 'Buy'}
           </button>
 
-          {/* Gold/Silver Sale button — only shown for metal assets */}
+          {/* Action buttons: Sale / Redeem / Trade Sell */}
+          {isFD && (
+            <button
+              onClick={() => setFdModalVoucherId('__closure__')}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Plus size={14} /> Close / Redeem FD
+            </button>
+          )}
+
+          {(isNCD || isBond) && (
+            <button
+              onClick={() => setNcdModalVoucherId({ voucherId: '__sell__', category: isNCD ? 'ncd' : 'bonds' })}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Plus size={14} /> Sell / Redeem
+            </button>
+          )}
+
           {isMetalAsset && (
             <button
               onClick={() => handleNewEntry('sale')}
               style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               <Plus size={14} /> Add Sale
+            </button>
+          )}
+
+          {!isSpecialEntry && (
+            <button
+              onClick={() => handleNewEntry('sale')}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Plus size={14} /> Trade Sell
             </button>
           )}
 
@@ -658,7 +686,8 @@ export default function AssetLedgerModal({
           assetId={assetId}
           assetName={assetName}
           portfolioIds={portfolioIds}
-          voucherId={fdModalVoucherId === '__new__' ? undefined : fdModalVoucherId}
+          voucherId={fdModalVoucherId === '__new__' || fdModalVoucherId === '__closure__' ? undefined : fdModalVoucherId}
+          initialMode={fdModalVoucherId === '__closure__' ? 'closure' : 'investment'}
           onClose={() => setFdModalVoucherId(null)}
           onSaved={async () => {
             setFdModalVoucherId(null);
@@ -688,8 +717,9 @@ export default function AssetLedgerModal({
           assetId={assetId}
           assetName={assetName}
           portfolioIds={portfolioIds}
-          voucherId={ncdModalVoucherId.voucherId === '__new__' ? undefined : (ncdModalVoucherId.voucherId ?? undefined)}
+          voucherId={ncdModalVoucherId.voucherId === '__new__' || ncdModalVoucherId.voucherId === '__sell__' ? undefined : (ncdModalVoucherId.voucherId ?? undefined)}
           assetCategory={ncdModalVoucherId.category}
+          initialMode={ncdModalVoucherId.voucherId === '__sell__' ? 'sell' : 'buy'}
           onClose={() => setNcdModalVoucherId(null)}
           onSaved={async () => {
             setNcdModalVoucherId(null);
