@@ -1588,9 +1588,16 @@ function ImportPageInner() {
           }
         } else {
           // ── Standard Equity / Bond Accounting ───────────────────────────────
+          const groupGainsByLedger: Record<number, number> = {};
+
           for (const t of tradesInGroup) {
             const assetObj = state.assetMaster.find((a: any) => Number(a.amid) === Number(t.amid));
-            const resolvedAssetType = assetObj?.asset_type || (parseFnoSymbol(t.assetName) ? 30 : 50);
+            const isinUpper = (t.isin || assetObj?.isin || '').toUpperCase();
+            const assetNameUpper = (t.assetName || assetObj?.name || '').toUpperCase();
+            const isBondByNameOrIsin = isinUpper.startsWith('IN00') ||
+              /\b(G-SEC|GS\s*\d|GS\d|BONDS?|NCD|DEBENTURE|GOI|TREASURY)\b/i.test(assetNameUpper);
+
+            const resolvedAssetType = assetObj?.asset_type || (isBondByNameOrIsin ? 40 : (parseFnoSymbol(t.assetName) ? 30 : 50));
             const ledgerId = await ensureAssetLedgerExists(t.amid, t.assetName, pId, resolvedAssetType);
             const gross = Number(t.gross) ? Number(Number(t.gross).toFixed(2)) : Number((t.quantity * t.price).toFixed(2));
 
@@ -1655,21 +1662,21 @@ function ImportPageInner() {
 
               const bs1Asset = state.bs1.find((r: any) => Number(r.pfid) === Number(pId) && Number(r.amid) === Number(t.amid));
               const atyid = bs1Asset?.atyid || resolvedAssetType || 50;
-              const EQUITY_GROUPS = new Set([200050, 200051, 200061, 30, 50, 60, 81]);
-              const DEBT_GROUPS   = new Set([200062, 200058, 61, 62]);
-              const BOND_GROUPS   = new Set([200040, 200070, 40, 70, 100, 110]);
+              const isBond = isBondByNameOrIsin ||
+                [40, 70, 100, 110, 200040, 200070].includes(Number(atyid)) ||
+                resolvedAssetType === 40;
+              const isDebt = [200062, 200058, 61, 62].includes(Number(atyid)) || resolvedAssetType === 62;
 
               const getLotGainLedgerId = (lotDate: string): number => {
                 const holdingDays = Math.abs((new Date(t.date).getTime() - new Date(lotDate).getTime()) / 86400000);
-                if (EQUITY_GROUPS.has(atyid)) {
-                  return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
-                } else if (DEBT_GROUPS.has(atyid)) {
+                if (isBond) {
+                  // Under Section 2(42A) of Income Tax Act, Listed Bonds & Govt Securities are Long Term after 12 months (> 365 days)
+                  return holdingDays > 365 ? GAIN_LEDGERS.LTCG_BONDS : GAIN_LEDGERS.STCG_BONDS;
+                } else if (isDebt) {
                   if ((lotDate || '').slice(0, 10) >= '2023-04-01') {
                     return GAIN_LEDGERS.STCG_DEBT;
                   }
                   return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_DEBT : GAIN_LEDGERS.STCG_DEBT;
-                } else if (BOND_GROUPS.has(atyid)) {
-                  return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_BONDS : GAIN_LEDGERS.STCG_BONDS;
                 }
                 return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
               };
@@ -1711,11 +1718,7 @@ function ImportPageInner() {
               }
 
               for (const entry of ledgerEntries) {
-                if (entry.netGain > 0.01) {
-                  mappedLines.push({ ledgerId: entry.ledgerId, debit: 0, credit: entry.netGain });
-                } else if (entry.netGain < -0.01) {
-                  mappedLines.push({ ledgerId: entry.ledgerId, debit: Math.abs(entry.netGain), credit: 0 });
-                }
+                groupGainsByLedger[entry.ledgerId] = (groupGainsByLedger[entry.ledgerId] || 0) + entry.netGain;
               }
 
               totalSells += saleProceeds;
@@ -1746,7 +1749,37 @@ function ImportPageInner() {
           }
 
           const sumCharges = Number((groupStt + groupBrok + groupGst + groupStamp + groupTrans).toFixed(2));
-          netPayable = Number(((totalBuys + sumCharges) - totalSells).toFixed(2));
+
+          // ── Reconcile with contract note bill finalNet (anchoring to broker invoice) ──
+          if (batch?.finalNet !== undefined && batch?.finalNet !== null && tradesInGroup.length > 0) {
+            const targetFinalNet = Number(batch.finalNet); // positive = client receivable, negative = client payable
+            if (totalSells > 0) {
+              const expectedSells = Number((targetFinalNet + sumCharges - totalBuys).toFixed(2));
+              const tradeRoundingDiff = Number((expectedSells - totalSells).toFixed(2));
+              if (Math.abs(tradeRoundingDiff) > 0 && Math.abs(tradeRoundingDiff) < 5.0) {
+                totalSells = expectedSells;
+                const gainKeys = Object.keys(groupGainsByLedger);
+                if (gainKeys.length > 0) {
+                  const primaryGainLedger = Number(gainKeys[0]);
+                  groupGainsByLedger[primaryGainLedger] = Number((groupGainsByLedger[primaryGainLedger] + tradeRoundingDiff).toFixed(2));
+                }
+              }
+            }
+            netPayable = -Number(targetFinalNet.toFixed(2));
+          } else {
+            netPayable = Number(((totalBuys + sumCharges) - totalSells).toFixed(2));
+          }
+
+          // ── Consolidate capital gains into one line per ledger on the voucher ──
+          Object.entries(groupGainsByLedger).forEach(([idStr, amt]) => {
+            const ledgerId = Number(idStr);
+            const netGain = Number(amt.toFixed(2));
+            if (netGain > 0.005) {
+              mappedLines.push({ ledgerId, debit: 0, credit: netGain });
+            } else if (netGain < -0.005) {
+              mappedLines.push({ ledgerId, debit: Math.abs(netGain), credit: 0 });
+            }
+          });
 
           if (netPayable > 0) {
             mappedLines.push({

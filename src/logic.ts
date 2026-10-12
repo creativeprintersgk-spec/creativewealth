@@ -2631,11 +2631,15 @@ export function depleteFifoLots(openLots: any[], qty: number): { totalCost: numb
     if (remaining <= 0.000001) break;
     if (src.remaining <= 0.000001) continue;
     const mq = Math.min(remaining, src.remaining);
-    totalCost += mq * src.costPerUnit;
-    matchedLots.push({ date: src.date, qty: mq, costPerUnit: src.costPerUnit });
+    const unitRate = src.costPerUnit ? Number(src.costPerUnit.toFixed(4)) : 0;
+    const cost = (Math.abs(mq - src.qty) < 0.000001 && src.totalAmt > 0)
+      ? src.totalAmt
+      : Number((mq * unitRate).toFixed(2));
+    totalCost += cost;
+    matchedLots.push({ date: src.date, qty: mq, costPerUnit: unitRate });
     remaining -= mq;
   }
-  return { totalCost, matchedLots };
+  return { totalCost: Number(totalCost.toFixed(2)), matchedLots };
 }
 
 export interface PreCutoffPosition {
@@ -3405,7 +3409,9 @@ export function resolveAssetLineToBsRow(
     : (Number(assetLine.price) || (linesToProcessCount === 1 ? Number(data.price) || 0 : 0));
   const amt = (!isBuy && Number(assetLine.saleAmount) > 0)
     ? Number(assetLine.saleAmount)
-    : (Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcessCount === 1 ? Number(data.amount) || qty * price || 0 : qty * price));
+    : (!isBuy && qty > 0 && price > 0
+        ? Number((qty * price).toFixed(2))
+        : (Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcessCount === 1 ? Number(data.amount) || qty * price || 0 : qty * price)));
 
   const asset = state.assetMaster.find((a: any) => a.amid === amid);
   const existingSum = state.sumTable.find((s: any) => Number(s.amid) === amid && Number(s.pfolio_id) === pfid);
@@ -3762,21 +3768,25 @@ export async function createVoucher(data: any, reuseVid?: number) {
         const bs1Asset = state.bs1.find((t: any) => t.pfid === pfid && t.amid === amid);
         const atyid = bs1Asset?.atyid || 0;
 
-        const EQUITY_GROUPS = new Set([200050, 200051, 200061, 50]);
-        const DEBT_GROUPS   = new Set([200062, 200058]);
-        const BOND_GROUPS   = new Set([200040, 200070]);
+        const assetObj = state.assetMaster.find((a: any) => a.amid === amid);
+        const isinUpper = (getAssetISIN(amid) || assetObj?.isin || '').toUpperCase();
+        const anameUpper = (getAssetName(amid) || assetObj?.name || '').toUpperCase();
+        const isBond = isinUpper.startsWith('IN00') ||
+          [40, 70, 100, 110, 200040, 200070].includes(Number(atyid)) ||
+          assetObj?.asset_type === 40 ||
+          /\b(G-SEC|GS\s*\d|GS\d|BONDS?|NCD|DEBENTURE|GOI|TREASURY)\b/i.test(anameUpper);
+        const isDebt = [200062, 200058, 61, 62].includes(Number(atyid)) || assetObj?.asset_type === 62;
 
         const getLotGainLedgerId = (lotDate: string): number => {
           const holdingDays = Math.abs((new Date(data.date).getTime() - new Date(lotDate).getTime()) / 86400000);
-          if (EQUITY_GROUPS.has(atyid)) {
-            return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
-          } else if (DEBT_GROUPS.has(atyid)) {
+          if (isBond) {
+            // Under Section 2(42A) of Income Tax Act, Listed Bonds & Govt Securities are Long Term after 12 months (> 365 days)
+            return holdingDays > 365 ? GAIN_LEDGERS.LTCG_BONDS : GAIN_LEDGERS.STCG_BONDS;
+          } else if (isDebt) {
             if ((lotDate || '').slice(0, 10) >= '2023-04-01') {
               return GAIN_LEDGERS.STCG_DEBT;
             }
             return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_DEBT : GAIN_LEDGERS.STCG_DEBT;
-          } else if (BOND_GROUPS.has(atyid)) {
-            return holdingDays > 1095 ? GAIN_LEDGERS.LTCG_BONDS : GAIN_LEDGERS.STCG_BONDS;
           }
           return holdingDays > 365 ? GAIN_LEDGERS.LTCG_EQUITY : GAIN_LEDGERS.STCG_EQUITY;
         };
