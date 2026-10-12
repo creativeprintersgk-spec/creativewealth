@@ -2038,12 +2038,22 @@ function ImportPageInner() {
 
       // If client name is also provided, ensure candidate doesn't mismatch family member name
       if (normName && candidatePfs.length > 0) {
-        const nameTokens = normName.split(/\s+/).filter(w => w.length > 2);
+        const nameTokens = normName.split(/\s+/).filter(w => w.length > 2 && !/LIMITED|PVT|LTD|SHARES|SECURITIES|BROKER/i.test(w));
+        const givenName = nameTokens[0];
+        const specificNameTokens = nameTokens.filter(tok => !/^(SHAH|MEHTA|PATEL|JAIN|SINGH|KUMAR|GUPTA|SHARMA)$/i.test(tok));
+        const activeTokens = specificNameTokens.length > 0 ? specificNameTokens : [givenName];
+
         const nameFiltered = candidatePfs.filter((p: any) => {
           const pStr = `${p.investor_name || ''} ${p.full_name || ''}`.toUpperCase();
-          return nameTokens.some(tok => pStr.includes(tok));
+          return activeTokens.some(tok => pStr.includes(tok));
         });
-        if (nameFiltered.length > 0) candidatePfs = nameFiltered;
+        if (nameFiltered.length > 0) {
+          candidatePfs = nameFiltered;
+        } else {
+          // If all candidates contradicted the explicit parsed client name (e.g. masked PAN collision across family members),
+          // discard the false-positive candidates so step 2 accurately matches by client name!
+          candidatePfs = [];
+        }
       }
 
       if (candidatePfs.length > 0) {

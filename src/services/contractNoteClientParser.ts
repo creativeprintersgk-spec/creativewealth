@@ -312,7 +312,8 @@ function extractFinalNet(text: string): number | null {
           } else {
             isCr = /Receivable/i.test(line) && !/Payable/i.test(line);
           }
-          return isCr ? -Math.abs(val) : Math.abs(val);
+          // In WealthCore convention: positive = client receivable (Cr), negative = client payable (Dr)
+          return isCr ? Math.abs(val) : -Math.abs(val);
         }
       }
     }
@@ -697,24 +698,23 @@ export function parseContractNoteClientText(
         .replace(/\s+/g, ' ')
         .trim();
 
-    // Extract leaf rows (<thead...> or <tr...> that do not contain nested <table)
+    // Extract table rows (<thead...> or <tr...> including unclosed <tr> tags)
     const htmlRows: string[][] = [];
-    const rowRe = /<(?:tr|thead)\b[^>]*>([\s\S]*?)<\/(?:tr|thead)>/gi;
-    let rm: RegExpExecArray | null;
-    while ((rm = rowRe.exec(text)) !== null) {
-      const inner = rm[1];
-      if (/<table\b/i.test(inner)) continue;
-      const cells = [...inner.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(c => cleanCell(c[1]));
+    const chunks = text.split(/<(?:tr|thead)\b[^>]*>/i).slice(1);
+    for (const chunk of chunks) {
+      const rowContent = chunk.split(/<\/(?:tr|thead|tbody|table)>/i)[0];
+      const cells = [...rowContent.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(c => cleanCell(c[1]));
       if (cells.some(Boolean)) htmlRows.push(cells);
     }
 
-    // 1. Parse HTML Summary Trade Rows (starts with ISIN in cell 0, Security Name in cell 1, and numeric columns)
+    // 1. Parse HTML Summary Trade Rows (find ISIN column and numeric quantities/rates)
     const htmlSummaryTrades: ParsedTrade[] = [];
     for (const cells of htmlRows) {
-      if (cells.length >= 8 && ISIN_REGEX.test(cells[0])) {
-        const isin = cells[0].match(ISIN_REGEX)![1].toUpperCase();
-        const symbol = cells[1] || 'STOCK';
-        const nums = cells.slice(2).map(cleanNum);
+      const isinIdx = cells.findIndex(c => ISIN_REGEX.test(c) && !c.startsWith('INZ') && !c.startsWith('IN30'));
+      if (isinIdx !== -1 && cells.length >= 8) {
+        const isin = cells[isinIdx].match(ISIN_REGEX)![1].toUpperCase();
+        const symbol = cells[isinIdx + 1] || 'STOCK';
+        const nums = cells.slice(isinIdx + 2).map(cleanNum);
         if (nums.length >= 6) {
           const buyQty = nums[0] || 0;
           const buyVal = nums[4] || Math.round(buyQty * (nums[3] || nums[1] || 0) * 100) / 100;
@@ -783,6 +783,8 @@ export function parseContractNoteClientText(
             charges.stamp = v;
           } else if (/Sebi\s*turnover|Clearing\s*Ch|Minimum\s*Charges|Demat\s*Chrg|OTHER\s*CHARGES|\bIPF\b/i.test(h)) {
             charges.other = Number((charges.other + v).toFixed(2));
+          } else if (/Brokerage\b/i.test(h) && !/Taxable/i.test(h)) {
+            charges.brokerage = v;
           } else if (/Total\s*\(\s*Net\s*\)/i.test(h)) {
             netCellText = valStr;
           }
@@ -793,8 +795,9 @@ export function parseContractNoteClientText(
           if (netVal > 0) {
             const totalSells = rawTrades.reduce((s, t) => s + t.sellVal, 0);
             const totalBuys = rawTrades.reduce((s, t) => s + t.buyVal, 0);
-            const isCr = /Cr\b/i.test(netCellText) || (totalSells > totalBuys && netVal < obligationVal);
-            finalNet = isCr ? -netVal : netVal;
+            const isCr = /Cr\b/i.test(netCellText) || (totalSells > totalBuys && netVal <= obligationVal);
+            // In WealthCore convention: positive = client receivable (Cr), negative = client payable (Dr)
+            finalNet = isCr ? netVal : -netVal;
           }
         }
         break;
