@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, FolderOpen, Plus, Trash } from 'lucide-react';
-import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, getStoredAccounts, getAccountForPortfolio, state } from '../../logic';
+import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, resolveAssetLedgerId, getStoredAccounts, getAccountForPortfolio, state } from '../../logic';
 import { useFamily } from '../../contexts/FamilyContext';
 import { searchAssets, type AssetMaster } from '../../services/assetMasterService';
 import AddAssetModal from './AddAssetModal';
@@ -185,11 +185,13 @@ export default function PMSTransactionModal({
         }
       }
 
+      const initialAmid = initialAssetId ? Number(initialAssetId) : undefined;
+      const initialLedgerId = initialAssetId && Number(initialAssetId) >= 500000 ? String(initialAssetId) : '';
       setTrades([
         {
           id: 'initial',
-          ledgerId: initialAssetId ? String(initialAssetId) : '',
-          amid: initialAssetId ? Number(initialAssetId) : undefined,
+          ledgerId: initialLedgerId,
+          amid: initialAmid,
           assetName: initialAssetName || '',
           type: initialTradeType,
           quantity: prefillQty,
@@ -515,14 +517,24 @@ export default function PMSTransactionModal({
         ? Number(Number(trade.amount).toFixed(2))
         : Number((Number(trade.quantity || 0) * Number(trade.price || 0)).toFixed(2));
 
-      // Use direct ledgerId (amid) if it's already set — avoids mismatching Gold/Silver/Bond assets
-      // to the 'stocks' ledger group which would break bs1 insertion
-      const directLedgerId = trade.ledgerId && String(trade.ledgerId).trim() !== ''
-        ? trade.ledgerId
-        : (await ensureLedgerExists(trade.assetName, assetType === 'EQ' ? 'stocks' : 'mf_equity', acidNum))?.id ?? '';
+      // Resolve the actual Chart of Accounts (acmac1) ledger ID for this account (acidNum)
+      // Never use a raw amid (< 500000) as an accounting ledgerId!
+      let resolvedLedgerId = '';
+      if (trade.ledgerId && Number(trade.ledgerId) >= 500000) {
+        resolvedLedgerId = String(trade.ledgerId);
+      } else if (acidNum) {
+        const directId = await resolveAssetLedgerId(
+          trade.amid ? Number(trade.amid) : (trade.ledgerId ? Number(trade.ledgerId) : undefined),
+          trade.assetName,
+          acidNum,
+          assetType === 'MF' ? 60 : 50,
+          originalVoucher.portfolioId ? Number(originalVoucher.portfolioId) : undefined
+        );
+        resolvedLedgerId = directId > 0 ? String(directId) : '';
+      }
 
       lines.push({
-        ledgerId: directLedgerId,
+        ledgerId: resolvedLedgerId,
         amid: trade.amid,
         debit: isTradeBuy ? grossTradeAmount : 0,
         credit: !isTradeBuy ? grossTradeAmount : 0,
@@ -678,7 +690,7 @@ export default function PMSTransactionModal({
                 key={asset.amid}
                 onClick={() => {
                   handleTradeChange(idx, 'assetName', asset.name);
-                  handleTradeChange(idx, 'ledgerId', String(asset.amid));
+                  handleTradeChange(idx, 'ledgerId', '');
                   handleTradeChange(idx, 'amid', asset.amid);
                   setShowDropdown(false);
                   setActiveRowIdx(null);
@@ -1057,7 +1069,7 @@ export default function PMSTransactionModal({
           onAssetCreated={(newAsset, price) => {
             if (addAssetTargetIdx !== null) {
               handleTradeChange(addAssetTargetIdx, 'assetName', newAsset.name);
-              handleTradeChange(addAssetTargetIdx, 'ledgerId', String(newAsset.amid));
+              handleTradeChange(addAssetTargetIdx, 'ledgerId', '');
               handleTradeChange(addAssetTargetIdx, 'amid', newAsset.amid);
               if (price && price > 0) {
                 handleTradeChange(addAssetTargetIdx, 'price', price);

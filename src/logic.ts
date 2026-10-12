@@ -506,7 +506,7 @@ async function performBackgroundSync() {
         console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
         return;
       }
-      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v36') : null;
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v37') : null;
       if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
         console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
         Object.assign(state, cachedState);
@@ -665,7 +665,7 @@ async function performBackgroundSync() {
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v36', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v37', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -683,7 +683,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v36') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v37') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -807,7 +807,7 @@ export async function initDatabase() {
 export async function persistStateToIDB() {
   if (typeof indexedDB !== 'undefined') {
     try {
-      await set('wealthcore_state_v36', JSON.parse(JSON.stringify(state)));
+      await set('wealthcore_state_v37', JSON.parse(JSON.stringify(state)));
       console.log('✅ WealthCore state saved to IndexedDB');
     } catch (e) {
       console.warn('Failed to persist state to IndexedDB:', e);
@@ -3670,6 +3670,96 @@ export function classifyLedgerFlow(ledgerId: number): 'ASSET' | 'NON_ASSET' | 'U
   return ASSET_GROUP_IDS.includes(Number(ledger.parent_id)) ? 'ASSET' : 'NON_ASSET';
 }
 
+/**
+ * Resolves or creates the proper Chart of Accounts (acmac1) ledger ID for an investment asset.
+ * In MProfit / WealthCore, accounting ledger IDs for investment assets are ALWAYS >= 500000
+ * (specifically 500000 + sid, under parent groups like 200040 Traded Bonds, 200050 Equity Shares, etc.).
+ * Raw amids (< 500000) from asset_master must NEVER be written to transc1.maid.
+ */
+export async function resolveAssetLedgerId(
+  amid: number | null | undefined,
+  assetName: string,
+  acid: number,
+  assetType?: number | string,
+  pfid?: number | null
+): Promise<number> {
+  const acidNum = acid ? Number(acid) : null;
+  if (!acidNum) return 0;
+
+  const amidNum = amid ? Number(amid) : 0;
+
+  // 1. Direct sid / amid linkage check via bs1 or sumTable for this portfolio/account
+  if (amidNum > 0) {
+    const bsMatch = (state.bs1 || []).find((b: any) =>
+      (pfid ? Number(b.pfid) === Number(pfid) : (b.acid ? Number(b.acid) === acidNum : true)) &&
+      Number(b.amid) === amidNum &&
+      Number(b.sid) > 0
+    );
+    const sumMatch = (state.sumTable || []).find((s: any) =>
+      (pfid ? Number(s.pfolio_id ?? s.pfid) === Number(pfid) : true) &&
+      Number(s.amid) === amidNum &&
+      Number(s.sid) > 0
+    );
+    const sid = bsMatch?.sid || sumMatch?.sid;
+    if (sid && Number(sid) > 0) {
+      const expectedId = 500000 + Number(sid);
+      const existingBySid = (state.acmac1 || []).find((a: any) =>
+        !a.is_group && Number(a.acid) === acidNum && Number(a.id) === expectedId
+      );
+      if (existingBySid) return Number(existingBySid.id);
+    }
+  }
+
+  // 2. Lookup in acmac1 by cleaned name or ISIN
+  const cleanLedgerName = (n: string) => {
+    let cleaned = String(n || '').replace(/\s*\(?ISIN\s+[A-Z0-9]{12}\)?/gi, '');
+    cleaned = cleaned.replace(/\s*\([A-Z]{2}[A-Z0-9]{10}\)/gi, '');
+    cleaned = cleaned.replace(/\s*\(\d[\d\s\/,-]*\)/gi, '');
+    cleaned = cleaned.replace(/\b(limited|ltd\.?|private|pvt\.?|corp|corporation|inc|india)\b/gi, '');
+    return cleaned.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  };
+
+  const targetClean = cleanLedgerName(assetName);
+  const assetObj = amidNum > 0 ? (state.assetMaster || []).find((a: any) => Number(a.amid) === amidNum) : null;
+  const isin = (assetObj?.isin || '').toUpperCase();
+
+  const existingByName = (state.acmac1 || []).find((a: any) => {
+    if (a.is_group || Number(a.acid) !== acidNum || !a.name) return false;
+    if (isin && isin.length === 12 && a.name.toUpperCase().includes(isin)) return true;
+    const aClean = cleanLedgerName(a.name);
+    return aClean === targetClean || (targetClean.length > 3 && aClean.length > 3 && (aClean.startsWith(targetClean) || targetClean.startsWith(aClean)));
+  });
+
+  if (existingByName) return Number(existingByName.id);
+
+  // 3. Fallback: Determine group and call ensureLedgerExists
+  let targetGroup = 'stocks';
+  const atyNum = Number(assetType || assetObj?.asset_type || 0);
+  const nameUpper = (assetName || '').toUpperCase();
+
+  if (
+    atyNum === 40 ||
+    nameUpper.includes('G-SEC') ||
+    nameUpper.includes('GOI') ||
+    /\b(GS\s*\d|GS\d|TREASURY)\b/i.test(nameUpper)
+  ) {
+    targetGroup = 'traded_bonds';
+  } else if (atyNum === 70 || atyNum === 100 || atyNum === 110 || /\b(NCD|DEBENTURE|BONDS?)\b/i.test(nameUpper)) {
+    targetGroup = 'ncd';
+  } else if (atyNum === 75 || atyNum === 76 || /\b(GOLD|SGB)\b/i.test(nameUpper)) {
+    targetGroup = 'gold';
+  } else if (atyNum === 77 || /\bSILVER\b/i.test(nameUpper)) {
+    targetGroup = 'silver';
+  } else if (atyNum === 62) {
+    targetGroup = 'mf_debt';
+  } else if (atyNum === 60 || atyNum === 61 || String(assetType).toUpperCase() === 'MF') {
+    targetGroup = 'mf_equity';
+  }
+
+  const created = await ensureLedgerExists(assetName, targetGroup, acidNum);
+  return created ? Number(created.id) : 0;
+}
+
 export async function createVoucher(data: any, reuseVid?: number) {
   const acid = data.accountId ? Number(data.accountId) : null;
   const vtyp = VTYP_MAP[data.type] ?? 5; // default journal
@@ -3791,25 +3881,52 @@ export async function createVoucher(data: any, reuseVid?: number) {
     const isSale = (data.type === 'payment' || data.type === 'sale') && Number(l.credit) > 0;
     const qtySold = Number(l.quantity);
 
-    if (isSale && qtySold > 0 && pfid) {
-      // Find AMID
-      const ledgerIdNum = Number(l.ledgerId);
-      let amid = null;
-      const ledger = state.acmac1.find((a: any) => a.id === ledgerIdNum);
-      if (ledger) {
-        const cleanLedgerName = ledger.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const matchedAsset = state.assetMaster.find((a: any) => {
-          const c = a.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-          return c === cleanLedgerName || c.startsWith(cleanLedgerName) || cleanLedgerName.startsWith(c);
-        }) || state.sam.find((s: any) => {
-          const c = s.anm.toLowerCase().replace(/[^a-z0-9]/g, '');
-          return c === cleanLedgerName || c.startsWith(cleanLedgerName) || cleanLedgerName.startsWith(c);
-        });
-        if (matchedAsset) amid = matchedAsset.amid;
-        else amid = ledgerIdNum;
-      } else {
-        amid = ledgerIdNum;
+    // Resolve asset ledger if raw amid (< 500000) was passed as ledgerId
+    const ledgerIdNum = Number(l.ledgerId);
+    let amid = l.amid ? Number(l.amid) : null;
+    let ledger = state.acmac1.find((a: any) => a.id === ledgerIdNum && (!acid || Number(a.acid) === Number(acid)));
+    if (!ledger && ledgerIdNum >= 500000) {
+      ledger = state.acmac1.find((a: any) => a.id === ledgerIdNum);
+    }
+
+    const isAssetLine = (amid && amid > 0) ||
+      (ledger && ASSET_GROUP_IDS.includes(Number(ledger.parent_id))) ||
+      (ledgerIdNum < 500000 && (state.assetMaster || []).some((a: any) => Number(a.amid) === ledgerIdNum)) ||
+      (ledgerIdNum >= 500000);
+
+    if (isAssetLine) {
+      if (!amid) {
+        if (ledger) {
+          const cleanLedgerName = ledger.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchedAsset = (state.assetMaster || []).find((a: any) => {
+            const c = a.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return c === cleanLedgerName || c.startsWith(cleanLedgerName) || cleanLedgerName.startsWith(c);
+          }) || (state.sam || []).find((s: any) => {
+            const c = s.anm.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return c === cleanLedgerName || c.startsWith(cleanLedgerName) || cleanLedgerName.startsWith(c);
+          });
+          amid = matchedAsset?.amid || null;
+        } else if (ledgerIdNum < 500000) {
+          amid = ledgerIdNum;
+        }
       }
+
+      // If ledgerIdNum is a raw amid (< 500000), resolve it to the actual acmac1 ledger for this acid
+      if (ledgerIdNum < 500000 && acid) {
+        const resolvedId = await resolveAssetLedgerId(
+          amid || ledgerIdNum,
+          l.assetName || ledger?.name || getAssetName(amid || ledgerIdNum),
+          acid,
+          undefined,
+          pfid
+        );
+        if (resolvedId > 0) {
+          l.ledgerId = String(resolvedId);
+        }
+      }
+    }
+
+    if (isSale && qtySold > 0 && pfid) {
 
       if (amid) {
         const priorTxForAsset = state.bs1
@@ -4575,7 +4692,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // Cache updated state in IndexedDB
     if (typeof indexedDB !== 'undefined') {
       try {
-        await set('wealthcore_state_v36', JSON.parse(JSON.stringify(state)));
+        await set('wealthcore_state_v37', JSON.parse(JSON.stringify(state)));
       } catch (idbErr) {
         console.warn('IDB price update failed:', idbErr);
       }
@@ -4925,6 +5042,17 @@ export async function createVouchersBulk(dataList: any[]) {
     }
 
     for (const line of lines) {
+      let resolvedLineLedgerId = Number(line.ledgerId);
+      if (resolvedLineLedgerId > 0 && resolvedLineLedgerId < 500000 && acid && (line.amid || (state.assetMaster || []).some((a: any) => Number(a.amid) === resolvedLineLedgerId))) {
+        const resolvedId = await resolveAssetLedgerId(
+          line.amid ? Number(line.amid) : resolvedLineLedgerId,
+          line.assetName || (state.assetMaster.find((a: any) => Number(a.amid) === Number(line.amid || resolvedLineLedgerId))?.name || ''),
+          acid,
+          undefined,
+          data.portfolioId ? Number(data.portfolioId) : null
+        );
+        if (resolvedId > 0) resolvedLineLedgerId = resolvedId;
+      }
       const transid = nextTransid++;
       const amid = data.assetId ? Number(data.assetId) : null;
       allTrans.push({
@@ -4932,7 +5060,7 @@ export async function createVouchersBulk(dataList: any[]) {
         vid,
         acid,
         dt: data.date,
-        maid: Number(line.ledgerId),
+        maid: resolvedLineLedgerId,
         // CRITICAL FIX: every reader of transc1 in this codebase (getLedgerWithBalance,
         // trial balance, etc. -- see logic.ts lines ~552, ~1031, ~1709) reads
         // `dramt`/`cramt` exclusively. This function was writing `crdr`/`amount`
