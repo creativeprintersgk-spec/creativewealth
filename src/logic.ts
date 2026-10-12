@@ -8,6 +8,8 @@ import { getLivePrice, clearPriceCache } from "./services/assetMasterService.ts"
 import isinDict from './services/isinDictionary.json' with { type: 'json' };
 import { computeAssetTax, applySection112AExemption } from "./services/taxEngine.ts";
 export { formatDateDDMMMYYYY, formatDateRange, formatDate } from "./utils/dateUtils.ts";
+import { formatGSecName } from "./utils/gsecUtils.ts";
+export { formatGSecName };
 
 // ── HELPER UTILS ─────────────────────────────────────────────────────────────
 export function formatInvestorName(name?: string): string {
@@ -504,7 +506,7 @@ async function performBackgroundSync() {
         console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
         return;
       }
-      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v33') : null;
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v36') : null;
       if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
         console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
         Object.assign(state, cachedState);
@@ -524,10 +526,16 @@ async function performBackgroundSync() {
           state.assetNameMap[s.amid] = s.anm;
           state.assetNameMap[500000 + Number(s.amid)] = s.anm;
         });
-        (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
+        (state.assetMaster || []).forEach((a: any) => { 
+          const isinVal = a.isin || a.isincode || a.isin_code;
+          if (isinVal) state.isinMap[a.amid] = String(isinVal).trim();
+          state.assetNameMap[a.amid] = formatGSecName(a.name, isinVal); 
+        });
         (state.acmac1 || []).forEach((a: any) => {
+          const isinVal = a.isin || a.isincode;
+          if (isinVal) state.isinMap[a.id] = String(isinVal).trim();
           if (a.name && Number(a.parent_id) >= 200000) {
-            state.assetNameMap[a.id] = a.name;
+            state.assetNameMap[a.id] = formatGSecName(a.name, isinVal);
           }
         });
         healAndDeduplicatePPF();
@@ -641,23 +649,23 @@ async function performBackgroundSync() {
       if (isinVal) state.isinMap[s.amid] = String(isinVal).trim();
     });
     newState.assetMaster.forEach((a: any) => {
-      state.assetNameMap[a.amid] = a.name;
       const isinVal = a.isin || a.isincode || a.isin_code;
       if (isinVal) state.isinMap[a.amid] = String(isinVal).trim();
+      state.assetNameMap[a.amid] = formatGSecName(a.name, isinVal);
     });
     newState.acmac1.forEach((a: any) => {
-      if (a.name && Number(a.parent_id) >= 200000) {
-        state.assetNameMap[a.id] = a.name;
-      }
       const isinVal = a.isin || a.isincode;
       if (isinVal) state.isinMap[a.id] = String(isinVal).trim();
+      if (a.name && Number(a.parent_id) >= 200000) {
+        state.assetNameMap[a.id] = formatGSecName(a.name, isinVal);
+      }
     });
 
     healAndDeduplicatePPF();
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v33', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v36', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -675,7 +683,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v33') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v36') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -702,10 +710,16 @@ export async function initDatabase() {
         state.assetNameMap[s.amid] = s.anm;
         state.assetNameMap[500000 + Number(s.amid)] = s.anm; // MProfit v10: maid = 500000 + SAM.amid
       });
-      (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
+      (state.assetMaster || []).forEach((a: any) => { 
+        const isinVal = a.isin || a.isincode || a.isin_code;
+        if (isinVal) state.isinMap[a.amid] = String(isinVal).trim();
+        state.assetNameMap[a.amid] = formatGSecName(a.name, isinVal); 
+      });
       (state.acmac1 || []).forEach((a: any) => {
+        const isinVal = a.isin || a.isincode;
+        if (isinVal) state.isinMap[a.id] = String(isinVal).trim();
         if (a.name && Number(a.parent_id) >= 200000) {
-          state.assetNameMap[a.id] = a.name;
+          state.assetNameMap[a.id] = formatGSecName(a.name, isinVal);
         }
       });
 
@@ -764,10 +778,16 @@ export async function initDatabase() {
         state.assetNameMap[s.amid] = s.anm;
         state.assetNameMap[500000 + Number(s.amid)] = s.anm;
       });
-      (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
+      (state.assetMaster || []).forEach((a: any) => { 
+        const isinVal = a.isin || a.isincode || a.isin_code;
+        if (isinVal) state.isinMap[a.amid] = String(isinVal).trim();
+        state.assetNameMap[a.amid] = formatGSecName(a.name, isinVal); 
+      });
       (state.acmac1 || []).forEach((a: any) => {
+        const isinVal = a.isin || a.isincode;
+        if (isinVal) state.isinMap[a.id] = String(isinVal).trim();
         if (a.name && Number(a.parent_id) >= 200000) {
-          state.assetNameMap[a.id] = a.name;
+          state.assetNameMap[a.id] = formatGSecName(a.name, isinVal);
         }
       });
 
@@ -787,7 +807,7 @@ export async function initDatabase() {
 export async function persistStateToIDB() {
   if (typeof indexedDB !== 'undefined') {
     try {
-      await set('wealthcore_state_v33', JSON.parse(JSON.stringify(state)));
+      await set('wealthcore_state_v36', JSON.parse(JSON.stringify(state)));
       console.log('✅ WealthCore state saved to IndexedDB');
     } catch (e) {
       console.warn('Failed to persist state to IndexedDB:', e);
@@ -945,7 +965,10 @@ export function registerNewAssetInState(asset: any, price?: { curr: number; prev
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 export function getAssetName(amid: number): string {
-  if (state.assetNameMap[amid]) return state.assetNameMap[amid];
+  const isin = state.isinMap[amid] || '';
+  if (state.assetNameMap[amid]) {
+    return formatGSecName(state.assetNameMap[amid], isin);
+  }
 
   let name = '';
   // Direct SAM lookup (raw amid)
@@ -977,7 +1000,10 @@ export function getAssetName(amid: number): string {
     }
   }
 
-  if (name) state.assetNameMap[amid] = name;
+  if (name) {
+    name = formatGSecName(name, isin);
+    state.assetNameMap[amid] = name;
+  }
   return name;
 }
 export function getAssetPrice(amid: number) {
@@ -1517,6 +1543,9 @@ export function getHoldings(
         finalAssetName = 'Public Provident Fund';
       }
     }
+
+    const isin = state.isinMap[amid] || (am && am.isin) || '';
+    finalAssetName = formatGSecName(finalAssetName, isin);
 
     if (!map[amid]) {
       map[amid] = {
@@ -4546,7 +4575,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // Cache updated state in IndexedDB
     if (typeof indexedDB !== 'undefined') {
       try {
-        await set('wealthcore_state_v33', JSON.parse(JSON.stringify(state)));
+        await set('wealthcore_state_v36', JSON.parse(JSON.stringify(state)));
       } catch (idbErr) {
         console.warn('IDB price update failed:', idbErr);
       }

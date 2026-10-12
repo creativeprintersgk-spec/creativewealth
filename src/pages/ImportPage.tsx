@@ -10,6 +10,7 @@ import isinDictionary from "../services/isinDictionary.json";
 import { MfCasTab } from "./MfCasTab";
 import { EcasTab } from "./EcasTab";
 import { parseFnoSymbol } from "../utils/fnoUtils";
+import { formatGSecName } from "../utils/gsecUtils";
 import { parseContractNoteClientPdf, parseContractNoteClientText } from "../services/contractNoteClientParser";
 
 import standardMprofitGroups from "../standard_mprofit_groups.json";
@@ -1348,9 +1349,12 @@ function ImportPageInner() {
       : assetType === 80 ? 400000
       : 200050; // default: Stocks / Equity
 
+    const isin = (state.isinMap[amid] || '').toUpperCase();
+    const formattedLedgerName = formatGSecName(name.trim(), isin);
+
     const newLedgerRow = {
       id: nextId,
-      name: name.trim(),
+      name: formattedLedgerName,
       parent_id: parentId,
       acid: acid,
       is_group: false,
@@ -2330,15 +2334,18 @@ function ImportPageInner() {
          }
        }
 
+       finalAssetName = formatGSecName(finalAssetName, isin);
+
        // Step 5: Auto-create in asset_master
        if (finalAmid === -1) {
          const { data: maxRow } = await supabase.from('asset_master').select('amid').order('amid', { ascending: false }).limit(1);
          const nextAmid = ((maxRow?.[0]?.amid || 500000) < 500000 ? 500000 : (maxRow?.[0]?.amid || 500000)) + 1;
          const fnoMatch = parseFnoSymbol(symbol);
          const isBondIsin = isin.startsWith('IN00');
+         const cleanAssetName = formatGSecName(symbol, isin);
          const newAssetRow = {
            amid: nextAmid,
-           name: symbol,
+           name: cleanAssetName,
            nse_symbol: symbol,
            isin: isin || null,
            asset_type: fnoMatch ? (fnoMatch.optionType === 'FUT' ? 81 : 30) : (isBondIsin ? 40 : 50),
@@ -2348,8 +2355,8 @@ function ImportPageInner() {
          if (!insertErr) {
            state.assetMaster.push(newAssetRow);
            finalAmid = nextAmid;
-           finalAssetName = symbol;
-           console.log(`[CN Import] Auto-created asset_master amid=${nextAmid} for ${symbol} ISIN=${isin}`);
+           finalAssetName = cleanAssetName;
+           console.log(`[CN Import] Auto-created asset_master amid=${nextAmid} for ${cleanAssetName} ISIN=${isin}`);
          }
        }
 

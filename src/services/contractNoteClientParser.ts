@@ -15,6 +15,7 @@
  * - MStock / Mirae Asset Capital Markets
  * - R K Global
  */
+import { formatGSecName } from '../utils/gsecUtils';
 
 export interface ParsedTrade {
   assetName: string;
@@ -387,7 +388,7 @@ function extractMiraeTrades(fullText: string, lines: string[]): ParsedTrade[] {
   
   let match: RegExpExecArray | null;
   while ((match = annexRe.exec(fullText)) !== null) {
-    const assetName = match[1].trim();
+    const rawAssetName = match[1].trim();
     const side = match[2].toUpperCase();
     const qty = parseInt(match[3], 10);
     const grossRate = parseFloat(match[4].replace(/,/g, ''));
@@ -397,9 +398,10 @@ function extractMiraeTrades(fullText: string, lines: string[]): ParsedTrade[] {
     const subText = fullText.slice(match.index, match.index + 1500);
     const subIsinM = subText.match(/ISIN:\s*(IN[A-Z0-9]{10})/i);
     let isin = subIsinM ? subIsinM[1].toUpperCase() : '';
-    if (!isin && isinMap.has(assetName.toLowerCase())) {
-      isin = isinMap.get(assetName.toLowerCase())!;
+    if (!isin && isinMap.has(rawAssetName.toLowerCase())) {
+      isin = isinMap.get(rawAssetName.toLowerCase())!;
     }
+    const assetName = formatGSecName(rawAssetName, isin);
     const isBuy = side === 'BUY';
     if (qty > 0) {
       trades.push({
@@ -433,7 +435,7 @@ function extractMiraeTrades(fullText: string, lines: string[]): ParsedTrade[] {
         const wap = netQty > 0 ? Number((val / netQty).toFixed(6)) : 0;
 
         const namePart = afterIsin.replace(/[-+]?[0-9,]+(?:\.[0-9]+)?/g, ' ').replace(/\s+/g, ' ').trim();
-        const assetName = namePart || 'BOND';
+        const assetName = formatGSecName(namePart || 'BOND', isin);
 
         if (netQty > 0) {
           trades.push({
@@ -778,7 +780,10 @@ export async function parseContractNoteClientPdf(
     }
   }
 
-  const finalTrades = Array.from(tradeMap.values());
+  const finalTrades = Array.from(tradeMap.values()).map(t => ({
+    ...t,
+    assetName: formatGSecName(t.assetName, t.isin)
+  }));
 
   return {
     status: 'ok',
@@ -1042,7 +1047,10 @@ export function parseContractNoteClientText(
     pan,
     clientName,
     ucc,
-    trades: Array.from(tradeMap.values()),
+    trades: Array.from(tradeMap.values()).map(t => ({
+      ...t,
+      assetName: formatGSecName(t.assetName, t.isin)
+    })),
     charges,
     finalNet: finalNet !== null ? finalNet : undefined
   };

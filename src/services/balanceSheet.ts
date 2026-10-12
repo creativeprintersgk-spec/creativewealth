@@ -102,10 +102,11 @@ function resolveSyntheticGroup(lidNum: number, stateRef: any): string {
   if (lidNum >= 665 && lidNum <= 675) return '175';      // Share Txn Charges (Expenses)
   if (lidNum >= 600 && lidNum <= 699) return '160';      // Other Expenses
   if (lidNum >= 500000) {
-    // SAM investment asset
-    const sam = (stateRef.sam || []).find((s: any) => Number(s.amid) === lidNum);
+    // SAM investment asset (maid = 500000 + amid)
+    const rawAmid = lidNum - 500000;
+    const sam = (stateRef.sam || []).find((s: any) => Number(s.amid) === rawAmid || Number(s.amid) === lidNum);
     if (sam?.atty && ATTY_TO_GROUP[Number(sam.atty)]) return ATTY_TO_GROUP[Number(sam.atty)];
-    const am = (stateRef.assetMaster || []).find((a: any) => Number(a.amid) === lidNum);
+    const am = (stateRef.assetMaster || []).find((a: any) => Number(a.amid) === rawAmid || Number(a.amid) === lidNum);
     if (am?.asset_type && ATTY_TO_GROUP[Number(am.asset_type)]) return ATTY_TO_GROUP[Number(am.asset_type)];
     return '200070'; // Default: NCD/Debentures
   }
@@ -253,6 +254,17 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
       // Skip broker clearing / settlement accounts
       if (SKIP_MAIDS.has(lidNum)) return;
 
+      // FIX: Skip raw asset amids (< 500000, not in SYNTHETIC_MAID_GROUP) that appear
+      // in transc1 as cost-basis journal entries for investment sells (e.g. amid=440788).
+      // Their investment value is correctly tracked via maid = 500000 + amid in trans1.
+      // Including them here creates a phantom negative asset on the balance sheet.
+      if (
+        lidNum >= 1 &&
+        lidNum < 500000 &&
+        !SYNTHETIC_MAID_GROUP[lidNum] &&
+        (state.assetMaster || []).some((a: any) => Number(a.amid) === lidNum)
+      ) return;
+
       const resolvedGroup = resolveSyntheticGroup(lidNum, state);
       if (resolvedGroup === 'SKIP') return;
 
@@ -292,6 +304,25 @@ export async function getBalanceSheet(_startDate: string, endDate: string, accou
   // Attach ledgers to groupMap
   ledgersToInclude.forEach((l: any) => {
     let targetGroup = String(l.groupId);
+
+    // FIX: Broker clearing accounts (100001–100099) are hardcoded to '75' (Sundry Creditors)
+    // but when their net balance is debit (money owed TO the family), MProfit shows them
+    // under Sundry Debtors (Assets). Dynamically reclassify based on actual net balance.
+    const lIdNum = Number(l.id);
+    if (lIdNum >= 100001 && lIdNum <= 100099) {
+      // Compute raw net = debit - credit (ASSET formula gives the signed net position)
+      const rawNet = calcLedgerBal(l, 'ASSET');
+      if (rawNet > 0.01) {
+        // Net debit = receivable = Sundry Debtors (Assets)
+        targetGroup = '90';
+        l.groupId = '90';
+      } else {
+        // Net credit = payable = Sundry Creditors (Liabilities)
+        targetGroup = '75';
+        l.groupId = '75';
+      }
+    }
+
     if (!groupMap[targetGroup]) {
       const gThis = groups.find((g: any) => String(g.id) === targetGroup);
       if (gThis) {
