@@ -1504,11 +1504,67 @@ function ImportPageInner() {
             };
           });
 
-          const grossPnL = Number((totalSellValue - totalBuyValue).toFixed(2));
-          if (grossPnL > 0) {
-            mappedLines.push({ ledgerId: 480, credit: grossPnL, debit: 0 });
-          } else if (grossPnL < 0) {
-            mappedLines.push({ ledgerId: 480, debit: Math.abs(grossPnL), credit: 0 });
+          // ── Systemic Realized P/L calculation for F&O ─────────────────────────
+          // A trade generates Realized P/L in Ledger 480 only if it closes an existing
+          // position or is matched intraday. Open positions (held overnight) have 0 realized P/L.
+          let realizedPnL = 0;
+          const tradesByAmid = new Map<number, { buyQty: number; buyVal: number; sellQty: number; sellVal: number }>();
+          
+          tradesInGroup.forEach((t: any) => {
+            const amidNum = Number(t.amid);
+            if (!tradesByAmid.has(amidNum)) {
+              tradesByAmid.set(amidNum, { buyQty: 0, buyVal: 0, sellQty: 0, sellVal: 0 });
+            }
+            const rec = tradesByAmid.get(amidNum)!;
+            const isBuy = t.type === 'Buy' || t.type === 'buy';
+            const gross = Number(t.gross) ? Number(Number(t.gross).toFixed(2)) : Number((t.quantity * t.price).toFixed(2));
+            const netAmt = isBuy ? Number((gross + perTradeBrkg).toFixed(2)) : Number((gross - perTradeBrkg).toFixed(2));
+            if (isBuy) {
+              rec.buyQty += Number(t.quantity) || 0;
+              rec.buyVal += netAmt;
+            } else {
+              rec.sellQty += Number(t.quantity) || 0;
+              rec.sellVal += netAmt;
+            }
+          });
+
+          tradesByAmid.forEach((rec, amidNum) => {
+            const priorHolding = state.sumTable?.find((s: any) => Number(s.pfolio_id) === pId && Number(s.amid) === amidNum);
+            const priorQty = Number(priorHolding?.qnt) || 0;
+            const priorCost = Number(priorHolding?.amtinv) || 0;
+
+            // 1. Matched intraday trades (buy and sell in same contract note):
+            const matchedIntraday = Math.min(rec.buyQty, rec.sellQty);
+            if (matchedIntraday > 0) {
+              const avgBuyPrice = rec.buyVal / rec.buyQty;
+              const avgSellPrice = rec.sellVal / rec.sellQty;
+              realizedPnL += (avgSellPrice - avgBuyPrice) * matchedIntraday;
+            }
+
+            // 2. Excess sell closing prior long position:
+            const excessSell = rec.sellQty - matchedIntraday;
+            if (excessSell > 0 && priorQty > 0) {
+              const closedLong = Math.min(excessSell, priorQty);
+              const avgSellPrice = rec.sellVal / rec.sellQty;
+              const avgBuyPrice = priorCost / priorQty;
+              realizedPnL += (avgSellPrice - avgBuyPrice) * closedLong;
+            }
+
+            // 3. Excess buy closing prior short position:
+            const excessBuy = rec.buyQty - matchedIntraday;
+            if (excessBuy > 0 && priorQty < 0) {
+              const closedShort = Math.min(excessBuy, Math.abs(priorQty));
+              const avgBuyPrice = rec.buyVal / rec.buyQty;
+              const avgShortPrice = Math.abs(priorCost) / Math.abs(priorQty);
+              realizedPnL += (avgShortPrice - avgBuyPrice) * closedShort;
+            }
+          });
+
+          realizedPnL = Number(realizedPnL.toFixed(2));
+          if (realizedPnL > 0) {
+            mappedLines.push({ ledgerId: 480, credit: realizedPnL, debit: 0 });
+          } else if (realizedPnL < 0) {
+            mappedLines.push({ ledgerId: 480, debit: Math.abs(realizedPnL), credit: 0 });
           }
 
           if (groupStt > 0) {
@@ -1520,14 +1576,15 @@ function ImportPageInner() {
             mappedLines.push({ ledgerId: 670, debit: otherChrgs, credit: 0 });
           }
 
-          // Net due: if grossPnL > charges, broker owes us (Debit Broker). If grossPnL < charges, we owe broker (Credit Broker).
-          const netReceivable = Number((grossPnL - groupStt - otherChrgs).toFixed(2));
-          netPayable = -netReceivable; // positive netPayable means we pay broker, negative means broker pays us
+          // In double entry, broker balances the voucher:
+          // Net Broker = Realized P/L - STT - Other Charges
+          const netBrokerReceivable = Number((realizedPnL - groupStt - otherChrgs).toFixed(2));
+          netPayable = -netBrokerReceivable;
 
-          if (netReceivable > 0) {
-            mappedLines.push({ ledgerId: Number(groupBrokerLedgerId), debit: netReceivable, credit: 0 });
-          } else if (netReceivable < 0) {
-            mappedLines.push({ ledgerId: Number(groupBrokerLedgerId), credit: Math.abs(netReceivable), debit: 0 });
+          if (netBrokerReceivable > 0) {
+            mappedLines.push({ ledgerId: Number(groupBrokerLedgerId), debit: netBrokerReceivable, credit: 0 });
+          } else if (netBrokerReceivable < 0) {
+            mappedLines.push({ ledgerId: Number(groupBrokerLedgerId), credit: Math.abs(netBrokerReceivable), debit: 0 });
           }
         } else {
           // ── Standard Equity / Bond Accounting ───────────────────────────────
