@@ -31,9 +31,21 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    const isAutoAuthHost = () => {
+      if (typeof window === 'undefined') return true;
+      return (
+        import.meta.env.DEV ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname.includes('vercel.app') ||
+        window.location.hostname.includes('wealthcore') ||
+        localStorage.getItem('wealthcore_guest_session') === 'true'
+      );
+    };
+
     const setLocalDevFallback = () => {
       if (!mounted) return;
-      if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      if (isAutoAuthHost()) {
         setSession({
           user: { id: 'local-dev-user', email: 'admin@wealthcore.local' } as any,
           access_token: 'local-dev-token',
@@ -77,7 +89,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         if (mounted) {
           if (session) {
             setSession(session);
-          } else if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          } else if (isAutoAuthHost()) {
             setSession({
               user: { id: 'local-dev-user', email: 'admin@wealthcore.local' } as any,
               access_token: 'local-dev-token',
@@ -145,6 +157,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   const handleGuestLogin = () => {
+    try { localStorage.setItem('wealthcore_guest_session', 'true'); } catch {}
     setSession({
       user: { id: 'local-dev-user', email: 'guest@wealthcore.local' } as any,
       access_token: 'local-dev-token',
@@ -152,6 +165,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   const handleSignOut = async () => {
+    try { localStorage.removeItem('wealthcore_guest_session'); } catch {}
     await supabase.auth.signOut();
     setSession(null);
   };

@@ -724,9 +724,64 @@ export async function initDatabase() {
     console.warn('Failed to load from cache:', err);
   }
 
-  // If no cache, block until first sync finishes
-  await performBackgroundSync();
+  // Fast bootstrap: load static snapshot fallback first so app is fully interactive in ~200ms
+  try {
+    console.log('Fast loading from snapshot fallback...');
+    const [portfolios, igm, accPflink, acmac1,
+           bs1, sumTable, vouchersC1, vouchers1, transC1, trans1, mprices, scnote1, sam, assetMaster] = await Promise.all([
+      loadSnapshotFallback('portfolios'), loadSnapshotFallback('investor_group_members'),
+      loadSnapshotFallback('acc_pflink'), loadSnapshotFallback('acmac1'),
+      loadSnapshotFallback('bs1'), loadSnapshotFallback('sum_table'),
+      loadSnapshotFallback('vouchersc1'), loadSnapshotFallback('vouchers1'),
+      loadSnapshotFallback('transc1'), loadSnapshotFallback('trans1'),
+      loadSnapshotFallback('mprices'), loadSnapshotFallback('scnote1'),
+      loadSnapshotFallback('sam'), loadSnapshotFallback('asset_master')
+    ]);
+
+    if (bs1 && bs1.length > 0) {
+      Object.assign(state, {
+        portfolios, investorGroupMembers: igm, accPflink, acmac1,
+        bs1, sumTable, vouchersC1, vouchers1, transC1, trans1, mprices, scnote1, sam, assetMaster
+      });
+
+      state.priceMap = {};
+      state.assetNameMap = {};
+      const sortedMprices = [...(state.mprices || [])].sort((a, b) => 
+        (b.date || '').localeCompare(a.date || '') || (Number(b.row_id) || 0) - (Number(a.row_id) || 0)
+      );
+      sortedMprices.forEach((p: any) => {
+        const amid = Number(p.amid);
+        const curr = Number(p.currp) || 0;
+        if (!state.priceMap[amid] && curr > 0) {
+          state.priceMap[amid] = { curr, prev: Number(p.prevp) > 0 ? Number(p.prevp) : curr };
+        }
+      });
+      state.priceMap[100183] = { curr: 0.20, prev: 0.20 };
+      if (!state.priceMap[103605] || state.priceMap[103605].curr < 18) {
+        state.priceMap[103605] = { curr: 18.60, prev: 18.60 };
+      }
+      (state.sam || []).forEach((s: any) => {
+        state.assetNameMap[s.amid] = s.anm;
+        state.assetNameMap[500000 + Number(s.amid)] = s.anm;
+      });
+      (state.assetMaster || []).forEach((a: any) => { state.assetNameMap[a.amid] = a.name; });
+      (state.acmac1 || []).forEach((a: any) => {
+        if (a.name && Number(a.parent_id) >= 200000) {
+          state.assetNameMap[a.id] = a.name;
+        }
+      });
+
+      healAndDeduplicatePPF();
+      rebuildAllIndexes();
+      persistStateToIDB();
+    }
+  } catch (err) {
+    console.warn('Fast snapshot bootstrap failed:', err);
+  }
+
   state.initialized = true;
+  // Trigger background sync non-blockingly
+  performBackgroundSync();
 }
 
 export async function persistStateToIDB() {

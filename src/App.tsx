@@ -35,7 +35,26 @@ function AppContent() {
   const { isGlobalLoading } = fyCtx ?? { isGlobalLoading: false };
 
   React.useEffect(() => {
-    initDatabase().then(() => setReady(true));
+    let unmounted = false;
+    const safetyTimer = setTimeout(() => {
+      if (!unmounted) setReady(true);
+    }, 1200);
+
+    initDatabase()
+      .then(() => {
+        clearTimeout(safetyTimer);
+        if (!unmounted) setReady(true);
+      })
+      .catch((err) => {
+        clearTimeout(safetyTimer);
+        console.warn('initDatabase error:', err);
+        if (!unmounted) setReady(true);
+      });
+
+    return () => {
+      unmounted = true;
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   const location = useLocation();
