@@ -253,6 +253,86 @@ export default function PMSWorkspace() {
       tradeType
     });
   };
+
+  const handleOpenTxForAsset = (
+    asset: { id: string; name: string; portIds?: string[]; atty?: number },
+    tradeType: 'BUY' | 'SELL' = 'BUY'
+  ) => {
+    const pId = (asset.portIds && asset.portIds[0])
+      ? asset.portIds[0]
+      : (currentTab?.portfolioIds[0] || (portfolios[0] ? String(portfolios[0].id) : undefined));
+
+    const attyNum = Number(asset.atty || 0);
+
+    // Fixed Deposit (atty 90)
+    if (attyNum === 90) {
+      setSpecialModal({
+        type: tradeType === 'SELL' ? 'fd_closure' : 'fd',
+        assetId: asset.id,
+        assetName: asset.name,
+      });
+      return;
+    }
+
+    // NCD / Debenture (atty 70 or 110)
+    if (attyNum === 70 || attyNum === 110) {
+      setSpecialModal({
+        type: tradeType === 'SELL' ? 'ncd_sell' : 'ncd',
+        assetId: asset.id,
+        assetName: asset.name,
+      });
+      return;
+    }
+
+    // Gold (atty 150)
+    if (attyNum === 150) {
+      setSpecialModal({
+        type: tradeType === 'SELL' ? 'gold_sell' : 'gold_buy',
+        assetId: asset.id,
+        assetName: asset.name,
+      });
+      return;
+    }
+
+    // Silver (atty 151 or 77)
+    if (attyNum === 151 || attyNum === 77) {
+      setSpecialModal({
+        type: tradeType === 'SELL' ? 'silver_sell' : 'silver_buy',
+        assetId: asset.id,
+        assetName: asset.name,
+      });
+      return;
+    }
+
+    // PPF / EPF (atty 130)
+    if (attyNum === 130) {
+      setSpecialModal({
+        type: 'ppf',
+        assetId: asset.id,
+        assetName: asset.name,
+      });
+      return;
+    }
+
+    // ULIP / Insurance (atty 95 or 80)
+    if (attyNum === 95 || attyNum === 80) {
+      setSpecialModal({
+        type: tradeType === 'SELL' ? 'ulip_renewal' : 'ulip',
+        assetId: asset.id,
+        assetName: asset.name,
+      });
+      return;
+    }
+
+    // Standard Contract Note / Trade (Stocks, MF, Traded Bonds)
+    setEditingTx({
+      voucherId: 'new',
+      assetId: asset.id,
+      assetName: asset.name,
+      portfolioId: pId,
+      tradeType
+    });
+  };
   const [priceAsset, setPriceAsset] = useState<{ id: string; name: string; currentPrice: number } | null>(null);
   const [specialModal, setSpecialModal] = useState<{
     type: 'fd' | 'fd_closure' | 'ppf' | 'bond' | 'bond_sell' | 'ncd' | 'ncd_sell' | 'gold_buy' | 'gold_sell' | 'silver_buy' | 'silver_sell' | 'ulip' | 'ulip_renewal';
@@ -535,7 +615,18 @@ export default function PMSWorkspace() {
 
             {/* GLOBAL UNIFIED QUICK ACTION: ADD TRANSACTION (ASSET) */}
             <button
-              onClick={() => handleOpenTx('new', undefined, undefined, undefined, 'BUY')}
+              onClick={() => {
+                if (selectedHolding) {
+                  handleOpenTxForAsset({
+                    id: String(selectedHolding.assetId),
+                    name: selectedHolding.assetName,
+                    portIds: selectedHolding.portfolioSplits?.map(s => String(s.portfolioId)),
+                    atty: selectedHolding.assetType
+                  }, 'BUY');
+                } else {
+                  handleOpenTx('new', undefined, undefined, undefined, 'BUY');
+                }
+              }}
               style={{
                 height: '34px',
                 padding: '0 14px',
@@ -549,11 +640,20 @@ export default function PMSWorkspace() {
                 border: '1.5px solid #93c5fd',
                 borderRadius: '8px',
                 cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                maxWidth: '280px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
               }}
-              title="Add Transaction (Buy or Sell for Stocks, Mutual Funds, Traded Bonds)"
+              title={selectedHolding ? `Add Transaction for ${selectedHolding.assetName}` : "Add Transaction (Buy or Sell for Stocks, Mutual Funds, Traded Bonds)"}
             >
-              <Plus size={14} /> Add Transaction (Asset)
+              <Plus size={14} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {selectedHolding 
+                  ? `Add Transaction (${selectedHolding.assetName.length > 20 ? selectedHolding.assetName.substring(0, 18) + '...' : selectedHolding.assetName})`
+                  : 'Add Transaction (Asset)'}
+              </span>
             </button>
 
             {/* ACTIVITY MENU DROPDOWN */}
@@ -562,20 +662,47 @@ export default function PMSWorkspace() {
                 <Activity size={14} /> Activity Menu <ChevronDown size={13} />
               </button>
               {isActivityMenuOpen && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'var(--bbg-surface)', border: '1px solid var(--bbg-border)', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 10000, padding: '4px' }}>
-                  <button className="dropdown-item" onClick={() => { setIsActivityOpen(true); setIsActivityMenuOpen(false); }}>View Transactions</button>
-                  <button className="dropdown-item" onClick={() => { handleOpenTx('new', undefined, undefined, undefined, 'BUY'); setIsActivityMenuOpen(false); }}>➕ Buy Trade (Stocks / MF / Bonds)</button>
-                  <button className="dropdown-item" onClick={() => { handleOpenTx('new', undefined, undefined, undefined, 'SELL'); setIsActivityMenuOpen(false); }} style={{ color: '#dc2626', fontWeight: 700 }}>🔻 Trade Sell (Stocks / MF / Bonds)</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd' }); setIsActivityMenuOpen(false); }}>+ Add Fixed Deposit (FD)</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd_closure' }); setIsActivityMenuOpen(false); }} style={{ color: '#047857', fontWeight: 600 }}>🏁 Close Fixed Deposit (FD)</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ppf' }); setIsActivityMenuOpen(false); }}>+ Add PPF / EPF Contribution</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ncd' }); setIsActivityMenuOpen(false); }}>+ Add Unlisted NCD / Bond Buy</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ncd_sell' }); setIsActivityMenuOpen(false); }} style={{ color: '#dc2626', fontWeight: 600 }}>🔻 Sell / Redeem NCD / Bond</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_buy' }); setIsActivityMenuOpen(false); }}>+ Add Gold / Silver Purchase</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_sell' }); setIsActivityMenuOpen(false); }} style={{ color: '#dc2626', fontWeight: 600 }}>+ Add Gold / Silver Sale</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ulip' }); setIsActivityMenuOpen(false); }}>+ Add ULIP Policy</button>
-                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ulip_renewal' }); setIsActivityMenuOpen(false); }}>+ Add ULIP Renewal Premium</button>
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'var(--bbg-surface)', border: '1px solid var(--bbg-border)', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '260px', zIndex: 10000, padding: '4px' }}>
+                  {selectedHolding && (
+                    <>
+                      <button 
+                        className="dropdown-item" 
+                        onClick={() => { 
+                          handleOpenTxForAsset({
+                            id: String(selectedHolding.assetId),
+                            name: selectedHolding.assetName,
+                            portIds: selectedHolding.portfolioSplits?.map(s => String(s.portfolioId)),
+                            atty: selectedHolding.assetType
+                          }, 'BUY'); 
+                          setIsActivityMenuOpen(false); 
+                        }} 
+                        style={{ color: '#2563eb', fontWeight: 700, background: '#eff6ff' }}
+                      >
+                        ➕ Add Transaction ({selectedHolding.assetName.length > 22 ? selectedHolding.assetName.substring(0, 20) + '...' : selectedHolding.assetName})
+                      </button>
+                      <div style={{ height: '1px', background: 'var(--bbg-border)', margin: '4px 0' }} />
+                    </>
+                  )}
+                  <button className="dropdown-item" onClick={() => { handleOpenTx('new', undefined, undefined, undefined, 'BUY'); setIsActivityMenuOpen(false); }}>
+                    ➕ Add Transaction (Stocks / MF / Bonds)
+                  </button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'fd' }); setIsActivityMenuOpen(false); }}>
+                    ➕ Add Transaction (Fixed Deposit)
+                  </button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ncd' }); setIsActivityMenuOpen(false); }}>
+                    ➕ Add Transaction (NCD / Debenture)
+                  </button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'gold_buy' }); setIsActivityMenuOpen(false); }}>
+                    ➕ Add Transaction (Gold / Silver)
+                  </button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ppf' }); setIsActivityMenuOpen(false); }}>
+                    ➕ Add Transaction (PPF / EPF)
+                  </button>
+                  <button className="dropdown-item" onClick={() => { setSpecialModal({ type: 'ulip' }); setIsActivityMenuOpen(false); }}>
+                    ➕ Add Transaction (ULIP / Insurance)
+                  </button>
                   <div style={{ height: '1px', background: 'var(--bbg-border)', margin: '4px 0' }} />
+                  <button className="dropdown-item" onClick={() => { setIsActivityOpen(true); setIsActivityMenuOpen(false); }}>View Transactions</button>
                   <div 
                     style={{ position: 'relative' }}
                     onMouseEnter={() => setIsOtherTxMenuOpen(true)}
@@ -783,92 +910,52 @@ export default function PMSWorkspace() {
                   </>
                 )}
                 {activeAssetType === 'nps' && (
-                  <>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'ulip' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#4338ca', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Add ULIP Policy
-                    </button>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'ulip_renewal' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Add Renewal Premium
-                    </button>
-                  </>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'ulip' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#4338ca', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Transaction (ULIP / Policy)
+                  </button>
                 )}
                 {activeAssetType === 'fds' && (
-                  <>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'fd' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1d4ed8', background: 'var(--bbg-active-bg)', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Add FD
-                    </button>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'fd_closure' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Close FD
-                    </button>
-                  </>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'fd' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#1d4ed8', background: 'var(--bbg-active-bg)', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Transaction (FD)
+                  </button>
                 )}
                 {activeAssetType === 'ppf' && (
                   <button
                     onClick={() => setSpecialModal({ type: 'ppf' })}
                     style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer' }}
                   >
-                    <Plus size={13} /> Add PPF / EPF
+                    <Plus size={13} /> Add Transaction (PPF / EPF)
                   </button>
                 )}
                 {activeAssetType === 'ncd' && (
-                  <>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'ncd' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Add NCD
-                    </button>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'ncd_sell' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Sell NCD
-                    </button>
-                  </>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'ncd' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Transaction (NCD)
+                  </button>
                 )}
                 {activeAssetType === 'gold' && (
-                  <>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'gold_buy' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Add Gold Purchase
-                    </button>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'gold_sell' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Add Gold Sale
-                    </button>
-                  </>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'gold_buy' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Transaction (Gold)
+                  </button>
                 )}
                 {activeAssetType === 'silver' && (
-                  <>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'silver_buy' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: 'var(--bbg-text-muted)', background: 'var(--bbg-hover-bg)', border: '1px solid var(--bbg-border)', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Add Silver Purchase
-                    </button>
-                    <button
-                      onClick={() => setSpecialModal({ type: 'silver_sell' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      <Plus size={13} /> Add Silver Sale
-                    </button>
-                  </>
+                  <button
+                    onClick={() => setSpecialModal({ type: 'silver_buy' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', fontSize: '11.5px', fontWeight: 700, color: '#475569', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} /> Add Transaction (Silver)
+                  </button>
                 )}
               </div>
             </div>

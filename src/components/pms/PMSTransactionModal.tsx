@@ -774,67 +774,85 @@ export default function PMSTransactionModal({
       <div style={{ background: '#ffffff', width: '950px', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
         
         {/* Title Bar */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#f8fafc' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               background: trades[0]?.type === 'SELL' ? '#fee2e2' : '#dcfce7',
               color: trades[0]?.type === 'SELL' ? '#dc2626' : '#16a34a',
-              fontSize: '12px',
+              fontSize: '11px',
               fontWeight: 800,
               padding: '4px 10px',
               borderRadius: '6px',
               letterSpacing: '0.5px'
             }}>
-              {trades[0]?.type === 'SELL' ? 'SELL TRADE' : 'BUY TRADE'}
+              {trades[0]?.type === 'SELL' ? 'SELL TRANSACTION' : 'BUY TRANSACTION'}
             </div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {trades[0]?.assetName ? `${trades[0].assetName} (${trades[0]?.type})` : `Add Transaction (${trades[0]?.type || 'BUY'})`}
-              <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
-                <button
-                  type="button"
-                  onClick={() => handleTradeChange(0, 'type', 'BUY')}
-                  style={{
-                    padding: '3px 10px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    background: trades[0]?.type === 'BUY' ? '#16a34a' : '#f8fafc',
-                    color: trades[0]?.type === 'BUY' ? '#fff' : '#64748b',
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  BUY
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleTradeChange(0, 'type', 'SELL')}
-                  style={{
-                    padding: '3px 10px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    background: trades[0]?.type === 'SELL' ? '#dc2626' : '#f8fafc',
-                    color: trades[0]?.type === 'SELL' ? '#fff' : '#64748b',
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  SELL
-                </button>
-              </div>
-              {voucherId === 'new' && (
-                <button onClick={() => setAssetType(t => t === 'EQ' ? 'MF' : 'EQ')} style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', fontWeight: 700 }}>
-                  Switch to {assetType === 'EQ' ? 'MF' : 'EQ'}
-                </button>
-              )}
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+              Add Transaction {trades[0]?.assetName ? `(${trades[0].assetName})` : ''}
             </div>
+            {voucherId === 'new' && (
+              <button 
+                type="button" 
+                onClick={() => setAssetType(t => t === 'EQ' ? 'MF' : 'EQ')} 
+                style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', fontWeight: 700, color: '#475569' }}
+              >
+                Switch to {assetType === 'EQ' ? 'Mutual Fund' : 'Equity'}
+              </button>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#475569', background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#475569', background: '#ffffff', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <FolderOpen size={16} color={assetType === 'EQ' ? '#3b82f6' : '#f59e0b'} />
               {portfolioName}
             </div>
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px', display: 'flex' }}><X size={20} /></button>
           </div>
+        </div>
+
+        {/* Primary Buy / Sell Mode Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#ffffff', padding: '0 24px', gap: '12px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setTrades(prev => prev.map(t => ({ ...t, type: 'BUY' })));
+            }}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              borderBottom: trades[0]?.type === 'BUY' ? '3px solid #16a34a' : '3px solid transparent',
+              background: 'transparent',
+              fontWeight: 800,
+              fontSize: '13px',
+              color: trades[0]?.type === 'BUY' ? '#16a34a' : '#64748b',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Plus size={15} /> Buy
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTrades(prev => prev.map(t => ({ ...t, type: 'SELL' })));
+            }}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              borderBottom: trades[0]?.type === 'SELL' ? '3px solid #dc2626' : '3px solid transparent',
+              background: 'transparent',
+              fontWeight: 800,
+              fontSize: '13px',
+              color: trades[0]?.type === 'SELL' ? '#dc2626' : '#64748b',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span>🔻</span> Sell
+          </button>
         </div>
 
         <div style={{ padding: '24px', flex: 1, overflowY: 'auto' }}>

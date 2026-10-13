@@ -269,51 +269,27 @@ export default function AssetLedgerModal({
 
         {/* ACTION BAR */}
         <div style={{ padding: '8px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '16px', fontSize: '13px', fontWeight: 600, background: '#fff', alignItems: 'center' }}>
-          {/* Action buttons: Addition / Buy */}
+          {/* Single Unified Action Button: Add Transaction (assetName) with Buy/Sell tabs inside modal */}
           <button 
             onClick={() => handleNewEntry('addition')} 
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              padding: '6px 14px', 
+              background: '#eff6ff', 
+              color: '#1d4ed8', 
+              border: '1.5px solid #93c5fd', 
+              borderRadius: '8px', 
+              fontWeight: 700, 
+              fontSize: '12.5px', 
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+            }}
+            title={`Add Transaction (Buy / Sell) for ${assetName}`}
           >
-            <Plus size={14} />
-            {isULIP ? 'Add Renewal Premium' : isMetalAsset ? 'Add Purchase' : isFD ? 'New Investment' : isPPF ? 'New Contribution' : (isNCD || isBond) ? 'New Buy' : 'Buy'}
+            <Plus size={14} /> Add Transaction ({assetName.length > 28 ? assetName.substring(0, 25) + '...' : assetName})
           </button>
-
-          {/* Action buttons: Sale / Redeem / Trade Sell */}
-          {isFD && (
-            <button
-              onClick={() => setFdModalVoucherId('__closure__')}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              <Plus size={14} /> Close / Redeem FD
-            </button>
-          )}
-
-          {(isNCD || isBond) && (
-            <button
-              onClick={() => setNcdModalVoucherId({ voucherId: '__sell__', category: isNCD ? 'ncd' : 'bonds' })}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              <Plus size={14} /> Sell / Redeem
-            </button>
-          )}
-
-          {isMetalAsset && (
-            <button
-              onClick={() => handleNewEntry('sale')}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              <Plus size={14} /> Add Sale
-            </button>
-          )}
-
-          {!isSpecialEntry && (
-            <button
-              onClick={() => handleNewEntry('sale')}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              <Plus size={14} /> Trade Sell
-            </button>
-          )}
 
           <button 
             onClick={() => {
