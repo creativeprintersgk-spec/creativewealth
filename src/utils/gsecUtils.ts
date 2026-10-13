@@ -4,10 +4,10 @@
  * "G-Sec X.XX% GS YYYY (ISIN IN00XXXXXXXX)"
  */
 
-export function formatGSecName(rawName: string, isin = ''): string {
+export function formatGSecName(rawName: string, isin: any = ''): string {
   if (!rawName) return rawName || '';
-  const cleanIsin = (isin || '').trim().toUpperCase();
-  const name = rawName.trim();
+  const cleanIsin = String(isin ?? '').trim().toUpperCase();
+  const name = String(rawName).trim();
 
   // If already in standard format "G-Sec X.XX% GS YYYY (ISIN ...)", return as is (append ISIN if missing)
   if (/^G-Sec\s+\d+(?:\.\d+)?%\s+GS\s+\d{4}/i.test(name)) {

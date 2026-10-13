@@ -198,11 +198,11 @@ export function computeEligibleFamilyPayouts(
         const tdsAmount = Number((grossAmount * tdsRate).toFixed(2));
         const netBankAmount = Number((grossAmount - tdsAmount).toFixed(2));
 
-        // Primary bank for this member
+        // Primary bank for this member (parent_id 60 = Bank Accounts in WealthCore)
         const bankLedger = (state.acmac1 || []).find((l: any) => 
           !l.is_group && 
           Number(l.acid) === acidNum && 
-          (Number(l.parent_id) === 60 || l.name.toLowerCase().includes('bank'))
+          Number(l.parent_id) === 60
         );
 
         // Check if double-entry already posted in vouchersc1 / transc1
@@ -284,7 +284,7 @@ export function computeEligibleFamilyPayouts(
           const bankLedger = (state.acmac1 || []).find((l: any) => 
             !l.is_group && 
             Number(l.acid) === acidNum && 
-            (Number(l.parent_id) === 60 || l.name.toLowerCase().includes('bank'))
+            Number(l.parent_id) === 60
           );
 
           const isReconciled = (state.transC1 || []).some((t: any) => 
@@ -362,7 +362,7 @@ export function computeEligibleFamilyPayouts(
           const bankLedger = (state.acmac1 || []).find((l: any) => 
             !l.is_group && 
             Number(l.acid) === acidNum && 
-            (Number(l.parent_id) === 60 || l.name.toLowerCase().includes('bank'))
+            Number(l.parent_id) === 60
           );
 
           const isReconciled = (state.transC1 || []).some((t: any) => 

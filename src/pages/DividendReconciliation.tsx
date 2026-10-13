@@ -83,12 +83,12 @@ export default function DividendReconciliation() {
     };
   }, [selectedAccountId, effectiveFY, activeFamilyId]);
 
-  // Available bank accounts per member
+  // Available bank accounts per member (parent_id 60 = Bank Accounts in WealthCore)
   const getBankAccountsForMember = (acid: number) => {
     return (state.acmac1 || []).filter((l: any) => 
       !l.is_group && 
       Number(l.acid) === Number(acid) && 
-      (Number(l.parent_id) === 60 || l.name.toLowerCase().includes('bank'))
+      Number(l.parent_id) === 60
     );
   };
 
@@ -519,20 +519,20 @@ export default function DividendReconciliation() {
       </div>
 
       {/* ── MAIN RECONCILIATION DATA TABLE ── */}
-      <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+      <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+        <table style={{ width: '100%', minWidth: '1180px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
           <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-              <th style={{ padding: '12px 16px' }}>Security & ISIN</th>
-              <th style={{ padding: '12px 16px' }}>Member / Portfolio</th>
-              <th style={{ padding: '12px 16px' }}>Record Date</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right' }}>Held Qty</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right' }}>Declared Rate</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right' }}>Gross Amount</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right' }}>TDS (₹)</th>
-              <th style={{ padding: '12px 16px', textAlign: 'right' }}>Net Credit</th>
-              <th style={{ padding: '12px 16px' }}>Target Bank A/c</th>
-              <th style={{ padding: '12px 16px', textAlign: 'center' }}>Action</th>
+            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <th style={{ padding: '12px 14px', minWidth: '220px' }}>Security & ISIN</th>
+              <th style={{ padding: '12px 14px', minWidth: '150px' }}>Member / Portfolio</th>
+              <th style={{ padding: '12px 14px', minWidth: '100px', whiteSpace: 'nowrap' }}>Record Date</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '85px' }}>Held Qty</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '100px' }}>Declared Rate</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Gross Amount</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '95px' }}>TDS (₹)</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Net Credit</th>
+              <th style={{ padding: '12px 14px', minWidth: '170px' }}>Target Bank A/c</th>
+              <th style={{ padding: '12px 14px', textAlign: 'center', minWidth: '110px' }}>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -657,7 +657,9 @@ export default function DividendReconciliation() {
                             border: '1px solid #cbd5e1',
                             fontSize: '11.5px',
                             background: '#fff',
-                            maxWidth: '170px',
+                            width: '100%',
+                            minWidth: '160px',
+                            maxWidth: '210px',
                             fontWeight: 600,
                             outline: 'none'
                           }}
