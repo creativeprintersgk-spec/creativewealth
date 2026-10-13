@@ -73,7 +73,18 @@ export default function DividendReconciliation() {
 
   useEffect(() => {
     loadData();
-  }, [selectedAccountId, effectiveFY]);
+    const handleSync = () => loadData();
+    window.addEventListener('wealthcore-sync-complete', handleSync);
+    const t1 = setTimeout(loadData, 500);
+    const t2 = setTimeout(loadData, 1500);
+    const t3 = setTimeout(loadData, 3000);
+    return () => {
+      window.removeEventListener('wealthcore-sync-complete', handleSync);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [selectedAccountId, effectiveFY, activeFamilyId]);
 
   // Available bank accounts per member
   const getBankAccountsForMember = (acid: number) => {

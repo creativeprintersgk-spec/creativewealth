@@ -164,10 +164,17 @@ export function computeEligibleFamilyPayouts(
 
     // Find all amids matching this stock (by ISIN, NSE Symbol, or Name)
     const matchingAmids = new Set<number>();
+    const divIsin = String(div.isin || '').toUpperCase();
+    const divSymbol = String(div.symbol || '').toUpperCase();
+    const divNamePart = String(div.companyName || '').toLowerCase().split(' ')[0];
+
     (state.assetMaster || []).forEach((a: any) => {
-      if ((a.isin && a.isin.toUpperCase() === div.isin.toUpperCase()) ||
-          (a.nse_symbol && a.nse_symbol.toUpperCase() === div.symbol.toUpperCase()) ||
-          (a.name && a.name.toLowerCase().includes(div.companyName.toLowerCase()))) {
+      const aIsin = String(a.isin || '').toUpperCase();
+      const aSymbol = String(a.nse_symbol || '').toUpperCase();
+      const aName = String(a.name || '').toLowerCase();
+      if ((aIsin && aIsin === divIsin) ||
+          (aSymbol && (aSymbol === divSymbol || aSymbol.includes(divSymbol))) ||
+          (aName && divNamePart && aName.includes(divNamePart))) {
         matchingAmids.add(Number(a.amid));
       }
     });
@@ -240,9 +247,14 @@ export function computeEligibleFamilyPayouts(
 
     // Find asset in assetMaster
     const matchingAmids = new Set<number>();
+    const sgbIsin = String(sgb.isin || '').toUpperCase();
+    const sgbSeries = String(sgb.series || '').toLowerCase();
+
     (state.assetMaster || []).forEach((a: any) => {
-      if ((a.isin && a.isin === sgb.isin) ||
-          (a.name && (a.name.includes(sgb.isin) || a.name.includes(sgb.series)))) {
+      const aIsin = String(a.isin || '').toUpperCase();
+      const aName = String(a.name || '').toLowerCase();
+      if ((aIsin && aIsin === sgbIsin) ||
+          (aName && (aName.includes(sgbIsin.toLowerCase()) || aName.includes(sgbSeries)))) {
         matchingAmids.add(Number(a.amid));
       }
     });
@@ -312,9 +324,14 @@ export function computeEligibleFamilyPayouts(
     );
 
     const matchingAmids = new Set<number>();
+    const bndIsin = String(bnd.isin || '').toUpperCase();
+    const bndNameLower = String(bnd.name || '').toLowerCase();
+
     (state.assetMaster || []).forEach((a: any) => {
-      if ((a.isin && a.isin === bnd.isin) ||
-          (a.name && (a.name.includes(bnd.isin) || a.name.includes(bnd.name)))) {
+      const aIsin = String(a.isin || '').toUpperCase();
+      const aName = String(a.name || '').toLowerCase();
+      if ((aIsin && aIsin === bndIsin) ||
+          (aName && (aName.includes(bndIsin.toLowerCase()) || aName.includes(bndNameLower)))) {
         matchingAmids.add(Number(a.amid));
       }
     });
