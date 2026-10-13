@@ -1877,12 +1877,15 @@ export function getAssetTransactions(portfolioIds: number[], amid: number, start
     const transactionsWithinPeriod: any[] = [];
 
     allTx.forEach((t: any) => {
-      const qty = Number(t.qn) || 0;
-      const price = Number(t.purpr) || 0;
+      const isIncome = [62, 67, 68].includes(Number(t.trty)) || /^(dividend|interest)/i.test(t.trstr || '');
+      const qty = isIncome ? 0 : (Number(t.qn) || 0);
+      const price = isIncome ? 0 : (Number(t.purpr) || 0);
       const amount = Number(t.amt) || 0;
-      const isBuy = [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(t.trty);
+      const isBuy = !isIncome && [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(t.trty);
 
-      if (isBuy) {
+      if (isIncome) {
+        // Income payouts (Dividend / Interest) do NOT alter running shares or invested cost basis
+      } else if (isBuy) {
         runningQty += qty;
         runningCost += amount;
       } else {
@@ -1929,10 +1932,11 @@ export function getAssetTransactions(portfolioIds: number[], amid: number, start
       }
 
       const folio = getFolioNumber(t.sid, t.amid, t.pfid);
+      const txTypeDisplay = t.trstr || (isIncome ? (t.trty === 67 ? 'Interest (Payout)' : (t.trty === 68 ? 'Other Income' : 'Dividend Payout')) : (isBuy ? 'Buy' : 'Sell'));
       const txItem = {
         id: t.trid,
         date,
-        type: t.trstr || (isBuy ? 'Buy' : 'Sell'),
+        type: txTypeDisplay,
         trty: t.trty,
         voucherId: t.acvch ? String(t.acvch) : 'trid_' + t.trid,
         acvch: t.acvch,
@@ -1947,7 +1951,7 @@ export function getAssetTransactions(portfolioIds: number[], amid: number, start
         charges: cnChargesVal,
         netPrice: Number(t.netpr) || 0,
         debit: isBuy ? amount : 0,
-        credit: !isBuy ? amount : 0,
+        credit: (!isBuy && !isIncome) ? amount : 0,
         balanceQty: runningQty,
         balanceCost: runningCost,
         narration: t.narr || ''
@@ -3480,22 +3484,25 @@ export function resolveAssetLineToBsRow(
 
   if (!amid) return null;
 
+  const isIncome = data.type === 'dividend' || data.type === 'interest' || data.type === 'interest_payout' || data.type === 'other_income' || [62, 67, 68].includes(Number(data.trty));
   const isAddQtyType = data.type === 'bonus' || data.type === 'split' || data.type === 'rights' || data.type === 'ipo' || data.type === 'reinvest';
-  const isBuy = isAddQtyType || (assetLine 
+  const isBuy = !isIncome && (isAddQtyType || (assetLine 
     ? (
         String(assetLine.tradeType || assetLine.type || '').toUpperCase() === 'BUY' || 
         Number(assetLine.debit) > 0
       ) 
-    : (data.type !== 'dividend' && data.type !== 'buyback' && data.type !== 'writeoff'));
-  const qty = Number(assetLine.quantity) || (linesToProcessCount === 1 ? Number(data.quantity) || 0 : 0);
-  const price = (!isBuy && Number(assetLine.salePrice) > 0)
+    : (data.type !== 'dividend' && data.type !== 'interest' && data.type !== 'interest_payout' && data.type !== 'other_income' && data.type !== 'buyback' && data.type !== 'writeoff')));
+  const qty = isIncome ? 0 : (Number(assetLine.quantity) || (linesToProcessCount === 1 ? Number(data.quantity) || 0 : 0));
+  const price = isIncome ? 0 : ((!isBuy && Number(assetLine.salePrice) > 0)
     ? Number(assetLine.salePrice)
-    : (Number(assetLine.price) || (linesToProcessCount === 1 ? Number(data.price) || 0 : 0));
-  const amt = (!isBuy && Number(assetLine.saleAmount) > 0)
-    ? Number(assetLine.saleAmount)
-    : (!isBuy && qty > 0 && price > 0
-        ? Number((qty * price).toFixed(2))
-        : (Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcessCount === 1 ? Number(data.amount) || qty * price || 0 : qty * price)));
+    : (Number(assetLine.price) || (linesToProcessCount === 1 ? Number(data.price) || 0 : 0)));
+  const amt = isIncome 
+    ? (Number(data.amount) || Number(assetLine.amount) || Number(assetLine.credit) || Number(assetLine.debit) || 0)
+    : ((!isBuy && Number(assetLine.saleAmount) > 0)
+        ? Number(assetLine.saleAmount)
+        : (!isBuy && qty > 0 && price > 0
+            ? Number((qty * price).toFixed(2))
+            : (Number(assetLine.debit) || Number(assetLine.credit) || (linesToProcessCount === 1 ? Number(data.amount) || qty * price || 0 : qty * price))));
 
   const asset = state.assetMaster.find((a: any) => a.amid === amid);
   const existingSum = state.sumTable.find((s: any) => Number(s.amid) === amid && Number(s.pfolio_id) === pfid);
@@ -3508,9 +3515,15 @@ export function resolveAssetLineToBsRow(
   if (data.isOpeningBalance || data.type === 'opening_balance') {
     trty = 19;
     trstr = 'Opening Balance';
-  } else if (data.type === 'dividend') {
+  } else if (data.type === 'dividend' || Number(data.trty) === 62) {
     trty = 62;
     trstr = 'Dividend Payout';
+  } else if (data.type === 'interest' || data.type === 'interest_payout' || Number(data.trty) === 67) {
+    trty = 67;
+    trstr = 'Interest (Payout)';
+  } else if (data.type === 'other_income' || Number(data.trty) === 68) {
+    trty = 68;
+    trstr = 'Other Income';
   } else if (data.type === 'bonus') {
     trty = 40;
     trstr = 'Bonus';
@@ -3522,14 +3535,8 @@ export function resolveAssetLineToBsRow(
     trstr = '*DeMerger';
   } else if (data.type === 'merger') {
     if (isBuy) {
-      // Inflow (new/merged-into company) leg: use 38 so the FIFO engine
-      // picks this up as a buy (FIFO_BUY_TRTY) and the Step-4
-      // corpActionOrigin review-flag fires on it.
       trty = 38;
     } else {
-      // Outflow (original/merging-away company) leg: explicitly pinned to
-      // 45 (matching this app's original, pre-audit behavior) rather than
-      // left at the generic default of 99 (a regular sell).
       trty = 45;
     }
     trstr = '*Merged';
@@ -3585,6 +3592,10 @@ async function syncPortfolioStats(portfolioId: number, amid: number) {
   const sortedTxs = [...txs].sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || '') || (Number(a.trid) - Number(b.trid)));
 
   sortedTxs.forEach((t: any) => {
+    // Income payouts (Dividend 62, Interest 67, Other Income 68) do NOT alter invested capital or holding quantity
+    if ([62, 67, 68].includes(Number(t.trty)) || /^(dividend|interest)/i.test(t.trstr || '')) {
+      return;
+    }
     const q = Number(t.qn) || 0;
     const amt = Number(t.amt) || 0;
     const isBuy = [19, 20, 12, 25, 30, 35, 36, 37, 38, 39, 40, 45, 46, 47, 48, 49].includes(t.trty);

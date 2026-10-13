@@ -185,9 +185,13 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
       let incomeLedger: any = null;
       let defaultNarrationPrefix = 'Dividend Payout';
       let voucherTypeKey = 'dividend';
+      let trtyCode = 62;
+      let trtyString = 'Dividend Payout';
 
       if (transactionType === 'interest') {
-        voucherTypeKey = 'receipt';
+        voucherTypeKey = 'interest';
+        trtyCode = 67;
+        trtyString = 'Interest (Payout)';
         defaultNarrationPrefix = 'Interest Payout';
         incomeLedger = resolvedLedgers.find(l => String(l.id) === '401')
                     || resolvedLedgers.find(l => l.name.toLowerCase() === 'interest on investment')
@@ -195,7 +199,9 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
                     || resolvedLedgers.find(l => l.name.toLowerCase().includes('interest income'))
                     || await ensureLedgerExists('Interest on Investment', 'interest', acidNum);
       } else if (transactionType === 'other_income') {
-        voucherTypeKey = 'receipt';
+        voucherTypeKey = 'other_income';
+        trtyCode = 68;
+        trtyString = 'Other Income';
         defaultNarrationPrefix = 'Other Income';
         incomeLedger = resolvedLedgers.find(l => String(l.id) === '425')
                     || resolvedLedgers.find(l => l.name.toLowerCase() === 'other income')
@@ -204,6 +210,8 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
       } else {
         // Dividend
         voucherTypeKey = 'dividend';
+        trtyCode = 62;
+        trtyString = 'Dividend Payout';
         defaultNarrationPrefix = 'Dividend Payout';
         incomeLedger = resolvedLedgers.find(l => String(l.id) === '415')
                     || resolvedLedgers.find(l => l.name.toLowerCase() === 'dividend')
@@ -217,7 +225,7 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
       const lines: any[] = [
         { debit: netAmount, credit: 0, ledgerId: finalBankId },
         ...(tds > 0 && finalTdsId ? [{ debit: tds, credit: 0, ledgerId: finalTdsId }] : []),
-        { debit: 0, credit: amount, ledgerId: incomeLedger.id }
+        { debit: 0, credit: amount, ledgerId: incomeLedger.id, amid: Number(assetId), quantity: 0, price: 0, amount }
       ];
 
       const saveNarration = narration || `${defaultNarrationPrefix} for ${assetName}`;
@@ -227,6 +235,11 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
           ...originalVoucher,
           date,
           type: voucherTypeKey,
+          trty: trtyCode,
+          trstr: trtyString,
+          amount,
+          quantity: 0,
+          price: 0,
           accountId: acidNum,
           narration: saveNarration,
           assetId,
@@ -238,6 +251,11 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
           id: dummyId,
           date,
           type: voucherTypeKey,
+          trty: trtyCode,
+          trstr: trtyString,
+          amount,
+          quantity: 0,
+          price: 0,
           accountId: acidNum,
           portfolioId: portfolioIds[0],
           narration: saveNarration,

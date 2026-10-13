@@ -432,10 +432,10 @@ export default function AssetLedgerModal({
               ) : (
                 transactions.map((tx) => {
                   const isSelected = selectedTxId === String(tx.id);
-                  const isDividend = tx.trty === 62 || tx.type.toLowerCase().includes('dividend') || tx.trty === 67 || tx.type.toLowerCase().includes('interest');
+                  const isDividend = tx.trty === 62 || tx.type.toLowerCase().includes('dividend') || tx.trty === 67 || tx.type.toLowerCase().includes('interest') || tx.trty === 68 || tx.type.toLowerCase().includes('other income');
                   const isCorporate = CORPORATE_TRTY.has(tx.trty);
                   // Standard trading colors: Buy is Soft Green, Sell is Soft Red; corporate actions / dividends are separate
-                  const isBuy = !isCorporate && [19, 20, 12, 25, 30, 46].includes(tx.trty);
+                  const isBuy = !isDividend && !isCorporate && [19, 20, 12, 25, 30, 46].includes(tx.trty);
                   const bgColor = isSelected ? '#eff6ff' : isDividend ? '#fef3c7' : isCorporate ? '#f0fdf4' : isBuy ? '#dcfce7' : '#fee2e2';
                   const textColor = isDividend ? '#92400e' : isCorporate ? '#166534' : isBuy ? '#166534' : '#991b1b';
                   const isImported = tx.narration && (tx.narration.toLowerCase().includes("mutual fund cas") || tx.narration.toLowerCase().includes("contract note") || tx.narration.toLowerCase().includes("daily trades cn"));
@@ -450,6 +450,14 @@ export default function AssetLedgerModal({
                       handleEditEntry(tx.voucherId, tx);
                     }
                   };
+
+                  const typeBadgeText = tx.trty === 67 || tx.type.toLowerCase().includes('interest') 
+                    ? 'Interest (Payout)' 
+                    : (tx.trty === 68 || tx.type.toLowerCase().includes('other income')
+                      ? 'Other Income'
+                      : (tx.trty === 62 || tx.type.toLowerCase().includes('dividend')
+                        ? 'Dividend Payout'
+                        : tx.type));
 
                   return (
                     <tr
@@ -472,7 +480,7 @@ export default function AssetLedgerModal({
                           background: bgColor,
                           color: textColor
                         }}>
-                          {tx.type}
+                          {typeBadgeText}
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px', width: '12%', fontWeight: 600, color: '#0f172a' }}>{formatDate(tx.date)}</td>
