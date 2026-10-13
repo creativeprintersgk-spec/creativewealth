@@ -727,6 +727,9 @@ export async function initDatabase() {
       rebuildAllIndexes();
       persistStateToIDB();
       state.initialized = true;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('wealthcore-sync-complete'));
+      }
       
       // Trigger background sync to get latest data silently only if online
       if (await isSupabaseReachable()) {
@@ -800,6 +803,9 @@ export async function initDatabase() {
   }
 
   state.initialized = true;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('wealthcore-sync-complete'));
+  }
   // Trigger background sync non-blockingly
   performBackgroundSync();
 }
