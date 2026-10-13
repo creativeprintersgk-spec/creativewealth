@@ -132,10 +132,10 @@ export default function Sidebar() {
           {openSections.wealth && (
             <div className="sidebar-group-items">
               <button 
-                className={`sidebar-nav-item ${isActive('/dashboard') || isActive('/simulator') ? 'active' : ''}`}
+                className={`sidebar-nav-item ${isActive('/dashboard') ? 'active' : ''}`}
                 onClick={() => navigate('/dashboard')}
               >
-                <Sparkles size={14} /> Simulator
+                <LayoutDashboard size={14} /> Dashboard
               </button>
               <button 
                 className={`sidebar-nav-item ${isActive('/pms') ? 'active' : ''}`}
