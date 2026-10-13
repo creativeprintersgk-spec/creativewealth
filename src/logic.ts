@@ -1113,7 +1113,21 @@ export function getPortfoliosForAccount(acid: number): number[] {
 
 export function getAccountForPortfolio(pfid: number): number | null {
   const link = state.accPflink.find((l: any) => l.pfid === pfid);
-  return link ? link.acid : null;
+  if (link && link.acid) return link.acid;
+
+  const p = (state.portfolios || []).find((x: any) => Number(x.id) === Number(pfid));
+  if (p) {
+    const str = ((p.investor_name || '') + ' ' + (p.full_name || '')).toLowerCase();
+    if (str.includes('krisha')) return 36;
+    if (str.includes('saahil') && str.includes('huf')) return 62;
+    if (str.includes('pramesh') && str.includes('huf')) return 32;
+    if (str.includes('huf')) return 32;
+    if (str.includes('unnati')) return 29;
+    if (str.includes('pramesh') || str.includes('prs')) return 30;
+    if (str.includes('saahil') || str.includes('sps')) return 31;
+    if (str.includes('arjin')) return 61;
+  }
+  return null;
 }
 
 // ── COA ───────────────────────────────────────────────────────────────────────

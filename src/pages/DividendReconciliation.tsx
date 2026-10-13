@@ -13,7 +13,8 @@ import {
   Coins,
   ShieldCheck,
   ChevronRight,
-  ArrowUpRight
+  ArrowUpRight,
+  RotateCcw
 } from 'lucide-react';
 import { useFY } from '../FYContext';
 import { useFamily } from '../contexts/FamilyContext';
@@ -21,6 +22,7 @@ import { state, getStoredPortfolios, getStoredAccounts, formatDateDDMMMYYYY } fr
 import { 
   computeEligibleFamilyPayouts, 
   postPayoutVoucher,
+  undoPayoutVoucher,
   getCleanBankAccountsForMember,
   type EligiblePayoutItem 
 } from '../services/corporatePayoutsService';
@@ -148,6 +150,28 @@ export default function DividendReconciliation() {
       setTimeout(() => setToastMessage(null), 3500);
     } catch (err: any) {
       alert(`Error posting entry: ${err.message || String(err)}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Undo Payout Double Entry
+  const handleUndoPayout = async (item: EligiblePayoutItem) => {
+    if (!item.reconciledVoucherId) {
+      alert('No recorded voucher found to undo.');
+      return;
+    }
+    if (!confirm(`Undo reconciliation entry for ${item.securityName}? This will remove the voucher from bank and dividend ledgers.`)) {
+      return;
+    }
+    setProcessingId(item.id);
+    try {
+      await undoPayoutVoucher(item);
+      setToastMessage(`✓ Reverted reconciliation voucher for ${item.securityName}.`);
+      loadData();
+      setTimeout(() => setToastMessage(null), 3500);
+    } catch (err: any) {
+      alert(`Error undoing payout: ${err.message || String(err)}`);
     } finally {
       setProcessingId(null);
     }
@@ -599,24 +623,49 @@ export default function DividendReconciliation() {
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            maxWidth: '180px'
+                            maxWidth: '150px'
                           }} title={item.bankLedgerName || 'Bank A/c'}>
                             {item.bankLedgerName || 'Bank A/c'}
                           </span>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: '#dcfce7',
-                            color: '#15803d',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: 800,
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <Check size={12} /> RECD
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: '#dcfce7',
+                              color: '#15803d',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              <Check size={12} /> RECD
+                            </span>
+                            {item.reconciledVoucherId && (
+                              <button
+                                onClick={() => handleUndoPayout(item)}
+                                disabled={processingId === item.id}
+                                title="Undo this reconciliation entry"
+                                style={{
+                                  background: '#fff',
+                                  color: '#dc2626',
+                                  border: '1px solid #fecaca',
+                                  padding: '3px 7px',
+                                  borderRadius: '5px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: processingId === item.id ? 'not-allowed' : 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <RotateCcw size={11} /> Undo
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
