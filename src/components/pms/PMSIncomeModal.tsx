@@ -225,7 +225,7 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
       const lines: any[] = [
         { debit: netAmount, credit: 0, ledgerId: finalBankId },
         ...(tds > 0 && finalTdsId ? [{ debit: tds, credit: 0, ledgerId: finalTdsId }] : []),
-        { debit: 0, credit: amount, ledgerId: incomeLedger.id, amid: Number(assetId), quantity: 0, price: 0, amount }
+        { debit: 0, credit: amount, ledgerId: incomeLedger.id, quantity: 0, price: 0, amount }
       ];
 
       const saveNarration = narration || `${defaultNarrationPrefix} for ${assetName}`;
