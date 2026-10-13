@@ -239,7 +239,7 @@ export default function DividendReconciliation() {
             >
               <option value="">Pramesh R Shah Family (All Members)</option>
               {familyMembers.map(m => (
-                <option key={m.id} value={m.acid}>{m.name}</option>
+                <option key={m.id} value={m.id}>{m.name || m.accountName}</option>
               ))}
             </select>
           </div>
