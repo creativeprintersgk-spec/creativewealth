@@ -506,7 +506,7 @@ async function performBackgroundSync() {
         console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
         return;
       }
-      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v37') : null;
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v38') : null;
       if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
         console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
         Object.assign(state, cachedState);
@@ -665,7 +665,7 @@ async function performBackgroundSync() {
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v37', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v38', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -683,7 +683,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v37') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v38') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -807,7 +807,7 @@ export async function initDatabase() {
 export async function persistStateToIDB() {
   if (typeof indexedDB !== 'undefined') {
     try {
-      await set('wealthcore_state_v37', JSON.parse(JSON.stringify(state)));
+      await set('wealthcore_state_v38', JSON.parse(JSON.stringify(state)));
       console.log('✅ WealthCore state saved to IndexedDB');
     } catch (e) {
       console.warn('Failed to persist state to IndexedDB:', e);
@@ -4692,7 +4692,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // Cache updated state in IndexedDB
     if (typeof indexedDB !== 'undefined') {
       try {
-        await set('wealthcore_state_v37', JSON.parse(JSON.stringify(state)));
+        await set('wealthcore_state_v38', JSON.parse(JSON.stringify(state)));
       } catch (idbErr) {
         console.warn('IDB price update failed:', idbErr);
       }

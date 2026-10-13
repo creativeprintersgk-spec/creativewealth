@@ -46,6 +46,7 @@ export default function PMSNCDBondModal({
   const [quantity, setQuantity] = useState<number>(0);
   const [rate, setRate] = useState<number>(0);
   const [faceValue, setFaceValue] = useState<number>(1000);
+  const [accruedInterest, setAccruedInterest] = useState<number>(0);
   const [narration, setNarration] = useState('');
   const [bankLedgerId, setBankLedgerId] = useState('');
   const [portfolioName, setPortfolioName] = useState('');
@@ -63,7 +64,8 @@ export default function PMSNCDBondModal({
   const saveBtnBg = isSell ? '#dc2626' : (isNCD ? '#d97706' : '#2563eb');
   const saveBtnBgDisabled = isSell ? '#fca5a5' : (isNCD ? '#fcd34d' : '#93c5fd');
 
-  const amount = quantity * rate;
+  const cleanAmount = quantity * rate;
+  const netAmount = cleanAmount + (isSell ? (Number(accruedInterest) || 0) : 0);
 
   const portfolios = React.useMemo(() => getStoredPortfolios(), []);
 
@@ -82,23 +84,29 @@ export default function PMSNCDBondModal({
   const bankLedgers = React.useMemo(
     () =>
       ledgers.filter((l: any) => {
+        const lidNum = Number(l.id);
         const g = groups.find((g: any) => String(g.id) === String(l.groupId));
-        return (
-          g &&
-          (String(g.id) === '60' ||
-            String(g.id) === '55' ||
-            g.name?.toLowerCase().includes('bank') ||
-            g.name?.toLowerCase().includes('cash'))
+        const isBankOrCash = g && (
+          String(g.id) === '60' ||
+          String(g.id) === '55' ||
+          g.name?.toLowerCase().includes('bank') ||
+          g.name?.toLowerCase().includes('cash')
         );
+        const isDebtorOrBroker = (lidNum >= 100001 && lidNum <= 100099) ||
+          (g && (String(g.id) === '90' || String(g.id) === '75')) ||
+          l.name?.toLowerCase().includes('direct');
+        return isBankOrCash || isDebtorOrBroker;
       }),
     [ledgers, groups]
   );
 
   useEffect(() => {
     if (!bankLedgerId && bankLedgers.length > 0) {
-      setBankLedgerId(bankLedgers[0].id);
+      // For bond sales via direct/RBI, default to Direct (100004) if present
+      const directLedger = isSell ? bankLedgers.find((l: any) => l.name?.toLowerCase() === 'direct' || String(l.id) === '100004') : null;
+      setBankLedgerId(directLedger ? directLedger.id : bankLedgers[0].id);
     }
-  }, [bankLedgers, bankLedgerId]);
+  }, [bankLedgers, bankLedgerId, isSell]);
 
   useEffect(() => {
     const port = portfolios.find((p: any) => String(p.id) === String(portfolioIds[0]));
@@ -157,6 +165,8 @@ export default function PMSNCDBondModal({
     try {
       const acidNum = targetAccountId ? Number(targetAccountId) : undefined;
       const totalAmount = quantity * rate;
+      const accruedIntNum = isSell ? (Number(accruedInterest) || 0) : 0;
+      const totalNetProceeds = totalAmount + accruedIntNum;
 
       let finalBankId = bankLedgerId;
       if (!finalBankId) {
@@ -167,7 +177,7 @@ export default function PMSNCDBondModal({
           finalBankId = created?.id ?? '';
         }
       }
-      if (!finalBankId) { alert('Please select a bank/cash account.'); setIsSaving(false); return; }
+      if (!finalBankId) { alert('Please select a settlement (bank / broker / direct) account.'); setIsSaving(false); return; }
 
       const groupId = isNCD ? 'ncd' : 'bonds';
       const bondLedger = await ensureLedgerExists(title || assetName, groupId, acidNum);
@@ -185,7 +195,13 @@ export default function PMSNCDBondModal({
           saleAmount: totalAmount,
           tradeType: 'SELL',
         },
-        { ledgerId: finalBankId, debit: totalAmount, credit: 0 },
+        ...(accruedIntNum > 0 ? [{
+          ledgerId: '401', // Interest on Investment (Chart of Accounts)
+          debit: 0,
+          credit: accruedIntNum,
+          narration: 'Accrued Interest on Bond Sale',
+        }] : []),
+        { ledgerId: finalBankId, debit: totalNetProceeds, credit: 0 },
       ] : [
         {
           ledgerId: bondLedgerId,
@@ -205,7 +221,7 @@ export default function PMSNCDBondModal({
         accountId: acidNum,
         portfolioId: portfolioIds[0],
         assetId,
-        narration: narration || `${categoryLabel} ${isSell ? 'Sale / Redemption' : 'Buy'} — ${title || assetName} (${quantity} @ ${rate})`,
+        narration: narration || `${categoryLabel} ${isSell ? 'Sale / Redemption' : 'Buy'} — ${title || assetName} (${quantity} @ ${rate}${accruedIntNum > 0 ? ` + Accrued Int ₹${accruedIntNum}` : ''})`,
         title,
         lockInPeriod,
         interestRate,
@@ -368,7 +384,7 @@ export default function PMSNCDBondModal({
                 <input type="number" step="1" value={quantity || ''} onChange={e => setQuantity(Number(e.target.value))} placeholder="0" style={inputStyle} />
               </div>
               <div>
-                <label style={labelStyle}>Rate (₹)</label>
+                <label style={labelStyle}>{isSell ? 'Clean Price / Rate (₹)' : 'Rate (₹)'}</label>
                 <input type="number" step="any" value={rate || ''} onChange={e => setRate(Number(e.target.value))} placeholder="0.00" style={inputStyle} />
               </div>
               <div>
@@ -376,16 +392,45 @@ export default function PMSNCDBondModal({
                 <input type="number" step="any" value={faceValue || ''} onChange={e => setFaceValue(Number(e.target.value))} placeholder="1000" style={inputStyle} />
               </div>
 
+              {isSell && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={labelStyle}>Accrued Interest (₹) — Credited to Interest on Investment</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={accruedInterest || ''}
+                    onChange={e => setAccruedInterest(Number(e.target.value))}
+                    placeholder="0.00"
+                    style={{ ...inputStyle, borderColor: '#16a34a', background: '#f0fdf4' }}
+                  />
+                  <div style={{ fontSize: '11px', color: '#15803d', marginTop: '3px', fontWeight: 600 }}>
+                    💡 Accrued coupon interest from RBI / buyer will be automatically credited to Interest on Investment (Ledger #401).
+                  </div>
+                </div>
+              )}
+
               {/* Amount display */}
-              <div style={{ gridColumn: '1 / -1', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Total {isSell ? 'Sale Proceeds' : 'Amount'} (Qty × Rate)</span>
-                <span style={{ fontSize: '18px', fontWeight: 800, color: isSell ? '#b91c1c' : '#0f172a' }}>₹{fmt(amount)}</span>
+              <div style={{ gridColumn: '1 / -1', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Clean Consideration (Qty × Rate)</span>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>₹{fmt(cleanAmount)}</span>
+                </div>
+                {isSell && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Accrued Interest</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#16a34a' }}>+₹{fmt(Number(accruedInterest) || 0)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed #e2e8f0', paddingTop: '6px', marginTop: '2px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>Total Net Settlement {isSell ? 'Receivable' : 'Payable'}</span>
+                  <span style={{ fontSize: '18px', fontWeight: 800, color: isSell ? '#b91c1c' : '#0f172a' }}>₹{fmt(netAmount)}</span>
+                </div>
               </div>
 
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>{isSell ? 'Bank / Broker Account (Credited)' : 'Bank / Cash Account (Source)'}</label>
+                <label style={labelStyle}>{isSell ? 'Receiving Settlement Account (Direct / Broker / Bank)' : 'Bank / Cash Account (Source)'}</label>
                 <select value={bankLedgerId} onChange={e => setBankLedgerId(e.target.value)} style={{ ...inputStyle, background: '#fff' }}>
-                  <option value="">Select Bank / Cash Account...</option>
+                  <option value="">Select Settlement Account...</option>
                   {bankLedgers.map((l: any) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
