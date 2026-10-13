@@ -65,8 +65,7 @@ export default function Sidebar() {
     } catch {}
     return {
       wealth: true,
-      accounting: false,
-      reports: false,
+      accounting: true,
       setup: false,
     };
   });
@@ -84,13 +83,30 @@ export default function Sidebar() {
   // Auto-expand section if current route belongs to that section
   useEffect(() => {
     const p = location.pathname;
-    if (p === '/dashboard' || p.startsWith('/dashboard/') || p.startsWith('/simulator') || p === '/pms' || p.startsWith('/pms/') || p === '/executive-overview' || p === '/portfolio-analysis') {
+    if (
+      p === '/dashboard' || p.startsWith('/dashboard/') || 
+      p === '/pms' || p.startsWith('/pms/') || 
+      p === '/executive-overview' || 
+      p === '/portfolio-analysis' || 
+      p === '/capital-gains' || 
+      p === '/tax-loss-harvesting'
+    ) {
       setOpenSections(prev => prev.wealth ? prev : { ...prev, wealth: true });
-    } else if (p === '/coa' || p === '/ledger' || p.startsWith('/ledger/')) {
+    } else if (
+      p === '/coa' || 
+      p === '/ledger' || p.startsWith('/ledger/') || 
+      p === '/trial-balance' || 
+      p === '/profit-loss' || 
+      p === '/balance-sheet' || 
+      p === '/reports' || p === '/ledger-printing'
+    ) {
       setOpenSections(prev => prev.accounting ? prev : { ...prev, accounting: true });
-    } else if (p === '/balance-sheet' || p === '/capital-gains' || p === '/tax-loss-harvesting' || p === '/profit-loss' || p === '/trial-balance' || p === '/reports' || p === '/ledger-printing') {
-      setOpenSections(prev => prev.reports ? prev : { ...prev, reports: true });
-    } else if (p === '/master-entry' || p === '/import' || p === '/dividend-reconciliation' || p === '/backup') {
+    } else if (
+      p === '/master-entry' || 
+      p === '/import' || 
+      p === '/dividend-reconciliation' || 
+      p === '/backup'
+    ) {
       setOpenSections(prev => prev.setup ? prev : { ...prev, setup: true });
     }
   }, [location.pathname]);
@@ -155,6 +171,18 @@ export default function Sidebar() {
               >
                 <TrendingUp size={14} /> Portfolio Analysis
               </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/capital-gains') ? 'active' : ''}`}
+                onClick={() => navigate('/capital-gains')}
+              >
+                <FileText size={14} /> Capital Gains
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/tax-loss-harvesting') ? 'active' : ''}`}
+                onClick={() => navigate('/tax-loss-harvesting')}
+              >
+                <TrendingDown size={14} /> Tax Loss Harvesting
+              </button>
             </div>
           )}
         </div>
@@ -188,44 +216,11 @@ export default function Sidebar() {
               >
                 <BookOpen size={14} /> Ledger View
               </button>
-            </div>
-          )}
-        </div>
-
-        {/* REPORTS SECTION */}
-        <div>
-          <button
-            type="button"
-            className="sidebar-section-toggle"
-            onClick={() => toggleSection('reports')}
-            aria-expanded={!!openSections.reports}
-          >
-            <span className="sidebar-section-label-text">Reports & Insights</span>
-            <ChevronDown 
-              size={13} 
-              className={`sidebar-section-chevron ${openSections.reports ? 'open' : ''}`} 
-            />
-          </button>
-
-          {openSections.reports && (
-            <div className="sidebar-group-items">
               <button 
-                className={`sidebar-nav-item ${isActive('/balance-sheet') ? 'active' : ''}`}
-                onClick={() => navigate('/balance-sheet')}
+                className={`sidebar-nav-item ${isActive('/trial-balance') ? 'active' : ''}`}
+                onClick={() => navigate('/trial-balance')}
               >
-                <Scale size={14} /> Balance Sheet
-              </button>
-              <button 
-                className={`sidebar-nav-item ${isActive('/capital-gains') ? 'active' : ''}`}
-                onClick={() => navigate('/capital-gains')}
-              >
-                <FileText size={14} /> Capital Gains
-              </button>
-              <button 
-                className={`sidebar-nav-item ${isActive('/tax-loss-harvesting') ? 'active' : ''}`}
-                onClick={() => navigate('/tax-loss-harvesting')}
-              >
-                <TrendingDown size={14} /> Tax Loss Harvesting
+                <Calculator size={14} /> Trial Balance
               </button>
               <button 
                 className={`sidebar-nav-item ${isActive('/profit-loss') ? 'active' : ''}`}
@@ -234,10 +229,10 @@ export default function Sidebar() {
                 <LayoutDashboard size={14} /> Profit &amp; Loss
               </button>
               <button 
-                className={`sidebar-nav-item ${isActive('/trial-balance') ? 'active' : ''}`}
-                onClick={() => navigate('/trial-balance')}
+                className={`sidebar-nav-item ${isActive('/balance-sheet') ? 'active' : ''}`}
+                onClick={() => navigate('/balance-sheet')}
               >
-                <Calculator size={14} /> Trial Balance
+                <Scale size={14} /> Balance Sheet
               </button>
               <button 
                 className={`sidebar-nav-item ${isActive('/reports') || isActive('/ledger-printing') ? 'active' : ''}`}
