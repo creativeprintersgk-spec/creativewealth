@@ -9,7 +9,7 @@ const SYNTHETIC_MAID_GROUP: Record<number, string> = {
   401: '200040',  // Traded Bonds / NCD interest received
   405: '200120',  // PPF / EPF returns
   407: '160',     // Misc interest/charges paid (Expenses)
-  415: '160',     // Miscellaneous charges (Expenses)
+  415: '155',     // Dividend Income (Group 155: Income)
   205: '90',      // Sundry Debtors / misc receivables
   460: '180',     // Capital Gains – Equity LTCG
   465: '180',     // Capital Gains – Equity STCG

@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Sparkles, 
   CheckCircle, 
   RefreshCw, 
   Building2, 
@@ -18,10 +17,11 @@ import {
 } from 'lucide-react';
 import { useFY } from '../FYContext';
 import { useFamily } from '../contexts/FamilyContext';
-import { state, getStoredPortfolios, getStoredAccounts } from '../logic';
+import { state, getStoredPortfolios, getStoredAccounts, formatDateDDMMMYYYY } from '../logic';
 import { 
   computeEligibleFamilyPayouts, 
   postPayoutVoucher,
+  getCleanBankAccountsForMember,
   type EligiblePayoutItem 
 } from '../services/corporatePayoutsService';
 
@@ -42,7 +42,6 @@ export default function DividendReconciliation() {
   const [bankSelections, setBankSelections] = useState<Record<string, string>>({});
   const [customTdsValues, setCustomTdsValues] = useState<Record<string, number>>({});
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [isBatchProcessing, setIsBatchProcessing] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Available family members for dropdown
@@ -82,15 +81,6 @@ export default function DividendReconciliation() {
       clearTimeout(t3);
     };
   }, [selectedAccountId, effectiveFY, activeFamilyId]);
-
-  // Available bank accounts per member (parent_id 60 = Bank Accounts in WealthCore)
-  const getBankAccountsForMember = (acid: number) => {
-    return (state.acmac1 || []).filter((l: any) => 
-      !l.is_group && 
-      Number(l.acid) === Number(acid) && 
-      Number(l.parent_id) === 60
-    );
-  };
 
   // Filtered Items
   const filteredItems = useMemo(() => {
@@ -163,41 +153,7 @@ export default function DividendReconciliation() {
     }
   };
 
-  // Batch Action: Reconcile All Pending
-  const handleReconcileAllPending = async () => {
-    const pendingItems = payoutList.filter(item => !item.isReconciled);
-    if (pendingItems.length === 0) {
-      alert("No pending payouts to reconcile.");
-      return;
-    }
 
-    if (!confirm(`Confirm 1-Click posting of ${pendingItems.length} dividend/interest double-entry vouchers to accounting?`)) {
-      return;
-    }
-
-    setIsBatchProcessing(true);
-    let successCount = 0;
-
-    for (const item of pendingItems) {
-      const memberBanks = getBankAccountsForMember(item.accountId);
-      const bankId = bankSelections[item.id] || item.bankLedgerId || memberBanks[0]?.id;
-      const currentTds = customTdsValues[item.id] ?? item.tdsAmount;
-
-      if (bankId) {
-        try {
-          await postPayoutVoucher(item, String(bankId), currentTds);
-          successCount++;
-        } catch (e) {
-          console.error(`Failed to reconcile payout for ${item.symbol}:`, e);
-        }
-      }
-    }
-
-    setIsBatchProcessing(false);
-    loadData();
-    setToastMessage(`✓ Successfully posted ${successCount} double-entry vouchers to your accounts!`);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#f8fafc', padding: '24px 32px' }}>
@@ -265,28 +221,6 @@ export default function DividendReconciliation() {
             <RefreshCw size={14} /> Refresh
           </button>
 
-          {/* 1-Click Reconcile Pending */}
-          <button
-            onClick={handleReconcileAllPending}
-            disabled={isBatchProcessing || stats.totalPending === 0}
-            style={{
-              background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-              color: '#fff',
-              border: 'none',
-              padding: '8px 18px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              cursor: (isBatchProcessing || stats.totalPending === 0) ? 'not-allowed' : 'pointer',
-              fontSize: '12px',
-              fontWeight: 700,
-              boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
-              opacity: (isBatchProcessing || stats.totalPending === 0) ? 0.6 : 1
-            }}
-          >
-            <Sparkles size={14} /> {isBatchProcessing ? 'Reconciling...' : '1-Click Reconcile All'}
-          </button>
         </div>
       </div>
 
@@ -523,28 +457,27 @@ export default function DividendReconciliation() {
         <table style={{ width: '100%', minWidth: '1180px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-              <th style={{ padding: '12px 14px', minWidth: '220px' }}>Security & ISIN</th>
-              <th style={{ padding: '12px 14px', minWidth: '150px' }}>Member / Portfolio</th>
-              <th style={{ padding: '12px 14px', minWidth: '100px', whiteSpace: 'nowrap' }}>Record Date</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '85px' }}>Held Qty</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '100px' }}>Declared Rate</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Gross Amount</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '95px' }}>TDS (₹)</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Net Credit</th>
-              <th style={{ padding: '12px 14px', minWidth: '170px' }}>Target Bank A/c</th>
-              <th style={{ padding: '12px 14px', textAlign: 'center', minWidth: '110px' }}>Action</th>
+              <th style={{ padding: '12px 14px', minWidth: '220px', maxWidth: '270px' }}>Security & ISIN</th>
+              <th style={{ padding: '12px 14px', minWidth: '130px', whiteSpace: 'nowrap' }}>Member</th>
+              <th style={{ padding: '12px 14px', minWidth: '110px', whiteSpace: 'nowrap' }}>Record Date</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '80px' }}>Held Qty</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '95px' }}>Declared Rate</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '105px' }}>Gross Amount</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '85px' }}>TDS (₹)</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '105px' }}>Net Credit</th>
+              <th style={{ padding: '12px 14px', minWidth: '260px' }}>Target Bank & Confirmation</th>
             </tr>
           </thead>
           <tbody>
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
+                <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
                   No payout declarations found for assets held on Record Date under active filters.
                 </td>
               </tr>
             ) : (
               filteredItems.map(item => {
-                const memberBanks = getBankAccountsForMember(item.accountId);
+                const memberBanks = getCleanBankAccountsForMember(item.accountId);
                 const currentTds = customTdsValues[item.id] ?? item.tdsAmount;
                 const netAmount = Number((item.grossAmount - currentTds).toFixed(2));
 
@@ -557,56 +490,70 @@ export default function DividendReconciliation() {
                 return (
                   <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.12s' }}>
                     
-                    {/* Security & ISIN */}
-                    <td style={{ padding: '12px 16px' }}>
+                    {/* Security & ISIN (STRICTLY MAX 2 ROWS) */}
+                    <td style={{ padding: '10px 14px', maxWidth: '270px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{
                           fontSize: '10px',
                           fontWeight: 800,
-                          padding: '2px 6px',
+                          padding: '2px 5px',
                           borderRadius: '4px',
                           background: typeBadge.bg,
-                          color: typeBadge.color
+                          color: typeBadge.color,
+                          flexShrink: 0
                         }}>
                           {typeBadge.label}
                         </span>
-                        <div>
-                          <div style={{ fontWeight: 800, color: '#0f172a' }}>{item.securityName}</div>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                        <div style={{ overflow: 'hidden', minWidth: 0 }}>
+                          <div style={{
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }} title={item.securityName}>
+                            {item.securityName}
+                          </div>
+                          <div style={{
+                            fontSize: '11px',
+                            color: '#64748b',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
                             {item.symbol} &bull; <span style={{ fontFamily: 'monospace', color: '#475569' }}>{item.isin}</span>
                           </div>
                         </div>
                       </div>
                     </td>
 
-                    {/* Member & Portfolio */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ fontWeight: 700, color: '#334155' }}>{item.accountName}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>{item.portfolioName}</div>
+                    {/* Member Only (No Portfolio) */}
+                    <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 700, color: '#1e293b' }}>{item.accountName}</div>
                     </td>
 
-                    {/* Record Date */}
-                    <td style={{ padding: '12px 16px', color: '#334155', fontWeight: 600 }}>
-                      {item.recordDate}
+                    {/* Record Date (DD-MMM-YYYY) */}
+                    <td style={{ padding: '10px 14px', color: '#334155', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      {formatDateDDMMMYYYY(item.recordDate)}
                     </td>
 
                     {/* Held Qty on Record Date */}
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
                       {item.holdingQuantity.toLocaleString('en-IN')}
                     </td>
 
                     {/* Declared Rate */}
-                    <td style={{ padding: '12px 16px', textAlign: 'right', color: '#475569' }}>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', color: '#475569' }}>
                       ₹{item.payoutRate.toFixed(2)}
                     </td>
 
                     {/* Gross Amount */}
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
                       ₹{item.grossAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
 
                     {/* TDS (Editable Input, Not Compulsory) */}
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                       {item.isReconciled ? (
                         <span style={{ color: currentTds > 0 ? '#ef4444' : '#64748b', fontWeight: 600 }}>
                           ₹{currentTds.toFixed(2)}
@@ -622,7 +569,7 @@ export default function DividendReconciliation() {
                             setCustomTdsValues(prev => ({ ...prev, [item.id]: val }));
                           }}
                           style={{
-                            width: '80px',
+                            width: '75px',
                             padding: '4px 6px',
                             borderRadius: '5px',
                             border: '1px solid #cbd5e1',
@@ -637,79 +584,86 @@ export default function DividendReconciliation() {
                     </td>
 
                     {/* Net Credit */}
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
                       ₹{netAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
 
-                    {/* Target Bank A/c */}
-                    <td style={{ padding: '12px 16px' }}>
+                    {/* Target Bank A/c & Confirmation (Merged with RECD action) */}
+                    <td style={{ padding: '10px 14px' }}>
                       {item.isReconciled ? (
-                        <span style={{ color: '#475569', fontSize: '12px', fontWeight: 600 }}>
-                          {item.bankLedgerName || 'Bank A/c'}
-                        </span>
-                      ) : (
-                        <select
-                          value={bankSelections[item.id] || item.bankLedgerId || ''}
-                          onChange={e => setBankSelections(prev => ({ ...prev, [item.id]: e.target.value }))}
-                          style={{
-                            padding: '5px 8px',
-                            borderRadius: '6px',
-                            border: '1px solid #cbd5e1',
-                            fontSize: '11.5px',
-                            background: '#fff',
-                            width: '100%',
-                            minWidth: '160px',
-                            maxWidth: '210px',
-                            fontWeight: 600,
-                            outline: 'none'
-                          }}
-                        >
-                          <option value="">Select Bank...</option>
-                          {memberBanks.map((b: any) => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                          ))}
-                        </select>
-                      )}
-                    </td>
-
-                    {/* Action: RECD / Reconciled */}
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      {item.isReconciled ? (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          background: '#dcfce7',
-                          color: '#15803d',
-                          padding: '4px 10px',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: 700
-                        }}>
-                          <Check size={12} /> RECD
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handlePostPayout(item)}
-                          disabled={processingId === item.id}
-                          style={{
-                            background: '#16a34a',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '6px 14px',
-                            borderRadius: '6px',
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <span style={{
                             fontSize: '12px',
                             fontWeight: 700,
-                            cursor: processingId === item.id ? 'not-allowed' : 'pointer',
-                            opacity: processingId === item.id ? 0.7 : 1,
+                            color: '#334155',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: '180px'
+                          }} title={item.bankLedgerName || 'Bank A/c'}>
+                            {item.bankLedgerName || 'Bank A/c'}
+                          </span>
+                          <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
-                            boxShadow: '0 1px 3px rgba(22, 163, 74, 0.3)'
-                          }}
-                        >
-                          {processingId === item.id ? 'Posting...' : 'RECD'}
-                        </button>
+                            background: '#dcfce7',
+                            color: '#15803d',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            <Check size={12} /> RECD
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <select
+                            value={bankSelections[item.id] || item.bankLedgerId || ''}
+                            onChange={e => setBankSelections(prev => ({ ...prev, [item.id]: e.target.value }))}
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '11.5px',
+                              background: '#fff',
+                              flex: 1,
+                              minWidth: '140px',
+                              maxWidth: '190px',
+                              fontWeight: 600,
+                              outline: 'none'
+                            }}
+                          >
+                            <option value="">Select Bank...</option>
+                            {memberBanks.map((b: any) => (
+                              <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handlePostPayout(item)}
+                            disabled={processingId === item.id}
+                            style={{
+                              background: '#16a34a',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              fontWeight: 800,
+                              cursor: processingId === item.id ? 'not-allowed' : 'pointer',
+                              opacity: processingId === item.id ? 0.7 : 1,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              boxShadow: '0 1px 3px rgba(22, 163, 74, 0.3)',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {processingId === item.id ? 'Posting...' : 'RECD'}
+                          </button>
+                        </div>
                       )}
                     </td>
 

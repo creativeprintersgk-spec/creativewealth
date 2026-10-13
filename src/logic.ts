@@ -4230,7 +4230,10 @@ export async function createVoucher(data: any, reuseVid?: number) {
         });
       }
     }
-    await persistStateToIDB();
+  }
+  await persistStateToIDB();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('wealthcore-sync-complete'));
   }
 }
 

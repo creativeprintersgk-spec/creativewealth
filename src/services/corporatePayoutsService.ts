@@ -2,6 +2,7 @@ import { state, createVoucher, ensureLedgerExists, getStoredPortfolios, getAccou
 
 export interface EligiblePayoutItem {
   id: string;
+  amid?: number;
   securityType: 'EQUITY' | 'SGB' | 'BOND' | 'GSEC';
   isin: string;
   symbol: string;
@@ -113,10 +114,42 @@ export const LATEST_EQUITY_DIVIDENDS: EquityDividendDeclaration[] = [
 ];
 
 /**
+ * Computes current held quantity in a portfolio for an asset.
+ * If 0 or negative, the asset was SOLD!
+ */
+export function getCurrentHoldingQuantity(pfid: number, amid: number): number {
+  const sumRow = (state.sumTable || []).find((s: any) => 
+    Number(s.pfolio_id) === pfid && Number(s.amid) === amid
+  );
+  if (sumRow) {
+    return Math.max(0, Number(sumRow.qnt) || 0);
+  }
+
+  let netQty = 0;
+  (state.bs1 || []).forEach((t: any) => {
+    if (Number(t.pfid) === pfid && Number(t.amid) === amid) {
+      const trty = Number(t.trty);
+      const q = Number(t.qn) || 0;
+      if ([12, 14, 15, 19, 20, 25, 30, 35, 38, 40, 46, 47, 85].includes(trty)) {
+        netQty += q;
+      } else if ([21, 99, 101, 150].includes(trty)) {
+        netQty -= q;
+      }
+    }
+  });
+  return Math.max(0, netQty);
+}
+
+/**
  * Computes exact settled holding quantity in a given portfolio on a specific Record Date.
- * Sums all BUY/Deposit transaction types and subtracts SELL/Withdrawal transaction types up to recordDate.
+ * STRICT RULE: If the asset has been SOLD (0 current quantity), returns 0.
  */
 export function getHoldingOnRecordDate(pfid: number, amid: number, recordDate: string): number {
+  // RULE 1: If current holding is 0, the asset has been completely SOLD! Do NOT show payouts for sold assets.
+  const currentHeld = getCurrentHoldingQuantity(pfid, amid);
+  if (currentHeld <= 0.0001) return 0;
+
+  // RULE 2: Must also have held quantity on the Record Date
   const txs = (state.bs1 || []).filter((t: any) => 
     Number(t.pfid) === pfid && 
     Number(t.amid) === amid &&
@@ -127,17 +160,48 @@ export function getHoldingOnRecordDate(pfid: number, amid: number, recordDate: s
   txs.forEach((t: any) => {
     const trty = Number(t.trty);
     const q = Number(t.qn) || 0;
-    // Standard inflow types: purchase, bonus, transfer in, rights, etc.
     if ([12, 14, 15, 19, 20, 25, 30, 35, 38, 40, 46, 47, 85].includes(trty)) {
       netQty += q;
-    } 
-    // Standard outflow types: sales, transfer out, etc.
-    else if ([21, 99, 101, 150].includes(trty)) {
+    } else if ([21, 99, 101, 150].includes(trty)) {
       netQty -= q;
     }
   });
 
   return Math.max(0, netQty);
+}
+
+/**
+ * Returns clean operational bank accounts for an account/member.
+ * Filters parent_id: 60, excludes defunct/zero-transaction accounts, and prioritizes IDFC Bank!
+ */
+export function getCleanBankAccountsForMember(acid: number) {
+  const allBanks = (state.acmac1 || []).filter((l: any) => 
+    !l.is_group && 
+    Number(l.acid) === Number(acid) && 
+    Number(l.parent_id) === 60
+  );
+
+  const validBanks = allBanks.filter((b: any) => {
+    const nameLower = b.name.toLowerCase();
+    if (nameLower.includes('locker')) return false;
+    if (nameLower.includes('unassigned')) return false;
+    if (nameLower === 'bom' || nameLower === 'bom ups') return false;
+    if (nameLower === 'sbi' && allBanks.some((o: any) => o.id !== b.id && o.name.toLowerCase().includes('sbi bank'))) return false;
+    return true;
+  });
+
+  // Sort so IDFC Bank is #1 (user's primary dividend bank), followed by Kotak, HDFC, SBI
+  return validBanks.sort((a: any, b: any) => {
+    const aIdfc = a.name.toLowerCase().includes('idfc') ? 1 : 0;
+    const bIdfc = b.name.toLowerCase().includes('idfc') ? 1 : 0;
+    if (aIdfc !== bIdfc) return bIdfc - aIdfc;
+
+    const aKotak = a.name.toLowerCase().includes('kotak') ? 1 : 0;
+    const bKotak = b.name.toLowerCase().includes('kotak') ? 1 : 0;
+    if (aKotak !== bKotak) return bKotak - aKotak;
+
+    return a.name.localeCompare(b.name);
+  });
 }
 
 /**
@@ -198,23 +262,44 @@ export function computeEligibleFamilyPayouts(
         const tdsAmount = Number((grossAmount * tdsRate).toFixed(2));
         const netBankAmount = Number((grossAmount - tdsAmount).toFixed(2));
 
-        // Primary bank for this member (parent_id 60 = Bank Accounts in WealthCore)
-        const bankLedger = (state.acmac1 || []).find((l: any) => 
-          !l.is_group && 
-          Number(l.acid) === acidNum && 
-          Number(l.parent_id) === 60
-        );
+        // Clean operational banks for this member (IDFC Bank prioritized!)
+        const cleanBanks = getCleanBankAccountsForMember(acidNum);
+        const defaultBank = cleanBanks[0];
 
         // Check if double-entry already posted in vouchersc1 / transc1
-        const isReconciled = (state.transC1 || []).some((t: any) => 
+        let isReconciled = false;
+        let reconciledBankId: string | undefined = undefined;
+        let reconciledBankName: string | undefined = undefined;
+
+        const matchedCreditEntry = (state.transC1 || []).find((t: any) => 
           Number(t.acid) === acidNum && 
           Number(t.maid) === 415 && 
           Math.abs(Number(t.cramt || 0) - grossAmount) < 1 &&
           Math.abs((new Date(t.dt || '').getTime() - new Date(div.recordDate).getTime()) / 86400000) <= 60
         );
 
+        if (matchedCreditEntry) {
+          isReconciled = true;
+          // Find which bank was ACTUALLY debited in this voucher!
+          const debitBankLine = (state.transC1 || []).find((o: any) => 
+            o.vid === matchedCreditEntry.vid && 
+            o.transid !== matchedCreditEntry.transid && 
+            Number(o.dramt) > 0 &&
+            (state.acmac1 || []).some((a: any) => a.id === o.maid && Number(a.parent_id) === 60)
+          );
+          if (debitBankLine) {
+            reconciledBankId = String(debitBankLine.maid);
+            const bankObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
+            reconciledBankName = bankObj ? bankObj.name : undefined;
+          }
+        }
+
+        const effectiveBankId = reconciledBankId || (defaultBank ? String(defaultBank.id) : undefined);
+        const effectiveBankName = reconciledBankName || (defaultBank ? defaultBank.name : undefined);
+
         results.push({
           id: `EQ_${div.isin}_pf${pId}_${amid}`,
+          amid: Number(amid),
           securityType: 'EQUITY',
           isin: div.isin,
           symbol: div.symbol,
@@ -230,8 +315,8 @@ export function computeEligibleFamilyPayouts(
           grossAmount,
           tdsAmount,
           netBankAmount,
-          bankLedgerId: bankLedger ? String(bankLedger.id) : undefined,
-          bankLedgerName: bankLedger ? bankLedger.name : undefined,
+          bankLedgerId: effectiveBankId,
+          bankLedgerName: effectiveBankName,
           isReconciled,
           fy: div.fy
         });
@@ -271,6 +356,8 @@ export function computeEligibleFamilyPayouts(
         const pId = Number(pf.id);
         const acidNum = getAccountForPortfolio(pId) || Number(pf.accountId) || 31;
         const acc = allAccounts.find(a => Number(a.id) === acidNum);
+        const cleanBanks = getCleanBankAccountsForMember(acidNum);
+        const defaultBank = cleanBanks[0];
 
         for (const amid of Array.from(matchingAmids)) {
           const qtyOnRecord = getHoldingOnRecordDate(pId, amid, pDate);
@@ -281,21 +368,38 @@ export function computeEligibleFamilyPayouts(
           const tdsAmount = 0;
           const netBankAmount = grossAmount;
 
-          const bankLedger = (state.acmac1 || []).find((l: any) => 
-            !l.is_group && 
-            Number(l.acid) === acidNum && 
-            Number(l.parent_id) === 60
-          );
+          let isReconciled = false;
+          let reconciledBankId: string | undefined = undefined;
+          let reconciledBankName: string | undefined = undefined;
 
-          const isReconciled = (state.transC1 || []).some((t: any) => 
+          const matchedCreditEntry = (state.transC1 || []).find((t: any) => 
             Number(t.acid) === acidNum && 
             Number(t.maid) === 401 && 
             Math.abs(Number(t.cramt || 0) - grossAmount) < 1 &&
-            Math.abs((new Date(t.dt || '').getTime() - new Date(pDate).getTime()) / 86400000) <= 45
+            Math.abs((new Date(t.dt || '').getTime() - new Date(pDate).getTime()) / 86400000) <= 60
           );
 
+          if (matchedCreditEntry) {
+            isReconciled = true;
+            const debitBankLine = (state.transC1 || []).find((o: any) => 
+              o.vid === matchedCreditEntry.vid && 
+              o.transid !== matchedCreditEntry.transid && 
+              Number(o.dramt) > 0 &&
+              (state.acmac1 || []).some((a: any) => a.id === o.maid && Number(a.parent_id) === 60)
+            );
+            if (debitBankLine) {
+              reconciledBankId = String(debitBankLine.maid);
+              const bankObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
+              reconciledBankName = bankObj ? bankObj.name : undefined;
+            }
+          }
+
+          const effectiveBankId = reconciledBankId || (defaultBank ? String(defaultBank.id) : undefined);
+          const effectiveBankName = reconciledBankName || (defaultBank ? defaultBank.name : undefined);
+
           results.push({
-            id: `SGB_${sgb.isin}_${pDate}_pf${pId}`,
+            id: `SGB_${sgb.isin}_${pDate}_pf${pId}_${amid}`,
+            amid: Number(amid),
             securityType: 'SGB',
             isin: sgb.isin,
             symbol: sgb.series,
@@ -311,8 +415,8 @@ export function computeEligibleFamilyPayouts(
             grossAmount,
             tdsAmount,
             netBankAmount,
-            bankLedgerId: bankLedger ? String(bankLedger.id) : undefined,
-            bankLedgerName: bankLedger ? bankLedger.name : undefined,
+            bankLedgerId: effectiveBankId,
+            bankLedgerName: effectiveBankName,
             isReconciled,
             fy: targetFY
           });
@@ -349,6 +453,8 @@ export function computeEligibleFamilyPayouts(
         const pId = Number(pf.id);
         const acidNum = getAccountForPortfolio(pId) || Number(pf.accountId) || 31;
         const acc = allAccounts.find(a => Number(a.id) === acidNum);
+        const cleanBanks = getCleanBankAccountsForMember(acidNum);
+        const defaultBank = cleanBanks[0];
 
         for (const amid of Array.from(matchingAmids)) {
           const qtyOnRecord = getHoldingOnRecordDate(pId, amid, pDate);
@@ -359,21 +465,38 @@ export function computeEligibleFamilyPayouts(
           const tdsAmount = bnd.isin.startsWith('INE') && grossAmount >= 5000 ? Number((grossAmount * 0.10).toFixed(2)) : 0;
           const netBankAmount = Number((grossAmount - tdsAmount).toFixed(2));
 
-          const bankLedger = (state.acmac1 || []).find((l: any) => 
-            !l.is_group && 
-            Number(l.acid) === acidNum && 
-            Number(l.parent_id) === 60
-          );
+          let isReconciled = false;
+          let reconciledBankId: string | undefined = undefined;
+          let reconciledBankName: string | undefined = undefined;
 
-          const isReconciled = (state.transC1 || []).some((t: any) => 
+          const matchedCreditEntry = (state.transC1 || []).find((t: any) => 
             Number(t.acid) === acidNum && 
             Number(t.maid) === 401 && 
             Math.abs(Number(t.cramt || 0) - grossAmount) < 1 &&
-            Math.abs((new Date(t.dt || '').getTime() - new Date(pDate).getTime()) / 86400000) <= 45
+            Math.abs((new Date(t.dt || '').getTime() - new Date(pDate).getTime()) / 86400000) <= 60
           );
 
+          if (matchedCreditEntry) {
+            isReconciled = true;
+            const debitBankLine = (state.transC1 || []).find((o: any) => 
+              o.vid === matchedCreditEntry.vid && 
+              o.transid !== matchedCreditEntry.transid && 
+              Number(o.dramt) > 0 &&
+              (state.acmac1 || []).some((a: any) => a.id === o.maid && Number(a.parent_id) === 60)
+            );
+            if (debitBankLine) {
+              reconciledBankId = String(debitBankLine.maid);
+              const bankObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
+              reconciledBankName = bankObj ? bankObj.name : undefined;
+            }
+          }
+
+          const effectiveBankId = reconciledBankId || (defaultBank ? String(defaultBank.id) : undefined);
+          const effectiveBankName = reconciledBankName || (defaultBank ? defaultBank.name : undefined);
+
           results.push({
-            id: `BND_${bnd.isin}_${pDate}_pf${pId}`,
+            id: `BND_${bnd.isin}_${pDate}_pf${pId}_${amid}`,
+            amid: Number(amid),
             securityType: 'GSEC',
             isin: bnd.isin,
             symbol: bnd.name,
@@ -389,8 +512,8 @@ export function computeEligibleFamilyPayouts(
             grossAmount,
             tdsAmount,
             netBankAmount,
-            bankLedgerId: bankLedger ? String(bankLedger.id) : undefined,
-            bankLedgerName: bankLedger ? bankLedger.name : undefined,
+            bankLedgerId: effectiveBankId,
+            bankLedgerName: effectiveBankName,
             isReconciled,
             fy: targetFY
           });
@@ -478,9 +601,19 @@ export async function postPayoutVoucher(
     narration,
     amount: item.grossAmount,
     quantity: item.holdingQuantity,
+    assetTrades: item.amid ? [{
+      amid: item.amid,
+      quantity: item.holdingQuantity,
+      price: item.payoutRate,
+      amount: item.grossAmount,
+      ledgerId: String(targetIncomeLedgerId)
+    }] : [],
     lines
   };
 
   await createVoucher(voucherData);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('wealthcore-sync-complete'));
+  }
   return { success: true, voucherId: String(voucherData.id) };
 }
