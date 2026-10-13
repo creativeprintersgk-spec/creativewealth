@@ -234,6 +234,14 @@ export function computeEligibleFamilyPayouts(
   const fyStart = `${fyYearStart}-04-01`;
   const fyEnd = `${fyYearStart + 1}-03-31`;
 
+  // Helper to calculate exact calendar date for a financial year (Q4 Jan-Mar falls in fyYearStart + 1)
+  const getPayoutDateForFY = (yearStart: number, month: number, day: number): string => {
+    const calYear = month >= 4 ? yearStart : yearStart + 1;
+    return `${calYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+
+  const usedVoucherIds = new Set<number>();
+
   // ── A. EQUITIES (DIVIDENDS) ──
   // STRICT RULE: Iterate over actual active portfolios and held equity positions!
   // Mutual funds (60, 61, 62), bonds, etc. are strictly EXCLUDED!
@@ -291,16 +299,23 @@ export function computeEligibleFamilyPayouts(
       const tdsAmount = Number((grossAmount * tdsRate).toFixed(2));
       const netBankAmount = Number((grossAmount - tdsAmount).toFixed(2));
 
-      // Check if already reconciled in this FY
+      // Check if already reconciled: strict date proximity to recordDate
       let isReconciled = false;
       let reconciledBankId: string | undefined = undefined;
       let reconciledBankName: string | undefined = undefined;
       let reconciledVoucherId: string | undefined = undefined;
 
+      const rDateTime = new Date(matchedDiv.recordDate).getTime();
+
       const matchedVoucher = (state.vouchersC1 || []).find((v: any) => {
+        if (usedVoucherIds.has(Number(v.vid))) return false;
         if (Number(v.acid) !== acidNum) return false;
         const vDate = v.dt || '';
-        if (vDate < fyStart || vDate > fyEnd) return false;
+        if (!vDate) return false;
+        const vDateTime = new Date(vDate).getTime();
+        const daysDiff = (vDateTime - rDateTime) / (1000 * 60 * 60 * 24);
+        if (daysDiff < -10 || daysDiff > 45) return false;
+
         const narr = (v.narr || '').toUpperCase();
         return narr.includes(matchedDiv.symbol.toUpperCase()) || narr.includes(matchedDiv.isin.toUpperCase()) || narr.includes(matchedDiv.companyName.toUpperCase());
       });
@@ -310,6 +325,7 @@ export function computeEligibleFamilyPayouts(
         if (creditLine) {
           isReconciled = true;
           reconciledVoucherId = String(matchedVoucher.vid);
+          usedVoucherIds.add(Number(matchedVoucher.vid));
           const debitBankLine = (state.transC1 || []).find((t: any) => 
             t.vid === matchedVoucher.vid && 
             t.transid !== creditLine.transid && 
@@ -318,7 +334,8 @@ export function computeEligibleFamilyPayouts(
           );
           if (debitBankLine) {
             reconciledBankId = String(debitBankLine.maid);
-            const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
+            const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid && Number(a.acid) === acidNum) ||
+                         (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
             reconciledBankName = bObj ? bObj.name : undefined;
           }
         }
@@ -357,10 +374,7 @@ export function computeEligibleFamilyPayouts(
   // ── B. SOVEREIGN GOLD BONDS (SGBs) ──
   for (const sgb of SGB_MASTER_CATALOG) {
     const sgbIsin = String(sgb.isin || '').toUpperCase();
-    const payoutDates = [
-      `${fyYearStart}-${String(sgb.couponMonths[0]).padStart(2, '0')}-${String(sgb.couponDay).padStart(2, '0')}`,
-      `${fyYearStart}-${String(sgb.couponMonths[1]).padStart(2, '0')}-${String(sgb.couponDay).padStart(2, '0')}`
-    ];
+    const payoutDates = sgb.couponMonths.map(m => getPayoutDateForFY(fyYearStart, m, sgb.couponDay));
     const semiAnnualRate = Number((sgb.issuePrice * 0.025 / 2).toFixed(4));
 
     for (const pf of targetPfs) {
@@ -397,10 +411,17 @@ export function computeEligibleFamilyPayouts(
           let reconciledBankName: string | undefined = undefined;
           let reconciledVoucherId: string | undefined = undefined;
 
+          const pDateTime = new Date(pDate).getTime();
+
           const matchedVoucher = (state.vouchersC1 || []).find((v: any) => {
+            if (usedVoucherIds.has(Number(v.vid))) return false;
             if (Number(v.acid) !== acidNum) return false;
             const vDate = v.dt || '';
-            if (vDate < fyStart || vDate > fyEnd) return false;
+            if (!vDate) return false;
+            const vDateTime = new Date(vDate).getTime();
+            const daysDiff = (vDateTime - pDateTime) / (1000 * 60 * 60 * 24);
+            if (daysDiff < -10 || daysDiff > 35) return false;
+
             const narr = (v.narr || '').toUpperCase();
             return narr.includes(sgb.isin) || narr.includes(sgb.series.toUpperCase());
           });
@@ -410,6 +431,7 @@ export function computeEligibleFamilyPayouts(
             if (creditLine) {
               isReconciled = true;
               reconciledVoucherId = String(matchedVoucher.vid);
+              usedVoucherIds.add(Number(matchedVoucher.vid));
               const debitBankLine = (state.transC1 || []).find((t: any) => 
                 t.vid === matchedVoucher.vid && 
                 t.transid !== creditLine.transid && 
@@ -418,7 +440,8 @@ export function computeEligibleFamilyPayouts(
               );
               if (debitBankLine) {
                 reconciledBankId = String(debitBankLine.maid);
-                const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
+                const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid && Number(a.acid) === acidNum) ||
+                             (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
                 reconciledBankName = bObj ? bObj.name : undefined;
               }
             }
@@ -459,9 +482,7 @@ export function computeEligibleFamilyPayouts(
   // ── C. GOVERNMENT SECURITIES & TRADED BONDS ──
   for (const bnd of BOND_MASTER_CATALOG) {
     const bndIsin = String(bnd.isin || '').toUpperCase();
-    const payoutDates = bnd.couponMonths.map(m => 
-      `${fyYearStart}-${String(m).padStart(2, '0')}-${String(bnd.couponDay).padStart(2, '0')}`
-    );
+    const payoutDates = bnd.couponMonths.map(m => getPayoutDateForFY(fyYearStart, m, bnd.couponDay));
     const couponPerUnit = bnd.frequency === 'Semi-Annual'
       ? Number((bnd.faceValue * (bnd.couponRatePct / 100) / 2).toFixed(4))
       : Number((bnd.faceValue * (bnd.couponRatePct / 100)).toFixed(4));
@@ -500,10 +521,17 @@ export function computeEligibleFamilyPayouts(
           let reconciledBankName: string | undefined = undefined;
           let reconciledVoucherId: string | undefined = undefined;
 
+          const pDateTime = new Date(pDate).getTime();
+
           const matchedVoucher = (state.vouchersC1 || []).find((v: any) => {
+            if (usedVoucherIds.has(Number(v.vid))) return false;
             if (Number(v.acid) !== acidNum) return false;
             const vDate = v.dt || '';
-            if (vDate < fyStart || vDate > fyEnd) return false;
+            if (!vDate) return false;
+            const vDateTime = new Date(vDate).getTime();
+            const daysDiff = (vDateTime - pDateTime) / (1000 * 60 * 60 * 24);
+            if (daysDiff < -10 || daysDiff > 35) return false;
+
             const narr = (v.narr || '').toUpperCase();
             return narr.includes(bnd.isin) || narr.includes(bnd.name.toUpperCase());
           });
@@ -513,6 +541,7 @@ export function computeEligibleFamilyPayouts(
             if (creditLine) {
               isReconciled = true;
               reconciledVoucherId = String(matchedVoucher.vid);
+              usedVoucherIds.add(Number(matchedVoucher.vid));
               const debitBankLine = (state.transC1 || []).find((t: any) => 
                 t.vid === matchedVoucher.vid && 
                 t.transid !== creditLine.transid && 
@@ -521,7 +550,8 @@ export function computeEligibleFamilyPayouts(
               );
               if (debitBankLine) {
                 reconciledBankId = String(debitBankLine.maid);
-                const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
+                const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid && Number(a.acid) === acidNum) ||
+                             (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
                 reconciledBankName = bObj ? bObj.name : undefined;
               }
             }
