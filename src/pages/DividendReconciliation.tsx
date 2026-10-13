@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useFY } from '../FYContext';
 import { useFamily } from '../contexts/FamilyContext';
-import { state, getStoredPortfolios } from '../logic';
+import { state, getStoredPortfolios, getStoredAccounts } from '../logic';
 import { 
   computeEligibleFamilyPayouts, 
   postPayoutVoucher,
@@ -47,10 +47,7 @@ export default function DividendReconciliation() {
 
   // Available family members for dropdown
   const familyMembers = useMemo(() => {
-    return (state.acmac1 || []).filter((a: any) => 
-      !a.is_group && 
-      (a.special_type_id === 1 || a.special_type_id === 2 || a.id <= 50 || a.name.includes('A/c') || a.name.includes('HUF'))
-    );
+    return getStoredAccounts(false);
   }, []);
 
   const loadData = () => {

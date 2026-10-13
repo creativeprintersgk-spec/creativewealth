@@ -1,4 +1,4 @@
-import { state, createVoucher, ensureLedgerExists, getStoredPortfolios } from '../logic';
+import { state, createVoucher, ensureLedgerExists, getStoredPortfolios, getAccountForPortfolio, getStoredAccounts } from '../logic';
 
 export interface EligiblePayoutItem {
   id: string;
@@ -149,11 +149,14 @@ export function computeEligibleFamilyPayouts(
   targetFY: string = '2026-2027'
 ): EligiblePayoutItem[] {
   const portfolios = getStoredPortfolios();
-  const accounts = state.acmac1.filter((a: any) => !a.is_group && (a.special_type_id === 1 || a.special_type_id === 2 || a.id <= 50));
+  const allAccounts = getStoredAccounts(true);
   
   // 1. Resolve Target Portfolios
   const targetPfs = targetAccountId
-    ? portfolios.filter(p => Number(p.accountId) === targetAccountId)
+    ? portfolios.filter(p => {
+        const acid = getAccountForPortfolio(Number(p.id)) || Number(p.accountId);
+        return acid === targetAccountId;
+      })
     : portfolios;
 
   const results: EligiblePayoutItem[] = [];
@@ -181,8 +184,9 @@ export function computeEligibleFamilyPayouts(
 
     for (const pf of targetPfs) {
       const pId = Number(pf.id);
-      const acidNum = Number(pf.accountId) || 31;
-      const acc = (state.acmac1 || []).find((a: any) => Number(a.acid) === acidNum && a.name.includes('A/c'));
+      const acidNum = getAccountForPortfolio(pId) || Number(pf.accountId) || 31;
+      const acc = allAccounts.find(a => Number(a.id) === acidNum);
+      const accountName = acc?.accountName || acc?.name || `Member #${acidNum}`;
 
       for (const amid of Array.from(matchingAmids)) {
         const qtyOnRecord = getHoldingOnRecordDate(pId, amid, div.recordDate);
@@ -265,8 +269,8 @@ export function computeEligibleFamilyPayouts(
 
       for (const pf of targetPfs) {
         const pId = Number(pf.id);
-        const acidNum = Number(pf.accountId) || 31;
-        const acc = (state.acmac1 || []).find((a: any) => Number(a.acid) === acidNum && a.name.includes('A/c'));
+        const acidNum = getAccountForPortfolio(pId) || Number(pf.accountId) || 31;
+        const acc = allAccounts.find(a => Number(a.id) === acidNum);
 
         for (const amid of Array.from(matchingAmids)) {
           const qtyOnRecord = getHoldingOnRecordDate(pId, amid, pDate);
@@ -343,8 +347,8 @@ export function computeEligibleFamilyPayouts(
     for (const pDate of payoutDates) {
       for (const pf of targetPfs) {
         const pId = Number(pf.id);
-        const acidNum = Number(pf.accountId) || 31;
-        const acc = (state.acmac1 || []).find((a: any) => Number(a.acid) === acidNum && a.name.includes('A/c'));
+        const acidNum = getAccountForPortfolio(pId) || Number(pf.accountId) || 31;
+        const acc = allAccounts.find(a => Number(a.id) === acidNum);
 
         for (const amid of Array.from(matchingAmids)) {
           const qtyOnRecord = getHoldingOnRecordDate(pId, amid, pDate);
