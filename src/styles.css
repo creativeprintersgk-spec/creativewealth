@@ -155,7 +155,7 @@ body {
 .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
 .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); border-radius: 2px; }
 
-/* Section label */
+/* Section label & toggle */
 .sidebar-section-label {
   padding: 0 8px 4px;
   font-size: 10px;
@@ -164,6 +164,50 @@ body {
   letter-spacing: 0.08em;
   color: rgba(255, 255, 255, 0.75);
 }
+
+.sidebar-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  margin-bottom: 2px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.78);
+  transition: all 0.15s ease;
+  user-select: none;
+  text-align: left;
+}
+
+.sidebar-section-toggle:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.sidebar-section-label-text {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: inherit;
+}
+
+.sidebar-section-chevron {
+  color: rgba(255, 255, 255, 0.65);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+}
+
+.sidebar-section-chevron.open {
+  transform: rotate(0deg);
+  color: rgba(255, 255, 255, 0.95);
+}
+
 
 /* Nav items */
 .sidebar-group-items {

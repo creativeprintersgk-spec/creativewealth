@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign, TrendingDown, TrendingUp, BarChart3, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, Layers, BookOpen, Scale, LogOut, Wallet, FileText, Printer, FileUp, Calculator, FlaskConical, Database, ChevronDown, DollarSign, TrendingDown, TrendingUp, BarChart3, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import { getIndices } from './services/priceService';
 import { getStoredFamilies } from './logic';
 import { useTestMode } from './contexts/TestModeContext';
@@ -58,6 +58,43 @@ export default function Sidebar() {
   const { signOut } = useAuth();
   const { isCollapsed, setIsCollapsed } = useSidebar();
 
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('wealthcore_sidebar_open_sections');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      wealth: true,
+      accounting: false,
+      reports: false,
+      setup: false,
+    };
+  });
+
+  const toggleSection = (key: string) => {
+    setOpenSections(prev => {
+      const updated = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem('wealthcore_sidebar_open_sections', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  // Auto-expand section if current route belongs to that section
+  useEffect(() => {
+    const p = location.pathname;
+    if (p === '/dashboard' || p.startsWith('/dashboard/') || p.startsWith('/simulator') || p === '/pms' || p.startsWith('/pms/') || p === '/executive-overview' || p === '/portfolio-analysis') {
+      setOpenSections(prev => prev.wealth ? prev : { ...prev, wealth: true });
+    } else if (p === '/coa' || p === '/ledger' || p.startsWith('/ledger/')) {
+      setOpenSections(prev => prev.accounting ? prev : { ...prev, accounting: true });
+    } else if (p === '/balance-sheet' || p === '/capital-gains' || p === '/tax-loss-harvesting' || p === '/profit-loss' || p === '/trial-balance' || p === '/reports' || p === '/ledger-printing') {
+      setOpenSections(prev => prev.reports ? prev : { ...prev, reports: true });
+    } else if (p === '/master-entry' || p === '/import' || p === '/dividend-reconciliation' || p === '/backup') {
+      setOpenSections(prev => prev.setup ? prev : { ...prev, setup: true });
+    }
+  }, [location.pathname]);
+
   return (
     <aside className={`sidebar print-hide ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-logo">
@@ -79,126 +116,182 @@ export default function Sidebar() {
       <nav className="sidebar-nav">
         {/* WEALTH WORKSPACE */}
         <div>
-          <div className="sidebar-section-label">Wealth Workspace</div>
-          <div className="sidebar-group-items">
-            <button 
-              className={`sidebar-nav-item ${isActive('/dashboard') ? 'active' : ''}`}
-              onClick={() => navigate('/dashboard')}
-            >
-              <LayoutDashboard /> Dashboard
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/pms') ? 'active' : ''}`}
-              onClick={() => navigate('/pms')}
-            >
-              <Wallet /> PMS Workspace
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/executive-overview') ? 'active' : ''}`}
-              onClick={() => navigate('/executive-overview')}
-            >
-              <BarChart3 /> Executive Overview
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/portfolio-analysis') ? 'active' : ''}`}
-              onClick={() => navigate('/portfolio-analysis')}
-            >
-              <TrendingUp /> Portfolio Analysis
-            </button>
-          </div>
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            onClick={() => toggleSection('wealth')}
+            aria-expanded={!!openSections.wealth}
+          >
+            <span className="sidebar-section-label-text">Wealth Workspace</span>
+            <ChevronDown 
+              size={13} 
+              className={`sidebar-section-chevron ${openSections.wealth ? 'open' : ''}`} 
+            />
+          </button>
+          
+          {openSections.wealth && (
+            <div className="sidebar-group-items">
+              <button 
+                className={`sidebar-nav-item ${isActive('/dashboard') || isActive('/simulator') ? 'active' : ''}`}
+                onClick={() => navigate('/dashboard')}
+              >
+                <Sparkles size={14} /> Simulator
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/pms') ? 'active' : ''}`}
+                onClick={() => navigate('/pms')}
+              >
+                <Wallet size={14} /> PMS Workspace
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/executive-overview') ? 'active' : ''}`}
+                onClick={() => navigate('/executive-overview')}
+              >
+                <BarChart3 size={14} /> Executive Overview
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/portfolio-analysis') ? 'active' : ''}`}
+                onClick={() => navigate('/portfolio-analysis')}
+              >
+                <TrendingUp size={14} /> Portfolio Analysis
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ACCOUNTING ENGINE SECTION */}
         <div>
-          <div className="sidebar-section-label">Accounting Engine</div>
-          <div className="sidebar-group-items">
-            <button 
-              className={`sidebar-nav-item ${isActive('/coa') ? 'active' : ''}`}
-              onClick={() => navigate('/coa')}
-            >
-              <Layers /> Chart of Accounts
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/ledger') ? 'active' : ''}`}
-              onClick={() => navigate('/ledger')}
-            >
-              <BookOpen /> Ledger View
-            </button>
-          </div>
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            onClick={() => toggleSection('accounting')}
+            aria-expanded={!!openSections.accounting}
+          >
+            <span className="sidebar-section-label-text">Accounting Engine</span>
+            <ChevronDown 
+              size={13} 
+              className={`sidebar-section-chevron ${openSections.accounting ? 'open' : ''}`} 
+            />
+          </button>
+
+          {openSections.accounting && (
+            <div className="sidebar-group-items">
+              <button 
+                className={`sidebar-nav-item ${isActive('/coa') ? 'active' : ''}`}
+                onClick={() => navigate('/coa')}
+              >
+                <Layers size={14} /> Chart of Accounts
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/ledger') ? 'active' : ''}`}
+                onClick={() => navigate('/ledger')}
+              >
+                <BookOpen size={14} /> Ledger View
+              </button>
+            </div>
+          )}
         </div>
 
         {/* REPORTS SECTION */}
         <div>
-          <div className="sidebar-section-label">Reports & Insights</div>
-          <div className="sidebar-group-items">
-            <button 
-              className={`sidebar-nav-item ${isActive('/balance-sheet') ? 'active' : ''}`}
-              onClick={() => navigate('/balance-sheet')}
-            >
-              <Scale /> Balance Sheet
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/capital-gains') ? 'active' : ''}`}
-              onClick={() => navigate('/capital-gains')}
-            >
-              <FileText /> Capital Gains
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/tax-loss-harvesting') ? 'active' : ''}`}
-              onClick={() => navigate('/tax-loss-harvesting')}
-            >
-              <TrendingDown /> Tax Loss Harvesting
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/profit-loss') ? 'active' : ''}`}
-              onClick={() => navigate('/profit-loss')}
-            >
-              <LayoutDashboard /> Profit &amp; Loss
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/trial-balance') ? 'active' : ''}`}
-              onClick={() => navigate('/trial-balance')}
-            >
-              <Calculator /> Trial Balance
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/reports') || isActive('/ledger-printing') ? 'active' : ''}`}
-              onClick={() => navigate('/reports')}
-            >
-              <Printer /> Report Printing
-            </button>
-          </div>
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            onClick={() => toggleSection('reports')}
+            aria-expanded={!!openSections.reports}
+          >
+            <span className="sidebar-section-label-text">Reports & Insights</span>
+            <ChevronDown 
+              size={13} 
+              className={`sidebar-section-chevron ${openSections.reports ? 'open' : ''}`} 
+            />
+          </button>
+
+          {openSections.reports && (
+            <div className="sidebar-group-items">
+              <button 
+                className={`sidebar-nav-item ${isActive('/balance-sheet') ? 'active' : ''}`}
+                onClick={() => navigate('/balance-sheet')}
+              >
+                <Scale size={14} /> Balance Sheet
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/capital-gains') ? 'active' : ''}`}
+                onClick={() => navigate('/capital-gains')}
+              >
+                <FileText size={14} /> Capital Gains
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/tax-loss-harvesting') ? 'active' : ''}`}
+                onClick={() => navigate('/tax-loss-harvesting')}
+              >
+                <TrendingDown size={14} /> Tax Loss Harvesting
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/profit-loss') ? 'active' : ''}`}
+                onClick={() => navigate('/profit-loss')}
+              >
+                <LayoutDashboard size={14} /> Profit &amp; Loss
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/trial-balance') ? 'active' : ''}`}
+                onClick={() => navigate('/trial-balance')}
+              >
+                <Calculator size={14} /> Trial Balance
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/reports') || isActive('/ledger-printing') ? 'active' : ''}`}
+                onClick={() => navigate('/reports')}
+              >
+                <Printer size={14} /> Report Printing
+              </button>
+            </div>
+          )}
         </div>
 
         {/* SETUP SECTION */}
         <div>
-          <div className="sidebar-section-label">Setup</div>
-          <div className="sidebar-group-items">
-            <button 
-              className={`sidebar-nav-item ${isActive('/master-entry') ? 'active' : ''}`}
-              onClick={() => navigate('/master-entry')}
-            >
-              <BookOpen /> Master Entry
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/import') ? 'active' : ''}`}
-              onClick={() => navigate('/import')}
-            >
-              <FileUp /> Import Data
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/dividend-reconciliation') ? 'active' : ''}`}
-              onClick={() => navigate('/dividend-reconciliation')}
-            >
-              <DollarSign /> Dividend Recon
-            </button>
-            <button 
-              className={`sidebar-nav-item ${isActive('/backup') ? 'active' : ''}`}
-              onClick={() => navigate('/backup')}
-            >
-              <Database /> Backup & Restore
-            </button>
-          </div>
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            onClick={() => toggleSection('setup')}
+            aria-expanded={!!openSections.setup}
+          >
+            <span className="sidebar-section-label-text">Setup</span>
+            <ChevronDown 
+              size={13} 
+              className={`sidebar-section-chevron ${openSections.setup ? 'open' : ''}`} 
+            />
+          </button>
+
+          {openSections.setup && (
+            <div className="sidebar-group-items">
+              <button 
+                className={`sidebar-nav-item ${isActive('/master-entry') ? 'active' : ''}`}
+                onClick={() => navigate('/master-entry')}
+              >
+                <BookOpen size={14} /> Master Entry
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/import') ? 'active' : ''}`}
+                onClick={() => navigate('/import')}
+              >
+                <FileUp size={14} /> Import Data
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/dividend-reconciliation') ? 'active' : ''}`}
+                onClick={() => navigate('/dividend-reconciliation')}
+              >
+                <DollarSign size={14} /> Dividend Recon
+              </button>
+              <button 
+                className={`sidebar-nav-item ${isActive('/backup') ? 'active' : ''}`}
+                onClick={() => navigate('/backup')}
+              >
+                <Database size={14} /> Backup & Restore
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
