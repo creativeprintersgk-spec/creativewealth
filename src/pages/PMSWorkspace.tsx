@@ -270,6 +270,7 @@ export default function PMSWorkspace() {
         type: tradeType === 'SELL' ? 'fd_closure' : 'fd',
         assetId: asset.id,
         assetName: asset.name,
+        portfolioIds: asset.portIds && asset.portIds.length > 0 ? asset.portIds : undefined,
       });
       return;
     }
@@ -280,6 +281,7 @@ export default function PMSWorkspace() {
         type: tradeType === 'SELL' ? 'ncd_sell' : 'ncd',
         assetId: asset.id,
         assetName: asset.name,
+        portfolioIds: asset.portIds && asset.portIds.length > 0 ? asset.portIds : undefined,
       });
       return;
     }
@@ -290,6 +292,7 @@ export default function PMSWorkspace() {
         type: tradeType === 'SELL' ? 'gold_sell' : 'gold_buy',
         assetId: asset.id,
         assetName: asset.name,
+        portfolioIds: asset.portIds && asset.portIds.length > 0 ? asset.portIds : undefined,
       });
       return;
     }
@@ -300,6 +303,7 @@ export default function PMSWorkspace() {
         type: tradeType === 'SELL' ? 'silver_sell' : 'silver_buy',
         assetId: asset.id,
         assetName: asset.name,
+        portfolioIds: asset.portIds && asset.portIds.length > 0 ? asset.portIds : undefined,
       });
       return;
     }
@@ -310,6 +314,7 @@ export default function PMSWorkspace() {
         type: 'ppf',
         assetId: asset.id,
         assetName: asset.name,
+        portfolioIds: asset.portIds && asset.portIds.length > 0 ? asset.portIds : undefined,
       });
       return;
     }
@@ -320,6 +325,7 @@ export default function PMSWorkspace() {
         type: tradeType === 'SELL' ? 'ulip_renewal' : 'ulip',
         assetId: asset.id,
         assetName: asset.name,
+        portfolioIds: asset.portIds && asset.portIds.length > 0 ? asset.portIds : undefined,
       });
       return;
     }
@@ -339,6 +345,7 @@ export default function PMSWorkspace() {
     voucherId?: string;
     assetId?: string;
     assetName?: string;
+    portfolioIds?: string[];
   } | null>(null);
   const [addAssetModalType, setAddAssetModalType] = useState<'stock' | 'mf' | 'bond' | null>(null);
   
@@ -1039,7 +1046,7 @@ export default function PMSWorkspace() {
         <PMSFDInvestmentModal
           assetId={specialModal.assetId || '0'}
           assetName={specialModal.assetName || ''}
-          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          portfolioIds={specialModal.portfolioIds || (currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : []))}
           voucherId={specialModal.voucherId}
           initialMode={specialModal.type === 'fd_closure' ? 'closure' : 'investment'}
           onClose={() => setSpecialModal(null)}
@@ -1054,7 +1061,7 @@ export default function PMSWorkspace() {
         <PMSPPFModal
           assetId={specialModal.assetId || '0'}
           assetName={specialModal.assetName || ''}
-          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          portfolioIds={specialModal.portfolioIds || (currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : []))}
           voucherId={specialModal.voucherId}
           onClose={() => setSpecialModal(null)}
           onSaved={() => {
@@ -1068,7 +1075,7 @@ export default function PMSWorkspace() {
         <PMSNCDBondModal
           assetId={specialModal.assetId || '0'}
           assetName={specialModal.assetName || ''}
-          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          portfolioIds={specialModal.portfolioIds || (currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : []))}
           voucherId={specialModal.voucherId}
           assetCategory={specialModal.type.startsWith('ncd') ? 'ncd' : 'bonds'}
           initialMode={specialModal.type.endsWith('sell') ? 'sell' : 'buy'}
@@ -1084,7 +1091,7 @@ export default function PMSWorkspace() {
         <PMSGoldSilverModal
           assetId={specialModal.assetId || '0'}
           assetName={specialModal.assetName || (specialModal.type.startsWith('gold') ? 'Gold' : 'Silver')}
-          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          portfolioIds={specialModal.portfolioIds || (currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : []))}
           voucherId={specialModal.voucherId}
           metal={specialModal.type.startsWith('gold') ? 'gold' : 'silver'}
           initialMode={specialModal.type.endsWith('sell') ? 'sale' : 'addition'}
@@ -1100,7 +1107,7 @@ export default function PMSWorkspace() {
         <PMSULIPModal
           assetId={specialModal.assetId}
           assetName={specialModal.assetName}
-          portfolioIds={currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : [])}
+          portfolioIds={specialModal.portfolioIds || (currentTab?.portfolioIds.map(String) || (portfolios[0] ? [String(portfolios[0].id)] : []))}
           voucherId={specialModal.voucherId}
           initialMode={specialModal.type === 'ulip_renewal' ? 'renewal' : 'new_policy'}
           onClose={() => setSpecialModal(null)}
