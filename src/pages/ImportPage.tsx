@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileUp, CheckCircle, AlertTriangle, ArrowRight, Upload, Play, Database, RefreshCw, ChevronRight, Edit2, Plus, Trash2, Search, CheckSquare, Square } from "lucide-react";
+import { FileUp, CheckCircle, AlertTriangle, ArrowRight, Upload, Play, Database, RefreshCw, ChevronRight, Edit2, Plus, Trash2, Search, CheckSquare, Square, Building2 } from "lucide-react";
 import Papa from 'papaparse';
 import { supabase } from "../supabase";
 import { useFY } from "../FYContext";
@@ -9,6 +9,7 @@ import { state, forceRefreshDatabase, getStoredPortfolios, getStoredLedgers, ens
 import isinDictionary from "../services/isinDictionary.json";
 import { MfCasTab } from "./MfCasTab";
 import { EcasTab } from "./EcasTab";
+import { BankStatementImport } from "../components/BankStatementImport";
 import { parseFnoSymbol } from "../utils/fnoUtils";
 import { formatGSecName } from "../utils/gsecUtils";
 import { parseContractNoteClientPdf, parseContractNoteClientText } from "../services/contractNoteClientParser";
@@ -441,11 +442,11 @@ function ImportPageInner() {
   // Global Refresh Key to force refresh selectors
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Tabs: 'db' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'
-  const [activeTab, setActiveTab] = useState<'db' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'>(() => {
+  // Tabs: 'db' | 'bank-statement' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'
+  const [activeTab, setActiveTab] = useState<'db' | 'bank-statement' | 'contract-note' | 'mf-cas' | 'ecas' | 'sql-restore' | 'db-converter'>(() => {
     try {
       const qTab = new URLSearchParams(window.location.search).get('tab');
-      if (qTab && ['db', 'contract-note', 'mf-cas', 'ecas', 'sql-restore', 'db-converter'].includes(qTab)) {
+      if (qTab && ['db', 'bank-statement', 'contract-note', 'mf-cas', 'ecas', 'sql-restore', 'db-converter'].includes(qTab)) {
         return qTab as any;
       }
     } catch {}
@@ -3000,6 +3001,16 @@ function ImportPageInner() {
           <Database size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '4px' }} />
           MProfit DB Import
         </button>
+        <button onClick={() => setActiveTab('bank-statement')} style={{
+          ...tabStyle(activeTab === 'bank-statement'),
+          background: activeTab === 'bank-statement' ? '#0f766e' : 'none',
+          color: activeTab === 'bank-statement' ? '#fff' : '#0f766e',
+          boxShadow: activeTab === 'bank-statement' ? '0 4px 12px rgba(15,118,110,0.25)' : 'none',
+          border: activeTab !== 'bank-statement' ? '2px solid #0f766e' : 'none',
+        }}>
+          <Building2 size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '4px' }} />
+          Bank Statement
+        </button>
         <button onClick={() => setActiveTab('contract-note')} style={tabStyle(activeTab === 'contract-note')}>
           Broker Contract Note
         </button>
@@ -3022,6 +3033,11 @@ function ImportPageInner() {
           🛠️ DB to CSV
         </button>
       </div>
+
+      {/* TAB: BANK STATEMENT IMPORT */}
+      {activeTab === 'bank-statement' && (
+        <BankStatementImport onNavigateToLedger={(ledgerId) => navigate(`/ledger?ledgerId=${ledgerId}`)} />
+      )}
 
       {/* TAB 1: MPROFIT DB IMPORT */}
       {activeTab === 'db' && (
