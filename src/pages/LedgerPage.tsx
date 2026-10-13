@@ -436,6 +436,7 @@ export default function LedgerPage() {
           onSaved={handleSaved}
           voucherId={editingVoucherId || undefined}
           selectedLedger={selectedLedgerId}
+          accountId={selectedAccountId || undefined}
         />
       )}
 

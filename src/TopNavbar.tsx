@@ -203,6 +203,7 @@ export default function TopNavbar() {
 
       {isVoucherModalOpen && (
         <VoucherModal 
+          accountId={selectedAccountId || undefined}
           onClose={() => setIsVoucherModalOpen(false)}
           onSaved={async () => {
             setIsVoucherModalOpen(false);

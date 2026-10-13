@@ -43,13 +43,13 @@ export default function VoucherModal({
   selectedLedger?: string;
   accountId?: string;
 }) {
-  const { selectedFY } = useFY();
+  const { selectedFY, selectedAccountId } = useFY();
   const today = new Date().toISOString().slice(0, 10);
 
   const [type, setType] = useState<VoucherType>("receipt");
   const [voucherNo, setVoucherNo] = useState("");
   const [date, setDate] = useState(today);
-  const [accountId, setAccountId] = useState<string>(propAccountId || "");
+  const [accountId, setAccountId] = useState<string>(propAccountId || selectedAccountId || "");
   const [narration, setNarration] = useState("");
   const { isTestMode } = useTestMode();
   const [error, setError] = useState("");
@@ -70,14 +70,13 @@ export default function VoucherModal({
 
   const groups = useMemo(() => getStoredGroups(), []);
 
+  // Strict Account Isolation:
   // Only load ledgers for the currently selected accountId person.
-  // This prevents duplicate names (e.g. "Gift" appearing for every family member)
-  // and makes the dropdown fast — no more scanning 5000+ rows.
+  // When no account is chosen, return empty array so accounts from other members NEVER leak.
   const mappedLedgers = useMemo(() => {
-    // Use propAccountId if passed from parent, else the locally selected accountId state.
-    // We also deduplicate by name (same ledger name should not appear twice for same person).
-    const effectiveAcid = propAccountId || accountId;
-    const raw = effectiveAcid ? getStoredLedgers(effectiveAcid) : getStoredLedgers();
+    const effectiveAcid = accountId || propAccountId || selectedAccountId;
+    if (!effectiveAcid) return [];
+    const raw = getStoredLedgers(effectiveAcid);
     
     const seen = new Set<string>();
     const unique: typeof raw = [];
@@ -99,7 +98,15 @@ export default function VoucherModal({
         : "other",
       accountingType: groups.find(g => g.id === l.groupId)?.type || "ASSET",
     }));
-  }, [propAccountId, accountId, groups]);
+  }, [propAccountId, accountId, selectedAccountId, groups]);
+
+  const handleAccountChange = (newAcid: string) => {
+    setAccountId(newAcid);
+    // Reset selected accounts on person switch to prevent cross-account ledger contamination
+    setVoucherLines([]);
+    setSimpleAccount("");
+    setMainAccount("");
+  };
 
   const [mainAccount, setMainAccount] = useState<string>(() => {
     if (selectedLedger) {
@@ -313,21 +320,19 @@ export default function VoucherModal({
           <div style={{ flex: 1 }} />
           {/* Voucher number + date inline */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0 12px" }}>
-            {!propAccountId && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '0 8px', height: '30px' }}>
-                <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b' }}>PERSON:</span>
-                <select 
-                  value={accountId}
-                  onChange={e => setAccountId(e.target.value)}
-                  style={{ border: 'none', background: 'transparent', fontSize: '11px', fontWeight: 700, color: '#0f172a', outline: 'none' }}
-                >
-                  <option value="">-- Select Member --</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{acc.accountName.toUpperCase()}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '0 8px', height: '30px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b' }}>PERSON:</span>
+              <select 
+                value={accountId}
+                onChange={e => handleAccountChange(e.target.value)}
+                style={{ border: 'none', background: 'transparent', fontSize: '11px', fontWeight: 700, color: accountId ? '#1d4ed8' : '#dc2626', outline: 'none', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Member --</option>
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.accountName.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
             <span style={{
               fontSize: "12px", fontWeight: 800, color: currentTypeMeta.color,
               background: `${currentTypeMeta.color}18`,
@@ -359,6 +364,12 @@ export default function VoucherModal({
 
         {/* â”€â”€ Body â”€â”€ */}
         <div className="modal-body" style={{ padding: "16px 20px", flex: 1, overflowY: "auto" }}>
+          {!accountId && (
+            <div style={{ padding: "12px 16px", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: "8px", color: "#92400e", fontSize: "13px", fontWeight: 600, marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>⚠️</span>
+              <span>Please select a Member (Person) in the header above to load ledgers and create this voucher.</span>
+            </div>
+          )}
           {isSimpleMode ? (
             <div style={{ background: "#f8fafc", padding: "18px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
               {/* Main Account row */}

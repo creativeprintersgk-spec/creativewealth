@@ -30,6 +30,7 @@ import {
   Calculator,
   Landmark,
   Coins,
+  Building2,
   PanelLeftOpen
 } from 'lucide-react';
 import { 
@@ -485,6 +486,59 @@ export default function SimulatorDashboard() {
       holdings: liquidHoldings,
     };
   }, [holdings]);
+
+  const [showBrokerModal, setShowBrokerModal] = useState(false);
+
+  // Dynamic Broker Balances across all broker accounts (Zero hardcoded names)
+  // Detects all broker ledgers via Chart of Accounts (special_type_id 276, 126, 125, id range 100001-100099, or parent group 75/90)
+  const brokerBalanceData = useMemo(() => {
+    const targetAcids = selectedAccountId 
+      ? [Number(selectedAccountId)] 
+      : familyAccounts.map(a => Number(a.id));
+
+    const isBrokerLedger = (a: any) => {
+      if (a.is_group) return false;
+      if (a.special_type_id === 276 || a.special_type_id === 126) return true;
+      if (a.special_type_id === 125 && (a.parent_id === 90 || a.parent_id === 75)) return true;
+      if (a.id >= 100001 && a.id <= 100099 && (a.parent_id === 75 || a.parent_id === 90)) return true;
+      if ((a.parent_id === 75 || a.parent_id === 90) && (a.name.toLowerCase().includes('broker') || a.name.toLowerCase().includes('securities'))) return true;
+      return false;
+    };
+
+    const brokerLedgers = (state.acmac1 || []).filter((a: any) => {
+      const matchAcid = targetAcids.length === 0 || targetAcids.includes(Number(a.acid));
+      return isBrokerLedger(a) && matchAcid;
+    });
+
+    let total = 0;
+    const itemizedBrokers: { id: string | number; name: string; acid: number; accountName: string; balance: number }[] = [];
+
+    brokerLedgers.forEach((b: any) => {
+      const bal = getLedgerBalance(b.id, b.acid);
+      if (!isNaN(bal)) {
+        total += bal;
+        const acc = familyAccounts.find(a => Number(a.id) === Number(b.acid));
+        itemizedBrokers.push({
+          id: b.id,
+          name: b.name,
+          acid: b.acid,
+          accountName: acc?.accountName || `Account #${b.acid}`,
+          balance: bal
+        });
+      }
+    });
+
+    itemizedBrokers.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
+    const activeBrokers = itemizedBrokers.filter(b => Math.abs(b.balance) > 0.01);
+
+    return {
+      total,
+      accountCount: brokerLedgers.length,
+      activeCount: activeBrokers.length,
+      activeBrokers,
+      allBrokers: itemizedBrokers,
+    };
+  }, [familyAccounts, selectedAccountId, tick, globalRefreshTrigger]);
 
   // Vouchers / Transactions count
   const allVouchers = useMemo(() => getStoredVouchers(), [tick]);
@@ -1818,7 +1872,7 @@ export default function SimulatorDashboard() {
                 ))}
               </div>
 
-            {/* Total Bank Balance & Liquid/Arbitrage Balances across all Family Accounts */}
+            {/* Total Bank Balance, Liquid/Arbitrage, and Dynamic Broker Balances across all Family Accounts */}
             <div className="wirely-liquidity-status">
               <div className="wirely-liquidity-main" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -1855,15 +1909,45 @@ export default function SimulatorDashboard() {
                     ({liquidArbitrageData.count} Holdings)
                   </span>
                 </div>
+
+                <span style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '11px', fontWeight: 700 }}>•</span>
+
+                <div 
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
+                  onClick={() => setShowBrokerModal(true)}
+                  title="Click to view all broker account balances"
+                >
+                  <div style={{ width: '20px', height: '20px', borderRadius: '5px', background: 'rgba(168, 85, 247, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Building2 size={12} color="#c084fc" />
+                  </div>
+                  <span className="wirely-liquidity-title">Broker Balances:</span>
+                  <span className="wirely-liquidity-value">
+                    {formatMoney(brokerBalanceData.total)}
+                  </span>
+                  <span className="wirely-liquidity-count">
+                    ({brokerBalanceData.activeCount} Active / {brokerBalanceData.accountCount} Brokers)
+                  </span>
+                </div>
               </div>
-              <button
-                onClick={() => navigate('/ledger')}
-                className="wirely-liquidity-btn"
-                title="View Bank Accounts in General Ledger"
-              >
-                <span>Bank Ledgers</span>
-                <ArrowUpRight size={10} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => setShowBrokerModal(true)}
+                  className="wirely-liquidity-btn"
+                  style={{ background: 'rgba(168, 85, 247, 0.15)', borderColor: 'rgba(168, 85, 247, 0.3)', color: '#d8b4fe' }}
+                  title="View itemized Broker Balances"
+                >
+                  <span>Broker Balances</span>
+                  <ArrowUpRight size={10} />
+                </button>
+                <button
+                  onClick={() => navigate('/ledger')}
+                  className="wirely-liquidity-btn"
+                  title="View Bank Accounts in General Ledger"
+                >
+                  <span>Bank Ledgers</span>
+                  <ArrowUpRight size={10} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1974,6 +2058,129 @@ export default function SimulatorDashboard() {
             </div>
           )}
         </div>
+
+        {/* ── BROKER BALANCES MODAL ── */}
+        {showBrokerModal && (
+          <div 
+            style={{ 
+              position: 'fixed', 
+              inset: 0, 
+              background: 'rgba(15, 23, 42, 0.7)', 
+              backdropFilter: 'blur(4px)', 
+              zIndex: 5000, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              padding: '20px'
+            }}
+            onClick={() => setShowBrokerModal(false)}
+          >
+            <div 
+              style={{ 
+                background: '#ffffff', 
+                borderRadius: '16px', 
+                width: '100%', 
+                maxWidth: '650px', 
+                maxHeight: '85vh', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                overflow: 'hidden', 
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' 
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Building2 size={18} color="#9333ea" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Broker Balances</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                      {selectedAccountId ? 'Selected Member Account' : 'All Family Accounts'} • {brokerBalanceData.activeCount} Active of {brokerBalanceData.accountCount} Accounts
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: '#64748b' }}>Net Total</div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: brokerBalanceData.total >= 0 ? '#15803d' : '#b91c1c' }}>
+                      {formatMoney(brokerBalanceData.total)}
+                    </div>
+                  </div>
+                  <button onClick={() => setShowBrokerModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#94a3b8' }}>
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* List */}
+              <div style={{ padding: '16px 20px', flex: 1, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {brokerBalanceData.activeBrokers.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8', fontSize: '13px' }}>
+                      No active broker accounts with non-zero balances found.
+                    </div>
+                  ) : (
+                    brokerBalanceData.activeBrokers.map((b, idx) => {
+                      const isCredit = b.balance < 0;
+                      return (
+                        <div 
+                          key={idx} 
+                          style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            padding: '12px 16px', 
+                            background: '#f8fafc', 
+                            borderRadius: '10px', 
+                            border: '1px solid #e2e8f0' 
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>
+                              {b.name}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              {b.accountName}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 800, color: isCredit ? '#dc2626' : '#16a34a' }}>
+                              {formatMoney(Math.abs(b.balance))} {isCredit ? 'Cr' : 'Dr'}
+                            </div>
+                            <div style={{ fontSize: '10px', color: isCredit ? '#ef4444' : '#65a30d', fontWeight: 600 }}>
+                              {isCredit ? 'Payable / Margin' : 'Funds Available'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: '12px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button 
+                  onClick={() => { setShowBrokerModal(false); navigate('/ledger'); }}
+                  className="wirely-liquidity-btn"
+                  style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '6px 12px', fontSize: '12px' }}
+                >
+                  <span>Open in Ledger View</span>
+                  <ArrowUpRight size={12} />
+                </button>
+                <button 
+                  onClick={() => setShowBrokerModal(false)}
+                  style={{ background: '#2563eb', color: '#ffffff', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     );

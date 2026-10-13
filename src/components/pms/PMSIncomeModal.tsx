@@ -11,7 +11,27 @@ interface Props {
   onSaved: () => void;
 }
 
+type IncomeTransactionType = 'interest' | 'dividend' | 'other_income';
+
+const isDebtOrBond = (name: string) => {
+  const lower = (name || '').toLowerCase();
+  return (
+    lower.includes('g-sec') ||
+    lower.includes('gs ') ||
+    lower.includes('gs20') ||
+    lower.includes('bond') ||
+    lower.includes('ncd') ||
+    lower.includes('debenture') ||
+    lower.includes('treasury') ||
+    lower.includes('fd') ||
+    lower.includes('fixed deposit') ||
+    lower.includes('tbill')
+  );
+};
+
 export default function PMSIncomeModal({ assetId, assetName, portfolioIds, voucherId, onClose, onSaved }: Props) {
+  const isDebt = isDebtOrBond(assetName);
+  const [transactionType, setTransactionType] = useState<IncomeTransactionType>(isDebt ? 'interest' : 'dividend');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [amount, setAmount] = useState<number>(0);
   const [tds, setTds] = useState<number>(0);
@@ -86,6 +106,16 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
         const port = portfolios.find((p: any) => String(p.id) === String(v.portfolioId));
         if (port) setPortfolioName(port.portfolioName);
 
+        const vNarr = (v.narration || '').toLowerCase();
+        const vType = (v.type || '').toLowerCase();
+        if (vNarr.includes('interest') || vType === 'interest') {
+          setTransactionType('interest');
+        } else if (vNarr.includes('other') || vType === 'other_income') {
+          setTransactionType('other_income');
+        } else {
+          setTransactionType('dividend');
+        }
+
         const tdsLine = v.lines.find((l: any) => {
           const ledger = resolvedLedgersForDisplay.find(led => String(led.id) === String(l.ledgerId));
           return ledger && ledger.name.toLowerCase().includes('tds');
@@ -106,8 +136,9 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
         const port = portfolios.find(p => String(p.id) === String(portfolioIds[0]));
         if (port) setPortfolioName(port.portfolioName);
       }
+      setTransactionType(isDebt ? 'interest' : 'dividend');
     }
-  }, [voucherId, portfolioIds, portfolios, assetId, resolvedLedgersForDisplay, isBankOrCash]);
+  }, [voucherId, portfolioIds, portfolios, assetId, resolvedLedgersForDisplay, isBankOrCash, isDebt]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -140,7 +171,7 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
                         || await ensureLedgerExists('Bank', 'bank', acidNum);
         finalBankId = bankLedger?.id ?? '';
       }
-      if (!finalBankId) throw new Error('Please select a Bank Account for this dividend. Go back and pick one from the Bank A/c dropdown.');
+      if (!finalBankId) throw new Error('Please select a Bank Account. Go back and pick one from the Bank A/c dropdown.');
 
       // 3. Resolve TDS ledger
       let tdsLedger: any = resolvedLedgers.find(l => l.name.toLowerCase() === 'tds') 
@@ -150,31 +181,54 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
       }
       const finalTdsId = tdsLedger?.id ?? '';
 
-      // 4. Resolve Dividend Income ledger — MUST exist for BS to show it
-      let divIncomeLedger: any = resolvedLedgers.find(l => l.name.toLowerCase().includes('dividend')) 
-                               || resolvedLedgers.find(l => {
-                                    const g = resolvedGroups.find(g => String(g.id) === String(l.groupId));
-                                    return g && (g.name.toLowerCase().includes('dividend') || g.name.toLowerCase().includes('income'));
-                                  });
-      if (!divIncomeLedger) {
-        divIncomeLedger = await ensureLedgerExists('Dividend Income', 'dividend', acidNum);
+      // 4. Resolve Target Income ledger (Interest #401, Dividend #415, Other Income #425)
+      let incomeLedger: any = null;
+      let defaultNarrationPrefix = 'Dividend Payout';
+      let voucherTypeKey = 'dividend';
+
+      if (transactionType === 'interest') {
+        voucherTypeKey = 'receipt';
+        defaultNarrationPrefix = 'Interest Payout';
+        incomeLedger = resolvedLedgers.find(l => String(l.id) === '401')
+                    || resolvedLedgers.find(l => l.name.toLowerCase() === 'interest on investment')
+                    || resolvedLedgers.find(l => l.name.toLowerCase().includes('interest on investment'))
+                    || resolvedLedgers.find(l => l.name.toLowerCase().includes('interest income'))
+                    || await ensureLedgerExists('Interest on Investment', 'interest', acidNum);
+      } else if (transactionType === 'other_income') {
+        voucherTypeKey = 'receipt';
+        defaultNarrationPrefix = 'Other Income';
+        incomeLedger = resolvedLedgers.find(l => String(l.id) === '425')
+                    || resolvedLedgers.find(l => l.name.toLowerCase() === 'other income')
+                    || resolvedLedgers.find(l => l.name.toLowerCase().includes('other income'))
+                    || await ensureLedgerExists('Other Income', 'interest', acidNum);
+      } else {
+        // Dividend
+        voucherTypeKey = 'dividend';
+        defaultNarrationPrefix = 'Dividend Payout';
+        incomeLedger = resolvedLedgers.find(l => String(l.id) === '415')
+                    || resolvedLedgers.find(l => l.name.toLowerCase() === 'dividend')
+                    || resolvedLedgers.find(l => l.name.toLowerCase().includes('dividend'))
+                    || await ensureLedgerExists('Dividend', 'dividend', acidNum);
       }
-      if (!divIncomeLedger?.id) throw new Error('Could not find or create a Dividend Income ledger.');
+
+      if (!incomeLedger?.id) throw new Error(`Could not find or create a ${defaultNarrationPrefix} ledger.`);
 
       // 5. Build lines — skip zero-amount legs
       const lines: any[] = [
         { debit: netAmount, credit: 0, ledgerId: finalBankId },
         ...(tds > 0 && finalTdsId ? [{ debit: tds, credit: 0, ledgerId: finalTdsId }] : []),
-        { debit: 0, credit: amount, ledgerId: divIncomeLedger.id }
+        { debit: 0, credit: amount, ledgerId: incomeLedger.id }
       ];
+
+      const saveNarration = narration || `${defaultNarrationPrefix} for ${assetName}`;
 
       if (voucherId && originalVoucher) {
         await updateVoucher({
           ...originalVoucher,
           date,
-          type: 'dividend',
+          type: voucherTypeKey,
           accountId: acidNum,
-          narration: narration || `Dividend Payout for ${assetName}`,
+          narration: saveNarration,
           assetId,
           lines
         });
@@ -183,10 +237,10 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
         await createVoucher({
           id: dummyId,
           date,
-          type: 'dividend',
+          type: voucherTypeKey,
           accountId: acidNum,
           portfolioId: portfolioIds[0],
-          narration: narration || `Dividend Payout for ${assetName}`,
+          narration: saveNarration,
           assetId,
           lines
         });
@@ -210,8 +264,16 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
         {/* Title Bar */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: '#dcfce7', color: '#166534', fontSize: '12px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', letterSpacing: '0.5px' }}>
-              EQ
+            <div style={{ 
+              background: transactionType === 'interest' ? '#fef3c7' : (transactionType === 'other_income' ? '#e0e7ff' : '#dcfce7'), 
+              color: transactionType === 'interest' ? '#92400e' : (transactionType === 'other_income' ? '#3730a3' : '#166534'), 
+              fontSize: '12px', 
+              fontWeight: 700, 
+              padding: '4px 8px', 
+              borderRadius: '6px', 
+              letterSpacing: '0.5px' 
+            }}>
+              {transactionType === 'interest' ? 'BND' : (transactionType === 'other_income' ? 'OTH' : 'EQ')}
             </div>
             <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>Income for the Asset</div>
           </div>
@@ -229,8 +291,14 @@ export default function PMSIncomeModal({ assetId, assetName, portfolioIds, vouch
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <label style={{ width: '120px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>Transaction:</label>
-              <select style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', color: '#0f172a', outline: 'none', background: '#fff', fontWeight: 600 }}>
-                <option value="Dividend Payout">Dividend Payout</option>
+              <select 
+                value={transactionType}
+                onChange={e => setTransactionType(e.target.value as IncomeTransactionType)}
+                style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', color: '#0f172a', outline: 'none', background: '#fff', fontWeight: 600, cursor: 'pointer' }}
+              >
+                <option value="interest">Interest (Payout)</option>
+                <option value="dividend">Dividend (Payout)</option>
+                <option value="other_income">Other Income</option>
               </select>
             </div>
 

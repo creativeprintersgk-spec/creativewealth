@@ -26,7 +26,7 @@ import {
 import VoucherModal from '../VoucherModal';
 
 export default function TaxLossHarvesting() {
-  const { selectedFY, customRange } = useFY();
+  const { selectedFY, customRange, selectedAccountId } = useFY();
   const { activeFamily } = useFamily();
 
   const [portfolios, setPortfolios] = useState<any[]>([]);
@@ -656,7 +656,7 @@ export default function TaxLossHarvesting() {
       {harvestVoucherLot && (
         <VoucherModal
           voucherId={undefined}
-          accountId={undefined}
+          accountId={selectedAccountId || undefined}
           onClose={() => setHarvestVoucherLot(null)}
           onSaved={() => {
             setHarvestVoucherLot(null);
