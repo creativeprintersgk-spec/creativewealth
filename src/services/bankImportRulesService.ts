@@ -783,10 +783,28 @@ export async function postBankTransactionsToAccounting(
   error?: string;
 }> {
   // STRICT duplicate avoidance: duplicates are never posted to avoid double entries in accounting
-  const toPost = transactions.filter(t => t.selected && t.targetLedgerId && !t.isDuplicate);
+  let toPost = transactions.filter(t => t.selected && t.targetLedgerId && !t.isDuplicate);
 
   if (toPost.length === 0) {
     return { success: false, postedCount: 0, createdVouchers: [], error: 'No valid transactions selected with counterpart ledgers (duplicates are strictly excluded).' };
+  }
+
+  // Authoritative pre-insert live deduplication pass against Supabase (transc1 + trans1)
+  try {
+    const dates = toPost.map(t => t.date).filter(Boolean).sort();
+    if (dates.length > 0) {
+      const minD = dates[0];
+      const maxD = dates[dates.length - 1];
+      const live = await fetchLiveTransactionsForDeduplication(bankLedgerId, acid, minD, maxD);
+      const rechecked = detectDuplicates(toPost, bankLedgerId, acid, live.trans, live.vouchers);
+      toPost = rechecked.filter(t => !t.isDuplicate);
+    }
+  } catch (dedupErr) {
+    console.warn('Pre-insert live deduplication check warning:', dedupErr);
+  }
+
+  if (toPost.length === 0) {
+    return { success: false, postedCount: 0, createdVouchers: [], error: 'All selected transactions already exist in the accounting ledger (duplicate prevention active).' };
   }
 
   // Build balanced double-entry voucher payloads

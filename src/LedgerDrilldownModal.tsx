@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { X, ExternalLink, Download, Plus, ArrowUpRight, ArrowDownLeft, Printer } from 'lucide-react';
-import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries, formatDateDDMMMYYYY } from './logic';
+import { X, ExternalLink, Download, Plus, ArrowUpRight, ArrowDownLeft, Printer, Trash2, AlertTriangle } from 'lucide-react';
+import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries, formatDateDDMMMYYYY, deleteVoucher, forceRefreshDatabase } from './logic';
 import { useFY } from './FYContext';
 
 interface LedgerDrilldownModalProps {
@@ -97,14 +97,54 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
     setLocalRange(prev => ({ ...prev, [type]: val }));
   };
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleDeleteVoucher = async (e: React.MouseEvent, voucherId: string, dateStr: string, amt: number, against: string) => {
+    e.stopPropagation();
+    if (!voucherId) return;
+    const formattedAmt = amt > 0 ? `₹${amt.toLocaleString('en-IN')}` : '';
+    const confirmMsg = `Delete voucher #${voucherId} (${dateStr} ${formattedAmt} - ${against})?\n\nThis will remove the transaction from the accounting ledger.`;
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      await deleteVoucher(voucherId);
+      setRefreshKey(k => k + 1);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('wealthcore-sync-complete'));
+      }
+    } catch (err) {
+      console.error('Failed to delete voucher:', err);
+      alert('Failed to delete voucher: ' + err);
+    }
+  };
+
   const drilldownData = useMemo(() => 
     getLedgerWithBalance(ledgerId, localRange.start, localRange.end, accountId), 
-    [ledgerId, localRange.start, localRange.end, accountId, globalRefreshTrigger]
+    [ledgerId, localRange.start, localRange.end, accountId, globalRefreshTrigger, refreshKey]
   );
 
   const isArray = Array.isArray(drilldownData);
   const transactions = isArray ? [] : drilldownData.transactions;
   const groups = getStoredGroups();
+
+  // Detect duplicate transactions on this ledger (same date, same debit/credit, same against ledger)
+  const duplicateVoucherIds = useMemo(() => {
+    const seen = new Map<string, string[]>();
+    transactions.forEach((t: any) => {
+      const amt = Number(t.debit || t.credit || 0);
+      const isDr = Number(t.debit) > 0;
+      const key = `${t.date}_${isDr ? 'DR' : 'CR'}_${amt.toFixed(2)}_${(t.againstLedger || '').trim().toLowerCase()}`;
+      const list = seen.get(key) || [];
+      list.push(String(t.voucherId));
+      seen.set(key, list);
+    });
+    const dupIds = new Set<string>();
+    seen.forEach((list) => {
+      if (list.length > 1) {
+        list.forEach(id => dupIds.add(id));
+      }
+    });
+    return dupIds;
+  }, [transactions]);
 
   const isBankLedger = useMemo(() => {
     if (!ledger) return false;
@@ -358,6 +398,7 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                   {isBankLedger && <div style={{ fontSize: '9px', fontWeight: 600, color: '#dc2626', textTransform: 'none', letterSpacing: 0 }}>(Withdrawal)</div>}
                 </th>
                 <th style={{ padding: '6px 16px', textAlign: 'right', fontSize: '10px', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase' }}>Balance</th>
+                <th className="print-hide" style={{ padding: '6px 8px', textAlign: 'center', width: '36px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -374,11 +415,12 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                    {summary.opening < 0 ? formatCurrency(summary.opening) : '0.00'}
                 </td>
                 <td style={{ padding: '6px 16px' }}></td>
+                <td className="print-hide" style={{ padding: '6px 8px' }}></td>
               </tr>
 
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={isDetailed ? 7 : 6} style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', fontSize: '12px' }}>
+                  <td colSpan={isDetailed ? 8 : 7} style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', fontSize: '12px' }}>
                     No transactions found in this period. 
                     {Math.abs(summary.opening) > 0 && (
                       <div style={{ marginTop: '8px', color: '#6b7280' }}>
@@ -390,11 +432,16 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
               ) : (
                 filteredTransactions.map((t: any, i: number) => {
                   const isImported = t.narration && (t.narration.toLowerCase().includes("mutual fund cas") || t.narration.toLowerCase().includes("contract note"));
+                  const isDup = duplicateVoucherIds.has(String(t.voucherId));
                   return (
                   <tr 
                     key={i} 
                     className="hover-row" 
-                    style={{ borderBottom: '1px solid #f9fafb', cursor: 'pointer', backgroundColor: isImported ? '#e0f2fe' : 'transparent' }}
+                    style={{ 
+                      borderBottom: '1px solid #f9fafb', 
+                      cursor: 'pointer', 
+                      backgroundColor: isDup ? '#fff1f2' : (isImported ? '#e0f2fe' : 'transparent') 
+                    }}
                     onClick={() => onVoucherClick(t.voucherId)}
                   >
                     <td style={{ padding: '5px 16px', fontSize: '12px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDateDDMMMYYYY(t.date)}</td>
@@ -410,6 +457,23 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                       }}>
                         {t.voucherType}
                       </span>
+                      {isDup && (
+                        <span 
+                          title="Potential duplicate transaction (matches another entry on same date, amount, and account)"
+                          style={{ 
+                            marginLeft: '6px',
+                            padding: '1px 5px', 
+                            borderRadius: '3px', 
+                            background: '#dc2626', 
+                            color: '#ffffff', 
+                            fontSize: '8.5px', 
+                            fontWeight: 800, 
+                            letterSpacing: '0.04em' 
+                          }}
+                        >
+                          DUPLICATE
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '5px 8px', fontSize: '12px', color: '#1f2937', fontWeight: 500 }}>{t.againstLedger}</td>
                     {isDetailed && (
@@ -426,6 +490,30 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                     <td style={{ padding: '5px 16px', fontSize: '12px', textAlign: 'right', color: '#374151', fontWeight: 600 }}>
                       {formatCurrency(t.balance)} <span style={{ fontSize: '9px', fontWeight: 500, color: '#6b7280' }}>{getDrCr(t.balance)}</span>
                     </td>
+                    <td className="print-hide" style={{ padding: '5px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <button
+                        type="button"
+                        title={isDup ? `Delete Duplicate Voucher #${t.voucherId}` : `Delete Voucher #${t.voucherId}`}
+                        onClick={(e) => handleDeleteVoucher(e, t.voucherId, formatDateDDMMMYYYY(t.date), t.debit || t.credit, t.againstLedger)}
+                        style={{
+                          background: isDup ? '#fee2e2' : 'transparent',
+                          border: isDup ? '1px solid #fecaca' : 'none',
+                          cursor: 'pointer',
+                          padding: '3px 5px',
+                          borderRadius: '4px',
+                          color: isDup ? '#dc2626' : '#94a3b8',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: isDup ? 1 : 0.45,
+                          transition: 'opacity 0.2s, background 0.2s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#dc2626'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = isDup ? '1' : '0.45'; e.currentTarget.style.color = isDup ? '#dc2626' : '#94a3b8'; }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </td>
                   </tr>
                 );
               })
@@ -437,6 +525,7 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                 <td style={{ padding: '5px 8px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#059669' }}>{formatCurrency(summary.debit)}</td>
                 <td style={{ padding: '5px 8px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#dc2626' }}>{formatCurrency(summary.credit)}</td>
                 <td></td>
+                <td className="print-hide"></td>
               </tr>
               <tr>
                 <td colSpan={isDetailed ? 4 : 3} style={{ padding: '5px 16px', fontSize: '11px', fontWeight: 700, color: '#111827', textAlign: 'right' }}>Closing Balance:</td>
@@ -449,6 +538,7 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                 <td style={{ padding: '5px 16px', textAlign: 'right', fontSize: '12px', fontWeight: 800, color: 'hsl(213, 94%, 55%)' }}>
                   {formatCurrency(summary.closing)} <span style={{ fontSize: '9px', fontWeight: 500 }}>{getDrCr(summary.closing)}</span>
                 </td>
+                <td className="print-hide"></td>
               </tr>
             </tfoot>
           </table>
