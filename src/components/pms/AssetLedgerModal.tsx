@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { X, ArrowRightLeft, ChevronDown, Calendar, Edit3, Plus } from 'lucide-react';
-import { getAssetTransactions, getStoredLedgers, getStoredGroups, formatDateDDMMMYYYY, getAssetISIN } from '../../logic';
+import { X, ArrowRightLeft, ChevronDown, Calendar, Edit3, Plus, Trash2 } from 'lucide-react';
+import { getAssetTransactions, getStoredLedgers, getStoredGroups, formatDateDDMMMYYYY, getAssetISIN, deleteVoucher } from '../../logic';
 import PMSIncomeModal from './PMSIncomeModal';
 import PMSCorporateActionModal from './PMSCorporateActionModal';
 import PMSFDInvestmentModal from './PMSFDInvestmentModal';
@@ -195,6 +195,24 @@ export default function AssetLedgerModal({
     return a.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  const handleDeleteTx = async (tx: any) => {
+    const vId = tx.voucherId || tx.acvch;
+    if (!vId) {
+      alert("This transaction does not have a linked voucher to delete.");
+      return;
+    }
+    const confirmMsg = `Are you sure you want to delete this ${tx.type || 'transaction'} on ${formatDate(tx.date)} for ₹${tx.amount ? tx.amount.toLocaleString('en-IN') : '0'}?\n\nThis will remove the voucher from PMS and immediately recalculate the Balance Sheet and Bank Account.`;
+    if (window.confirm(confirmMsg)) {
+      try {
+        await deleteVoucher(vId);
+        setSelectedTxId(null);
+        triggerGlobalRefresh();
+      } catch (err: any) {
+        alert(`Failed to delete transaction: ${err?.message || 'Unknown error'}`);
+      }
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -312,6 +330,30 @@ export default function AssetLedgerModal({
             <Edit3 size={14} /> Edit / View
           </button>
 
+          <button 
+            onClick={() => {
+              if (selectedTxId) {
+                const tx = transactions.find(t => t.id === Number(selectedTxId));
+                if (tx) handleDeleteTx(tx);
+              } else {
+                alert("Please select a transaction row below to delete.");
+              }
+            }} 
+            style={{ 
+              border: 'none', 
+              background: 'transparent', 
+              cursor: selectedTxId ? 'pointer' : 'default', 
+              color: selectedTxId ? '#dc2626' : '#cbd5e1', 
+              fontWeight: 700, 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '4px' 
+            }}
+            title={selectedTxId ? "Delete selected transaction" : "Select a transaction to delete"}
+          >
+            <Trash2 size={14} /> Delete
+          </button>
+
           <div style={{ position: 'relative' }}>
             <button onClick={() => setIsOtherTxnOpen(!isOtherTxnOpen)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#475569', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
               Other Transactions <ChevronDown size={14} />
@@ -384,11 +426,12 @@ export default function AssetLedgerModal({
                 {[
                   { label: "Type", width: '12%', align: 'left' },
                   { label: "Date", width: '12%', align: 'left' },
-                  { label: "Quantity", width: '15%', align: 'right' },
-                  { label: "Price", width: '15%', align: 'right' },
-                  { label: "Brkg / Charges (Rs.)", width: '14%', align: 'right' },
-                  { label: "Amount", width: '16%', align: 'right' },
-                  { label: isSpecialEntry ? "Balance (₹)" : "Bal. Quant", width: '16%', align: 'right' }
+                  { label: "Quantity", width: '14%', align: 'right' },
+                  { label: "Price", width: '14%', align: 'right' },
+                  { label: "Brkg / Charges (Rs.)", width: '13%', align: 'right' },
+                  { label: "Amount", width: '15%', align: 'right' },
+                  { label: isSpecialEntry ? "Balance (₹)" : "Bal. Quant", width: '14%', align: 'right' },
+                  { label: "Action", width: '6%', align: 'center' }
                 ].map((col) => (
                   <th
                     key={col.label}
@@ -415,17 +458,18 @@ export default function AssetLedgerModal({
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontWeight: 600 }}>
                 <td style={{ padding: '12px 16px', width: '12%', color: '#0284c7' }}>Opening Bal.</td>
                 <td style={{ padding: '12px 16px', width: '12%' }}></td>
-                <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{fmtQty(openingQty)}</td>
-                <td style={{ padding: '12px 16px', width: '15%' }}></td>
+                <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right' }}>{fmtQty(openingQty)}</td>
                 <td style={{ padding: '12px 16px', width: '14%' }}></td>
-                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right' }}>{openingCost > 0 ? `${fmtAmt(openingCost)}` : ''}</td>
-                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800 }}>{openingQty > 0 ? fmtQty(openingQty) : (openingCost > 0 ? fmtAmt(openingCost) : '')}</td>
+                <td style={{ padding: '12px 16px', width: '13%' }}></td>
+                <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{openingCost > 0 ? `${fmtAmt(openingCost)}` : ''}</td>
+                <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', fontWeight: 800 }}>{openingQty > 0 ? fmtQty(openingQty) : (openingCost > 0 ? fmtAmt(openingCost) : '')}</td>
+                <td style={{ padding: '12px 16px', width: '6%' }}></td>
               </tr>
 
               {/* 2. Transaction Rows */}
               {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                  <td colSpan={8} style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
                     No transactions found within this period.
                   </td>
                 </tr>
@@ -484,18 +528,43 @@ export default function AssetLedgerModal({
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px', width: '12%', fontWeight: 600, color: '#0f172a' }}>{formatDate(tx.date)}</td>
-                      <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right', fontWeight: 600 }}>{fmtQty(tx.quantity)}</td>
-                      <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{tx.price > 0 ? `${tx.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : ''}</td>
-                      <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', color: '#475569', fontWeight: 600 }}>
+                      <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', fontWeight: 600 }}>{fmtQty(tx.quantity)}</td>
+                      <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right' }}>{tx.price > 0 ? `${tx.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : ''}</td>
+                      <td style={{ padding: '12px 16px', width: '13%', textAlign: 'right', color: '#475569', fontWeight: 600 }}>
                         {((Number(tx.brokerage) || 0) + (Number(tx.charges) || 0)) > 0
                           ? fmtAmt((Number(tx.brokerage) || 0) + (Number(tx.charges) || 0))
                           : ''}
                       </td>
-                      <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 600, color: isCorporate ? '#6b7280' : isBuy ? '#166534' : '#dc2626' }}>
+                      <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right', fontWeight: 600, color: isCorporate ? '#6b7280' : isBuy ? '#166534' : '#dc2626' }}>
                         {tx.amount > 0 ? `${fmtAmt(tx.amount)}` : (isCorporate ? <span style={{color:'#94a3b8',fontSize:'11px'}}>Cost basis transfer</span> : '')}
                       </td>
-                      <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800, background: '#f8fafc' }}>
+                      <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', fontWeight: 800, background: '#f8fafc' }}>
                         {tx.balanceQty > 0 ? fmtQty(tx.balanceQty) : (tx.balanceCost !== undefined ? fmtAmt(tx.balanceCost) : '')}
+                      </td>
+                      <td style={{ padding: '8px 12px', width: '6%', textAlign: 'center' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTx(tx);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'background-color 0.15s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                          title="Delete this transaction"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -506,11 +575,12 @@ export default function AssetLedgerModal({
               <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', fontWeight: 700 }}>
                 <td style={{ padding: '12px 16px', width: '12%', color: '#059669' }}>Closing Bal.</td>
                 <td style={{ padding: '12px 16px', width: '12%' }}></td>
-                <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{fmtQty(closingQty)}</td>
-                <td style={{ padding: '12px 16px', width: '15%' }}></td>
+                <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right' }}>{fmtQty(closingQty)}</td>
                 <td style={{ padding: '12px 16px', width: '14%' }}></td>
-                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right' }}>{closingCost > 0 ? `${fmtAmt(closingCost)}` : ''}</td>
-                <td style={{ padding: '12px 16px', width: '16%', textAlign: 'right', fontWeight: 800 }}>{closingQty > 0 ? fmtQty(closingQty) : (closingCost > 0 ? fmtAmt(closingCost) : '')}</td>
+                <td style={{ padding: '12px 16px', width: '13%' }}></td>
+                <td style={{ padding: '12px 16px', width: '15%', textAlign: 'right' }}>{closingCost > 0 ? `${fmtAmt(closingCost)}` : ''}</td>
+                <td style={{ padding: '12px 16px', width: '14%', textAlign: 'right', fontWeight: 800 }}>{closingQty > 0 ? fmtQty(closingQty) : (closingCost > 0 ? fmtAmt(closingCost) : '')}</td>
+                <td style={{ padding: '12px 16px', width: '6%' }}></td>
               </tr>
             </tbody>
           </table>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Save, ShieldCheck, Plus, Calendar, DollarSign, Building, TrendingUp, Clock, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { X, Save, ShieldCheck, Plus, Calendar, DollarSign, Building, TrendingUp, Clock, ArrowRight, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
 import {
   getStoredPortfolios,
   getStoredLedgers,
@@ -7,6 +7,9 @@ import {
   getStoredAccounts,
   getAccountForPortfolio,
   createVoucher,
+  updateVoucher,
+  deleteVoucher,
+  getVoucherById,
   ensureLedgerExists,
   updateAssetPrice,
   state
@@ -66,6 +69,11 @@ export default function PMSULIPModal({
   const [mode, setMode] = useState<'new_policy' | 'renewal'>(
     assetId && Number(assetId) > 0 ? 'renewal' : initialMode
   );
+
+  const originalVoucher = useMemo(() => {
+    if (!voucherId) return null;
+    return getVoucherById(voucherId);
+  }, [voucherId]);
 
   const { activeFamily } = useFamily();
   const allAccounts = getStoredAccounts();
@@ -203,10 +211,88 @@ export default function PMSULIPModal({
     }
   }, [mode, activeExistingStats, updatedFundValue]);
 
+  // Hydrate fields when editing an existing voucher
+  useEffect(() => {
+    if (!originalVoucher) return;
+    const debitLine = originalVoucher.lines?.find((l: any) => Number(l.debit) > 0);
+    const creditLine = originalVoucher.lines?.find((l: any) => Number(l.credit) > 0);
+
+    if (creditLine?.ledgerId) {
+      setPaymentLedgerId(creditLine.ledgerId);
+    }
+    if (originalVoucher.date) {
+      setPaymentDate(originalVoucher.date);
+      setRenewalDate(originalVoucher.date);
+    }
+    if (originalVoucher.portfolioId) {
+      setSelectedPortfolioId(String(originalVoucher.portfolioId));
+    }
+
+    const isInitial = Boolean(
+      initialMode === 'new_policy' ||
+      originalVoucher.narration?.toLowerCase().includes('initial') ||
+      debitLine?.quantity === 1
+    );
+
+    if (isInitial) {
+      setMode('new_policy');
+      if (debitLine?.debit) {
+        setPremiumAmount(debitLine.debit);
+      }
+      const amid = debitLine?.amid || Number(debitLine?.ledgerId);
+      const policyLedger: any = ledgers.find((l: any) => String(l.id) === String(debitLine?.ledgerId));
+      if (policyLedger) {
+        if (policyLedger.addinfo) {
+          try {
+            const meta = typeof policyLedger.addinfo === 'string' ? JSON.parse(policyLedger.addinfo) : policyLedger.addinfo;
+            if (meta.policyNumber) setPolicyNumber(meta.policyNumber);
+            if (meta.insurer) setInsurer(meta.insurer);
+            if (meta.ppt) setPpt(meta.ppt);
+            if (meta.pt) setPt(meta.pt);
+            if (meta.startDate) setStartDate(meta.startDate);
+            if (meta.endOfPaymentDate) setEndOfPaymentDate(meta.endOfPaymentDate);
+            if (meta.endOfPolicyTerm) setEndOfPolicyTerm(meta.endOfPolicyTerm);
+          } catch {}
+        }
+        if (!planTitle && policyLedger.name) {
+          const match = policyLedger.name.match(/—\s*(.*?)\s*\(Pol/);
+          if (match) setPlanTitle(match[1]);
+          else setPlanTitle(policyLedger.name);
+        }
+      }
+      const currentPrice = amid ? (state.priceMap?.[amid]?.curr || debitLine?.debit) : debitLine?.debit;
+      if (currentPrice) setCurrentValue(currentPrice);
+    } else {
+      setMode('renewal');
+      if (debitLine?.ledgerId) {
+        setSelectedPolicyLedgerId(String(debitLine.ledgerId));
+      }
+      if (debitLine?.debit) {
+        setRenewalAmount(debitLine.debit);
+      }
+    }
+  }, [originalVoucher, ledgers, initialMode]);
+
   const effectiveInsurer = insurer === 'Other Insurer' ? (customInsurer || 'Insurance Co') : insurer;
   const computedPolicyName = planTitle.trim()
     ? `${effectiveInsurer} — ${planTitle.trim()} (Pol #${policyNumber.trim()})`
     : `${effectiveInsurer} ULIP (Pol #${policyNumber.trim()})`;
+
+  const handleDelete = async () => {
+    if (!voucherId) return;
+    const confirmMsg = `Are you sure you want to delete this ULIP transaction?\n\nThis will remove the voucher from PMS and immediately recalculate the Balance Sheet and Bank Account.`;
+    if (window.confirm(confirmMsg)) {
+      setIsSaving(true);
+      try {
+        await deleteVoucher(voucherId);
+        onSaved();
+        onClose();
+      } catch (err: any) {
+        setErrorMsg(err?.message || 'Failed to delete transaction.');
+        setIsSaving(false);
+      }
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,7 +386,11 @@ export default function PMSULIPModal({
           lines
         };
 
-        await createVoucher(voucherData);
+        if (voucherId && originalVoucher) {
+          await updateVoucher({ ...originalVoucher, ...voucherData });
+        } else {
+          await createVoucher(voucherData);
+        }
 
         // 3. Set Current Valuation / Fund Value
         const latestVal = Number(currentValue) > 0 ? Number(currentValue) : prem;
@@ -354,7 +444,11 @@ export default function PMSULIPModal({
           lines
         };
 
-        await createVoucher(voucherData);
+        if (voucherId && originalVoucher) {
+          await updateVoucher({ ...originalVoucher, ...voucherData });
+        } else {
+          await createVoucher(voucherData);
+        }
 
         // 2. Update Current Valuation / Fund Value if provided
         if (updatedFundValue && Number(updatedFundValue) > 0) {
@@ -418,8 +512,16 @@ export default function PMSULIPModal({
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                 Unit Linked Insurance Plan (ULIP)
               </div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                {mode === 'new_policy' ? 'Add ULIP Policy & Terms' : 'Add ULIP Renewal Premium'}
+              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {voucherId 
+                  ? (mode === 'new_policy' ? 'Edit ULIP Policy & Terms' : 'Edit ULIP Renewal Premium')
+                  : (mode === 'new_policy' ? 'Add ULIP Policy & Terms' : 'Add ULIP Renewal Premium')
+                }
+                {voucherId && (
+                  <span style={{ fontSize: '10.5px', background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '4px', border: '1px solid #fde047', fontWeight: 700 }}>
+                    VOUCHER #{String(voucherId).replace(/^(c_|t_|v_)/, '')}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -831,44 +933,77 @@ export default function PMSULIPModal({
           )}
 
           {/* Footer Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '14px', borderTop: '1px solid #e2e8f0' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '9px 18px',
-                borderRadius: '8px',
-                border: '1px solid #cbd5e1',
-                background: '#fff',
-                color: '#475569',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '9px 22px',
-                borderRadius: '8px',
-                border: 'none',
-                background: '#7c3aed',
-                color: '#fff',
-                fontSize: '13px',
-                fontWeight: 700,
-                cursor: isSaving ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.3)'
-              }}
-            >
-              <Save size={16} />
-              {isSaving ? 'Posting to Ledger...' : (mode === 'new_policy' ? 'Save Policy & Post Voucher' : 'Post Renewal & Update Valuation')}
-            </button>
+          <div style={{ display: 'flex', justifyContent: voucherId ? 'space-between' : 'flex-end', alignItems: 'center', gap: '12px', paddingTop: '14px', borderTop: '1px solid #e2e8f0' }}>
+            {voucherId && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isSaving}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #fca5a5',
+                  background: '#fef2f2',
+                  color: '#dc2626',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.15s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fef2f2'}
+              >
+                <Trash2 size={15} />
+                Delete Entry
+              </button>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#fff',
+                  color: '#475569',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 22px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#7c3aed',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.3)'
+                }}
+              >
+                <Save size={16} />
+                {isSaving
+                  ? 'Saving...'
+                  : voucherId
+                  ? 'Update ULIP Transaction'
+                  : (mode === 'new_policy' ? 'Save Policy & Post Voucher' : 'Post Renewal & Update Valuation')}
+              </button>
+            </div>
           </div>
         </form>
       </div>
