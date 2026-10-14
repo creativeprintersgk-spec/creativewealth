@@ -37,8 +37,8 @@ body {
   min-width: 224px;
   max-width: 224px;
   background: 
-    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%),
-    linear-gradient(180deg, #7491b0 0%, #5c7b9e 48%, #48678c 100%);
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #68839e 0%, #536f8e 48%, #415d7e 100%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -92,8 +92,8 @@ body {
   padding: 5px 12px;
   border-radius: 8px;
   background: 
-    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 60%),
-    linear-gradient(180deg, #7491b0 0%, #5c7b9e 48%, #48678c 100%);
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #68839e 0%, #536f8e 48%, #415d7e 100%);
   border: 1px solid rgba(255, 255, 255, 0.45);
   color: #ffffff;
   font-size: 11.5px;
@@ -109,8 +109,8 @@ body {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(40, 65, 95, 0.25);
   background: 
-    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 60%),
-    linear-gradient(180deg, #819ec0 0%, #688cb3 48%, #52759c 100%);
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #748ead 0%, #5e7ea1 48%, #4a698c 100%);
 }
 
 /* Logo row */

@@ -823,24 +823,24 @@ export default function SimulatorDashboard() {
     const isJewelleryOrMetalStock = (assetType === 50 || assetType === 51) && !nameLower.includes('etf') && !nameLower.includes('bees') && !nameLower.includes('fund') && !nameLower.includes('sgb') && !nameLower.includes('sovereign');
 
     if (nameLower.includes('sgb') || nameLower.includes('sovereign gold')) {
-      return { bg: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', label: 'SGB', color: '#fff' };
+      return { bg: 'linear-gradient(135deg, #dd8e0a 0%, #c36b05 100%)', label: 'SGB', color: '#fff' };
     }
     if (!isJewelleryOrMetalStock && (nameLower.includes('gold') || nameLower.includes('silver') || [150, 151, 77].includes(assetType))) {
-      return { bg: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', label: 'AU', color: '#fff' };
+      return { bg: 'linear-gradient(135deg, #dd8e0a 0%, #c36b05 100%)', label: 'AU', color: '#fff' };
     }
     if (nameLower.includes('liquid') || (nameLower.includes('etf') && !nameLower.includes('gold') && !nameLower.includes('silver'))) {
-      return { bg: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', label: 'ETF', color: '#fff' };
+      return { bg: 'linear-gradient(135deg, #0277b3 0%, #035f91 100%)', label: 'ETF', color: '#fff' };
     }
     if (nameLower.includes('g-sec') || nameLower.includes('gs ') || [100, 40, 110, 115].includes(assetType)) {
-      return { bg: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', label: 'GS', color: '#fff' };
+      return { bg: 'linear-gradient(135deg, #2159d4 0%, #1a46c2 100%)', label: 'GS', color: '#fff' };
     }
     if (nameLower.includes('ppf') || [130, 90, 120].includes(assetType)) {
-      return { bg: 'linear-gradient(135deg, #059669 0%, #047857 100%)', label: 'PPF', color: '#fff' };
+      return { bg: 'linear-gradient(135deg, #05875f 0%, #046c4e 100%)', label: 'PPF', color: '#fff' };
     }
     if (nameLower.includes('fund') || [60, 62, 66].includes(assetType)) {
-      return { bg: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', label: 'MF', color: '#fff' };
+      return { bg: 'linear-gradient(135deg, #7d53dd 0%, #7034d5 100%)', label: 'MF', color: '#fff' };
     }
-    return { bg: 'linear-gradient(135deg, #64748b 0%, #475569 100%)', label: 'EQ', color: '#fff' };
+    return { bg: 'linear-gradient(135deg, #5a687d 0%, #404d5f 100%)', label: 'EQ', color: '#fff' };
   };
 
   // ── Standalone Mode for /dashboard ──

@@ -285,7 +285,7 @@ export default function ReportsModal({ isOpen, onClose, onGenerateReport }: Repo
             <button onClick={handleGenerate}
               style={{
                 width: '100%', padding: '13px', fontSize: '14px', fontWeight: 700,
-                background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+                background: 'linear-gradient(135deg, #1a46c2 0%, #2159d4 100%)',
                 color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer',
                 letterSpacing: '0.02em'
               }}>

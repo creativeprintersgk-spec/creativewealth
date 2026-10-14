@@ -254,13 +254,13 @@ export default function BackupRestorePage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)', padding: '2rem' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0e0e17 0%, #171729 50%, #141e38 100%)', padding: '2rem' }}>
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
         {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #595cd9, #7d53dd)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Database size={20} color="#fff" />
             </div>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: 0 }}>Backup & Restore</h1>
@@ -303,7 +303,7 @@ export default function BackupRestorePage() {
               disabled={backupStatus === 'running' || restoreStatus === 'running'}
               style={{
                 padding: '10px 16px', borderRadius: 9, border: 'none', cursor: backupStatus === 'running' ? 'not-allowed' : 'pointer',
-                background: backupStatus === 'running' ? 'rgba(99,102,241,0.3)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: backupStatus === 'running' ? 'rgba(99,102,241,0.3)' : 'linear-gradient(135deg, #595cd9, #7d53dd)',
                 color: '#fff', fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 transition: 'all 0.2s', opacity: restoreStatus === 'running' ? 0.5 : 1
               }}
@@ -318,7 +318,7 @@ export default function BackupRestorePage() {
             {backupStatus === 'running' && (
               <div>
                 <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${backupProgress}%`, background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', transition: 'width 0.3s', borderRadius: 4 }} />
+                  <div style={{ height: '100%', width: `${backupProgress}%`, background: 'linear-gradient(90deg, #595cd9, #7d53dd)', transition: 'width 0.3s', borderRadius: 4 }} />
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.7rem', marginTop: 4 }}>{backupProgress}% complete</div>
               </div>
@@ -374,7 +374,7 @@ export default function BackupRestorePage() {
               disabled={restoreStatus === 'running' || backupStatus === 'running'}
               style={{
                 padding: '10px 16px', borderRadius: 9, border: 'none', cursor: restoreStatus === 'running' ? 'not-allowed' : 'pointer',
-                background: restoreStatus === 'running' ? 'rgba(245,158,11,0.3)' : 'linear-gradient(135deg, #d97706, #f59e0b)',
+                background: restoreStatus === 'running' ? 'rgba(245,158,11,0.3)' : 'linear-gradient(135deg, #c36b05, #dd8e0a)',
                 color: '#fff', fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 transition: 'all 0.2s', opacity: backupStatus === 'running' ? 0.5 : 1
               }}
@@ -389,7 +389,7 @@ export default function BackupRestorePage() {
             {restoreStatus === 'running' && (
               <div>
                 <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${restoreProgress}%`, background: 'linear-gradient(90deg, #d97706, #f59e0b)', transition: 'width 0.3s', borderRadius: 4 }} />
+                  <div style={{ height: '100%', width: `${restoreProgress}%`, background: 'linear-gradient(90deg, #c36b05, #dd8e0a)', transition: 'width 0.3s', borderRadius: 4 }} />
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.7rem', marginTop: 4 }}>{restoreProgress}% complete</div>
               </div>

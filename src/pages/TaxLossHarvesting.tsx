@@ -229,7 +229,7 @@ export default function TaxLossHarvesting() {
           </div>
 
           {/* Card 3: Estimated Tax Savings */}
-          <div style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', borderRadius: 10, padding: 18, border: '1px solid #bbf7d0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div style={{ background: 'linear-gradient(135deg, #d8e4dc 0%, #c6e3d0 100%)', borderRadius: 10, padding: 18, border: '1px solid #bbf7d0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#166534', letterSpacing: '0.05em' }}>
                 Potential Tax Savings

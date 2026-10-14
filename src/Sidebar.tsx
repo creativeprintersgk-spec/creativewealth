@@ -364,7 +364,7 @@ export default function Sidebar() {
               }}
             >
               {families.map(f => (
-                <option key={f.id} value={f.id} style={{ background: '#3b5a7a', color: '#fff' }}>
+                <option key={f.id} value={f.id} style={{ background: '#35516e', color: '#fff' }}>
                   {f.familyName || f.name}
                 </option>
               ))}

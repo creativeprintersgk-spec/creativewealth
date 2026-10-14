@@ -74,7 +74,7 @@ export default function CorporateActionNotificationBanner({ portfolioIds, onActi
     <>
       {/* ── Banner ── */}
       <div style={{
-        background: 'linear-gradient(90deg, #1e1b4b 0%, #312e81 100%)',
+        background: 'linear-gradient(90deg, #1b1844 0%, #2c2974 100%)',
         color: '#fff',
         borderRadius: '12px',
         padding: '12px 18px',

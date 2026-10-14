@@ -76,8 +76,9 @@
 }
 
 /* ─── BALANCE SHEET STYLES ─── */
+.terminal-theme div[style*="linear-gradient(135deg, #1b1844 0%, #2c2974 60%, #1b3a9e 100%)"],
 .terminal-theme div[style*="linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #1e40af 100%)"] {
-  background: linear-gradient(135deg, #091326 0%, #0f1f3d 60%, #162c56 100%) !important;
+  background: linear-gradient(135deg, #081122 0%, #0e1c37 60%, #14284d 100%) !important;
   border: 1px solid rgba(56, 189, 248, 0.25) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 15px rgba(56, 189, 248, 0.08) !important;
 }

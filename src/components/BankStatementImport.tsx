@@ -587,7 +587,7 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
       
       {/* ── HEADER BANNER ──────────────────────────────────────────────────── */}
       <div style={{
-        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+        background: 'linear-gradient(135deg, #1b2535 0%, #0e1526 100%)',
         borderRadius: '16px',
         padding: '28px 32px',
         color: '#fff',

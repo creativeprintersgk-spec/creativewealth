@@ -183,7 +183,7 @@ export default function PriceAuditModal({ onClose, onRefresh }: Props) {
                     <button 
                       onClick={handleAutoResolveAll}
                       disabled={resolving}
-                      style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: resolving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)' }}
+                      style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #2159d4, #1a46c2)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: resolving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)' }}
                     >
                       <Zap size={14} /> {resolving ? 'Auto-Resolving...' : '⚡ Auto-Resolve All Missing Rates'}
                     </button>

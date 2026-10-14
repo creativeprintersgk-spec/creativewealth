@@ -844,7 +844,7 @@ export function MfCasTab({
         </div>
 
         {casImportDone && (
-          <div style={{ background: 'linear-gradient(135deg, #fff7ed, #ffedd5)', border: '1px solid #ea580c', borderRadius: '12px', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ background: 'linear-gradient(135deg, #e6ded5, #e6d5c0)', border: '1px solid #ea580c', borderRadius: '12px', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <CheckCircle size={18} color="#ea580c" />
             <span style={{ fontWeight: 700, color: '#ea580c', fontSize: '14px' }}>Import complete — orange rows in ledger</span>
           </div>
@@ -924,7 +924,7 @@ export function MfCasTab({
         borderRadius: '16px',
         padding: '40px',
         textAlign: 'center',
-        background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+        background: 'linear-gradient(135deg, #e6ded5 0%, #e6d5c0 100%)',
         marginBottom: '28px',
         cursor: 'pointer',
         transition: 'all 0.2s ease',
@@ -1033,8 +1033,8 @@ export function MfCasTab({
             {/* PAN Header */}
             <div style={{
               background: isUnmapped
-                ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
-                : 'linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)',
+                ? 'linear-gradient(135deg, #e6e2d4 0%, #e5dbb3 100%)'
+                : 'linear-gradient(135deg, #e6ded5 0%, #e5c299 100%)',
               padding: '14px 20px',
               display: 'flex',
               alignItems: 'center',
@@ -1216,7 +1216,7 @@ export function MfCasTab({
             disabled={casImporting || selectedCount === 0}
             style={{
               padding: '14px 36px',
-              background: casImporting || selectedCount === 0 ? '#94a3b8' : 'linear-gradient(135deg, #ea580c, #f97316)',
+              background: casImporting || selectedCount === 0 ? '#94a3b8' : 'linear-gradient(135deg, #d34f0b, #e06814)',
               border: 'none',
               borderRadius: '10px',
               fontSize: '15px',

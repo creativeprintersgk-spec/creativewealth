@@ -326,7 +326,7 @@ export default function BalanceSheet() {
     // Visual depth cues
     const isRoot = level === 0
     const folderColor = isRoot ? '#6366f1' : level === 1 ? '#3b82f6' : '#64748b'
-    const rowBg = isRoot ? 'linear-gradient(90deg, #f8faff 0%, #ffffff 100%)' : 'transparent'
+    const rowBg = isRoot ? 'linear-gradient(90deg, #dfe1e6 0%, #e6e6e6 100%)' : 'transparent'
     const rowBorder = isRoot ? '1px solid #e8eaf6' : 'none'
 
     return (
@@ -657,7 +657,7 @@ export default function BalanceSheet() {
 
         {/* ─── Single Compact Header Bar (replaces banner + stat cards + separate toolbar) ─── */}
         <div style={{
-          background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #1e40af 100%)',
+          background: 'linear-gradient(135deg, #1b1844 0%, #2c2974 60%, #1b3a9e 100%)',
           borderRadius: 10,
           padding: '10px 16px',
           marginBottom: 0,
@@ -905,7 +905,7 @@ export default function BalanceSheet() {
           </div>
 
           {/* Vertical divider */}
-          <div style={{ background: 'linear-gradient(180deg, #e2e8f0 0%, #f1f5f9 50%, #e2e8f0 100%)' }} />
+          <div style={{ background: 'linear-gradient(180deg, #cbd1d8 0%, #d9dde0 50%, #cbd1d8 100%)' }} />
 
           {/* ASSETS */}
           <div style={{ padding: '12px 20px 16px 20px' }}>

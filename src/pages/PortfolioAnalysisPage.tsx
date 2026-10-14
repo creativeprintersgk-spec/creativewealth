@@ -824,7 +824,7 @@ export default function PortfolioAnalysisPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Family summary header */}
             {viewMode === 'family' && (
-              <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)', borderRadius: '12px', padding: '20px 28px', color: '#fff' }}>
+              <div style={{ background: 'linear-gradient(135deg, #1b3456 0%, #1b3a9e 100%)', borderRadius: '12px', padding: '20px 28px', color: '#fff' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, opacity: 0.7, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Family: {activeFamily?.familyName || 'All'}
                 </div>
@@ -951,7 +951,7 @@ export default function PortfolioAnalysisPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {/* Header Banner: Return Potential */}
             <div style={{
-              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e3a5f 100%)',
+              background: 'linear-gradient(135deg, #0e1526 0%, #1b2535 50%, #1b3456 100%)',
               borderRadius: '14px', padding: '24px 30px', color: '#fff',
               boxShadow: '0 4px 20px rgba(15, 23, 42, 0.15)',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px'

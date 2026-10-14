@@ -158,7 +158,7 @@
   justify-content: center;
   align-items: flex-start;
   padding: 24px 20px 48px 20px;
-  background: radial-gradient(circle at 50% 20%, #1e293b 0%, #0f172a 60%, #090d16 100%);
+  background: radial-gradient(circle at 50% 20%, #1b2535 0%, #0e1526 60%, #080c14 100%);
   min-height: calc(100vh - 48px);
   overflow-y: auto;
   perspective: 1800px;
@@ -241,7 +241,7 @@
 .sim-stand-neck {
   width: 100px;
   height: 60px;
-  background: linear-gradient(180deg, #181d26 0%, #0d1016 100%);
+  background: linear-gradient(180deg, #161a22 0%, #0c0e14 100%);
   border-left: 1px solid rgba(255, 255, 255, 0.05);
   border-right: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -249,7 +249,7 @@
 .sim-stand-base {
   width: 260px;
   height: 12px;
-  background: linear-gradient(180deg, #252c38 0%, #151a22 100%);
+  background: linear-gradient(180deg, #212832 0%, #13171f 100%);
   border-radius: 8px 8px 3px 3px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
@@ -267,9 +267,9 @@
   width: 100%;
   min-height: calc(100vh - 48px);
   background: 
-    radial-gradient(circle at 12% 15%, rgba(214, 231, 253, 0.7) 0%, transparent 55%),
-    radial-gradient(circle at 88% 25%, rgba(200, 223, 251, 0.55) 0%, transparent 50%),
-    linear-gradient(140deg, #e1ebf6 0%, #edf3fb 50%, #e0e9f5 100%);
+    radial-gradient(circle at 12% 15%, rgba(193, 208, 228, 0.7) 0%, transparent 55%),
+    radial-gradient(circle at 88% 25%, rgba(180, 201, 226, 0.55) 0%, transparent 50%),
+    linear-gradient(140deg, #cbd4dd 0%, #d5dbe2 50%, #cad2dd 100%);
   color: #1a2233;
   padding: 18px 28px 28px 28px;
   display: flex;
@@ -323,7 +323,7 @@
 .wirely-logo-icon {
   width: 22px;
   height: 22px;
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #3575dd 0%, #1a46c2 100%);
   border-radius: 5px;
   display: flex;
   align-items: center;
@@ -379,7 +379,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  background: linear-gradient(135deg, #dd8e0a 0%, #d73d3d 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -752,8 +752,8 @@
 
 .wirely-op-pill-dark {
   background: 
-    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%),
-    linear-gradient(135deg, #7491b0 0%, #5c7b9e 48%, #48678c 100%);
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, #68839e 0%, #536f8e 48%, #415d7e 100%);
   border: 1px solid rgba(255, 255, 255, 0.38);
   border-radius: 14px;
   padding: 10px 14px;
@@ -875,7 +875,7 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+  background: linear-gradient(135deg, #b7c0cb 0%, #8593a6 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -935,8 +935,8 @@
    ══════════════════════════════════════════════════════════════════════════ */
 .wirely-dark-ops-card {
   background: 
-    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%),
-    linear-gradient(135deg, #7491b0 0%, #5c7b9e 48%, #48678c 100%);
+    radial-gradient(120% 120% at 15% 15%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, #68839e 0%, #536f8e 48%, #415d7e 100%);
   border: 1px solid rgba(255, 255, 255, 0.38);
   border-radius: 20px;
   padding: 18px 20px;
@@ -1688,7 +1688,7 @@
 }
 
 .wirely-cg-dark-kpi-card {
-  background: linear-gradient(135deg, #0f172a 0%, #162032 50%, #1e293b 100%);
+  background: linear-gradient(135deg, #0e1526 0%, #141d2d 50%, #1b2535 100%);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 18px;
   padding: 16px 18px;
@@ -1708,7 +1708,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #d97706, #f59e0b, #38bdf8);
+  background: linear-gradient(90deg, #c36b05, #dd8e0a, #32aadf);
 }
 .wirely-cg-dark-kpi-card:hover {
   transform: translateY(-2px);
