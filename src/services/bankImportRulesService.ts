@@ -11,6 +11,7 @@
  */
 
 import { state, createVouchersBulk, persistStateToIDB } from '../logic';
+import { supabase } from '../supabase';
 import type { ParsedBankTransaction } from './bankStatementParser';
 
 export interface BankNarrationRule {
@@ -37,6 +38,10 @@ export interface BankAccountMapping {
 
 const RULES_STORAGE_KEY = 'wealthcore_bank_narration_rules';
 const MAPPINGS_STORAGE_KEY = 'wealthcore_bank_account_mappings';
+
+// Persistent Supabase options_table IDs to store rules and mappings forever
+export const OPTION_ID_BANK_RULES = 990001;
+export const OPTION_ID_BANK_MAPPINGS = 990002;
 
 // ── Default Seed Rules ──────────────────────────────────────────────────────
 
@@ -97,6 +102,45 @@ export const DEFAULT_SEED_RULES: BankNarrationRule[] = [
   }
 ];
 
+// ── Database Sync for Rules (Remembered Forever in Supabase) ───────────────
+
+export async function fetchRulesFromDatabase(): Promise<BankNarrationRule[]> {
+  try {
+    const { data, error } = await supabase
+      .from('options_table')
+      .select('accinfo')
+      .eq('id', OPTION_ID_BANK_RULES)
+      .maybeSingle();
+
+    if (!error && data?.accinfo) {
+      const parsed = JSON.parse(data.accinfo);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(parsed));
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch rules from Supabase, fallback to localStorage:', err);
+  }
+  return getStoredRules();
+}
+
+export async function syncRulesToDatabase(rules: BankNarrationRule[]): Promise<void> {
+  try {
+    const { error } = await supabase.from('options_table').upsert({
+      id: OPTION_ID_BANK_RULES,
+      accinfo: JSON.stringify(rules)
+    });
+    if (error) {
+      console.warn('Failed to sync bank rules to Supabase options_table:', error.message);
+    } else {
+      console.log(`✅ Synced ${rules.length} bank narration rules to Supabase database forever`);
+    }
+  } catch (err) {
+    console.warn('Error syncing bank rules to Supabase:', err);
+  }
+}
+
 // ── Rules Storage & Retrieval ───────────────────────────────────────────────
 
 export function getStoredRules(): BankNarrationRule[] {
@@ -105,6 +149,8 @@ export function getStoredRules(): BankNarrationRule[] {
     if (!raw) {
       // Initialize with seed rules
       localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(DEFAULT_SEED_RULES));
+      // Background sync default seed rules to Supabase
+      syncRulesToDatabase(DEFAULT_SEED_RULES).catch(() => {});
       return [...DEFAULT_SEED_RULES];
     }
     const parsed = JSON.parse(raw);
@@ -125,6 +171,8 @@ export function saveRule(rule: BankNarrationRule): void {
       rules.unshift(rule);
     }
     localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(rules));
+    // Persist forever in Supabase PostgreSQL
+    syncRulesToDatabase(rules).catch(() => {});
   } catch (err) {
     console.error('Failed to save bank rule:', err);
   }
@@ -134,8 +182,49 @@ export function deleteRule(id: string): void {
   try {
     const rules = getStoredRules().filter(r => r.id !== id);
     localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(rules));
+    // Persist forever in Supabase PostgreSQL
+    syncRulesToDatabase(rules).catch(() => {});
   } catch (err) {
     console.error('Failed to delete bank rule:', err);
+  }
+}
+
+// ── Database Sync for Bank Account Mappings (Remembered Forever) ────────────
+
+export async function fetchAccountMappingsFromDatabase(): Promise<Record<string, BankAccountMapping>> {
+  try {
+    const { data, error } = await supabase
+      .from('options_table')
+      .select('accinfo')
+      .eq('id', OPTION_ID_BANK_MAPPINGS)
+      .maybeSingle();
+
+    if (!error && data?.accinfo) {
+      const parsed = JSON.parse(data.accinfo);
+      if (typeof parsed === 'object' && parsed !== null) {
+        localStorage.setItem(MAPPINGS_STORAGE_KEY, JSON.stringify(parsed));
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch account mappings from Supabase, fallback to localStorage:', err);
+  }
+  return getStoredAccountMappings();
+}
+
+export async function syncAccountMappingsToDatabase(mappings: Record<string, BankAccountMapping>): Promise<void> {
+  try {
+    const { error } = await supabase.from('options_table').upsert({
+      id: OPTION_ID_BANK_MAPPINGS,
+      accinfo: JSON.stringify(mappings)
+    });
+    if (error) {
+      console.warn('Failed to sync bank account mappings to Supabase options_table:', error.message);
+    } else {
+      console.log('✅ Synced bank account mappings to Supabase database forever');
+    }
+  } catch (err) {
+    console.warn('Error syncing bank account mappings to Supabase:', err);
   }
 }
 
@@ -164,6 +253,8 @@ export function saveAccountMapping(mapping: BankAccountMapping): void {
       updatedAt: new Date().toISOString()
     };
     localStorage.setItem(MAPPINGS_STORAGE_KEY, JSON.stringify(mappings));
+    // Persist forever in Supabase PostgreSQL
+    syncAccountMappingsToDatabase(mappings).catch(() => {});
     console.log(`✅ Saved account mapping for A/c ${cleanAcc} -> Ledger ${mapping.bankLedgerName} (Acid: ${mapping.acid})`);
   } catch (err) {
     console.error('Failed to save bank account mapping:', err);
@@ -277,8 +368,8 @@ export function applyRulesToTransactions(
   const ledgers = state.acmac1 || [];
 
   return txns.map(txn => {
-    // If already manually assigned, keep it unless unset
-    if (txn.targetLedgerId && txn.targetLedgerName) return txn;
+    // Preserve manual assignment by user, but allow rule-matched assignments to be re-evaluated when rules change
+    if (txn.isManuallyAssigned && txn.targetLedgerId) return txn;
 
     const narr = (txn.narration || '').trim();
     if (!narr) return txn;
@@ -348,8 +439,14 @@ export function detectDuplicates(
   const trans = state.transC1 || [];
   const ledgers = state.acmac1 || [];
 
-  // Filter vouchers and transactions relevant to this member account
-  const bankTrans = trans.filter((t: any) => t.maid === bankLedgerId);
+  // Filter vouchers and transactions relevant to this bank ledger (handling type coercion)
+  const bankTrans = trans.filter((t: any) => Number(t.maid) === Number(bankLedgerId));
+
+  // Set of voucher IDs already claimed by earlier transactions in this statement to avoid double-matching
+  const matchedVoucherIds = new Set<number>();
+
+  // Map to track duplicate identical lines within the uploaded statement itself
+  const seenInBatch = new Map<string, number>();
 
   // Extract dividend keywords from narration
   function extractDividendCompany(narr: string): string {
@@ -378,10 +475,26 @@ export function detectDuplicates(
     const amount = isDeposit ? txn.credit : txn.debit;
     if (amount <= 0) return txn;
 
+    // 0. Intra-batch duplicate detection (multiple identical rows in uploaded file)
+    const batchKey = `${txn.date}_${txn.debit}_${txn.credit}_${(txn.chqRef || '').trim()}_${(txn.narration || '').trim().toUpperCase()}`;
+    const prevSeen = seenInBatch.get(batchKey) || 0;
+    seenInBatch.set(batchKey, prevSeen + 1);
+    if (prevSeen > 0) {
+      return {
+        ...txn,
+        isDuplicate: true,
+        selected: false,
+        duplicateReason: `Duplicate entry within imported statement (${prevSeen + 1} occurrences)`
+      };
+    }
+
     const txnDateMs = new Date(txn.date).getTime();
 
     // 1. Direct Voucher Duplicate Check (Bank Ledger entries in transc1)
     for (const tr of bankTrans) {
+      const trVid = Number(tr.vid);
+      if (matchedVoucherIds.has(trVid)) continue;
+
       // In double entry:
       // Deposit in Bank Statement = Dr in Bank Ledger (dramt)
       // Withdrawal in Bank Statement = Cr in Bank Ledger (cramt)
@@ -390,6 +503,7 @@ export function detectDuplicates(
         const trDateMs = new Date(tr.dt).getTime();
         const diffDays = Math.abs(txnDateMs - trDateMs) / (1000 * 60 * 60 * 24);
         if (diffDays <= 4) {
+          matchedVoucherIds.add(trVid);
           return {
             ...txn,
             isDuplicate: true,
@@ -410,6 +524,9 @@ export function detectDuplicates(
       if (isDivNarration || companyKeyword) {
         // Look through vouchers for matching dividend
         for (const v of vouchers) {
+          const vVid = Number(v.vid);
+          if (matchedVoucherIds.has(vVid)) continue;
+
           // Dividend vouchers have vtyp 2 (receipt) or 4 or narration mentioning dividend
           const vNarrUpper = (v.narr || '').toUpperCase();
           const isDivVoucher = v.vtyp === 2 || vNarrUpper.includes('DIVIDEND') || vNarrUpper.includes('PAYOUT');
@@ -427,7 +544,7 @@ export function detectDuplicates(
 
           // Check voucher amount in transc1
           const vLines = trans.filter((t: any) => t.vid === v.vid);
-          const vBankLine = vLines.find((t: any) => t.maid === bankLedgerId);
+          const vBankLine = vLines.find((t: any) => Number(t.maid) === Number(bankLedgerId));
           const vIncomeLine = vLines.find((t: any) => {
             const l = ledgers.find((m: any) => m.id === t.maid);
             return l && (l.name.toLowerCase().includes('dividend') || l.name.toLowerCase().includes('interest'));
@@ -444,8 +561,9 @@ export function detectDuplicates(
           if (keywordMatched && amtMatched) {
             const vDateMs = new Date(v.dt).getTime();
             const diffDays = Math.abs(txnDateMs - vDateMs) / (1000 * 60 * 60 * 24);
-            // Dividend payments often clear within 30 days of declaration / record date
+            // Dividend payments often clear within 35 days of declaration / record date
             if (diffDays <= 35) {
+              matchedVoucherIds.add(vVid);
               return {
                 ...txn,
                 isDuplicate: true,
@@ -476,10 +594,11 @@ export async function postBankTransactionsToAccounting(
   createdVouchers: number[];
   error?: string;
 }> {
-  const toPost = transactions.filter(t => t.selected && t.targetLedgerId);
+  // STRICT duplicate avoidance: duplicates are never posted to avoid double entries in accounting
+  const toPost = transactions.filter(t => t.selected && t.targetLedgerId && !t.isDuplicate);
 
   if (toPost.length === 0) {
-    return { success: false, postedCount: 0, createdVouchers: [], error: 'No valid transactions selected with counterpart ledgers.' };
+    return { success: false, postedCount: 0, createdVouchers: [], error: 'No valid transactions selected with counterpart ledgers (duplicates are strictly excluded).' };
   }
 
   // Build balanced double-entry voucher payloads

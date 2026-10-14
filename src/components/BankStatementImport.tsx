@@ -18,7 +18,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Upload, FileText, CheckCircle, AlertTriangle, RefreshCw, Plus, 
   Trash2, Search, Sliders, CheckSquare, Square, Zap, ChevronDown, 
-  ArrowRight, ShieldCheck, HelpCircle, X, ExternalLink, Filter, Building2
+  ArrowRight, ShieldCheck, HelpCircle, X, ExternalLink, Filter, Building2,
+  Edit2
 } from 'lucide-react';
 import { state, forceRefreshDatabase } from '../logic';
 import { 
@@ -30,6 +31,8 @@ import {
 import { 
   type BankNarrationRule, 
   getStoredRules, 
+  fetchRulesFromDatabase,
+  fetchAccountMappingsFromDatabase,
   saveRule, 
   deleteRule, 
   saveAccountMapping, 
@@ -67,6 +70,7 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
   // Rules State
   const [rules, setRules] = useState<BankNarrationRule[]>([]);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<BankNarrationRule | null>(null);
   const [newRulePattern, setNewRulePattern] = useState('');
   const [newRuleMatchType, setNewRuleMatchType] = useState<BankNarrationRule['matchType']>('contains');
   const [newRuleLedgerId, setNewRuleLedgerId] = useState<number | ''>('');
@@ -85,9 +89,13 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
   const [isPosting, setIsPosting] = useState(false);
   const [postResult, setPostResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Load rules on mount
+  // Load rules on mount: immediate local cache + cloud sync (remembered forever across all devices)
   useEffect(() => {
     setRules(getStoredRules());
+    fetchRulesFromDatabase().then(dbRules => {
+      if (dbRules && dbRules.length > 0) setRules(dbRules);
+    });
+    fetchAccountMappingsFromDatabase().catch(() => {});
   }, []);
 
   // Available Bank Ledgers and Portfolios from State
@@ -273,7 +281,8 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
         return {
           ...t,
           targetLedgerId: ledger.id,
-          targetLedgerName: ledger.name
+          targetLedgerName: ledger.name,
+          isManuallyAssigned: true
         };
       }
       return t;
@@ -285,12 +294,34 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
   };
 
   const handleSelectAll = (select: boolean) => {
-    setTransactions(prev => prev.map(t => ({ ...t, selected: select })));
+    setTransactions(prev => prev.map(t => {
+      if (select) {
+        // Strictly avoid selecting duplicates by default
+        if (t.isDuplicate) return t;
+        return { ...t, selected: true };
+      }
+      return { ...t, selected: false };
+    }));
   };
 
-  // ── Rules Management ──────────────────────────────────────────────────────
+  // ── Rules Management (Add, Edit, Modify, Toggle, Delete) ────────────────────
 
-  const handleAddRule = () => {
+  const handleStartEditRule = (rule: BankNarrationRule) => {
+    setEditingRule(rule);
+    setNewRulePattern(rule.pattern);
+    setNewRuleMatchType(rule.matchType);
+    setNewRuleLedgerId(rule.targetLedgerId);
+    setIsRulesModalOpen(true);
+  };
+
+  const handleCancelEditRule = () => {
+    setEditingRule(null);
+    setNewRulePattern('');
+    setNewRuleLedgerId('');
+    setNewRuleMatchType('contains');
+  };
+
+  const handleSaveRule = () => {
     if (!newRulePattern.trim() || !newRuleLedgerId) {
       alert('Please enter a pattern keyword and select a target ledger.');
       return;
@@ -298,37 +329,75 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
     const targetLedger = allLedgers.find((l: any) => l.id === Number(newRuleLedgerId));
     if (!targetLedger) return;
 
-    const newRule: BankNarrationRule = {
-      id: `rule_${Date.now()}`,
-      pattern: newRulePattern.trim(),
-      matchType: newRuleMatchType,
-      targetLedgerId: targetLedger.id,
-      targetLedgerName: targetLedger.name,
-      targetAcid: selectedAcid || undefined,
-      enabled: true,
-      createdAt: new Date().toISOString()
-    };
+    if (editingRule) {
+      // Modify existing rule
+      const updatedRule: BankNarrationRule = {
+        ...editingRule,
+        pattern: newRulePattern.trim(),
+        matchType: newRuleMatchType,
+        targetLedgerId: targetLedger.id,
+        targetLedgerName: targetLedger.name,
+        targetAcid: selectedAcid || undefined,
+      };
 
-    saveRule(newRule);
+      saveRule(updatedRule);
+      const updated = getStoredRules();
+      setRules(updated);
+
+      // Re-apply modified rules across all transactions immediately
+      if (selectedAcid) {
+        setTransactions(prev => applyRulesToTransactions(prev, selectedAcid, updated));
+      }
+
+      handleCancelEditRule();
+    } else {
+      // Add new rule
+      const newRule: BankNarrationRule = {
+        id: `rule_${Date.now()}`,
+        pattern: newRulePattern.trim(),
+        matchType: newRuleMatchType,
+        targetLedgerId: targetLedger.id,
+        targetLedgerName: targetLedger.name,
+        targetAcid: selectedAcid || undefined,
+        enabled: true,
+        createdAt: new Date().toISOString()
+      };
+
+      saveRule(newRule);
+      const updated = getStoredRules();
+      setRules(updated);
+
+      // Re-apply rules across all transactions
+      if (selectedAcid) {
+        setTransactions(prev => applyRulesToTransactions(prev, selectedAcid, updated));
+      }
+
+      setNewRulePattern('');
+      setNewRuleLedgerId('');
+      setNewRuleMatchType('contains');
+    }
+  };
+
+  const handleToggleRuleEnabled = (rule: BankNarrationRule) => {
+    const updatedRule: BankNarrationRule = { ...rule, enabled: !rule.enabled };
+    saveRule(updatedRule);
     const updated = getStoredRules();
     setRules(updated);
-
-    // Re-apply rules across all transactions
     if (selectedAcid) {
       setTransactions(prev => applyRulesToTransactions(prev, selectedAcid, updated));
     }
-
-    setNewRulePattern('');
-    setNewRuleLedgerId('');
   };
 
   const handleDeleteRule = (id: string) => {
+    if (editingRule?.id === id) {
+      handleCancelEditRule();
+    }
     deleteRule(id);
     const updated = getStoredRules();
     setRules(updated);
   };
 
-  // Quick Rule Creation from Row (1-Click)
+  // Quick Rule Creation / Modification from Row
   const openQuickRuleModal = (txn: ParsedBankTransaction) => {
     setQuickRuleRow(txn);
     // Clean narration to suggest a concise pattern
@@ -341,6 +410,18 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
     if (cleanWord.length > 25) cleanWord = cleanWord.substring(0, 25).trim();
     setQuickRulePattern(cleanWord || txn.narration.substring(0, 20));
     setQuickRuleLedgerId(txn.targetLedgerId || '');
+  };
+
+  const openModifyRuleFromRow = (txn: ParsedBankTransaction) => {
+    const existingRule = rules.find(r => r.id === txn.matchedRuleId || r.pattern.toLowerCase() === (txn.matchedRulePattern || '').toLowerCase());
+    if (existingRule) {
+      handleStartEditRule(existingRule);
+    } else {
+      setEditingRule(null);
+      setNewRulePattern(txn.matchedRulePattern || txn.narration.slice(0, 20));
+      setNewRuleLedgerId(txn.targetLedgerId || '');
+      setIsRulesModalOpen(true);
+    }
   };
 
   const saveQuickRule = () => {
@@ -452,9 +533,9 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
     const ready = transactions.filter(t => t.targetLedgerId && !t.isDuplicate).length;
     const unassigned = transactions.filter(t => !t.targetLedgerId).length;
     const duplicates = transactions.filter(t => t.isDuplicate).length;
-    const selectedCount = transactions.filter(t => t.selected && t.targetLedgerId).length;
+    const selectedCount = transactions.filter(t => t.selected && t.targetLedgerId && !t.isDuplicate).length;
     const selectedTotal = transactions
-      .filter(t => t.selected && t.targetLedgerId)
+      .filter(t => t.selected && t.targetLedgerId && !t.isDuplicate)
       .reduce((s, t) => s + (t.credit || t.debit), 0);
 
     return { total, ready, unassigned, duplicates, selectedCount, selectedTotal };
@@ -1056,7 +1137,7 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
                     <th style={{ padding: '12px 16px', width: '40px' }}>
                       <input
                         type="checkbox"
-                        checked={transactions.length > 0 && transactions.every(t => t.selected)}
+                        checked={transactions.filter(t => !t.isDuplicate).length > 0 && transactions.filter(t => !t.isDuplicate).every(t => t.selected)}
                         onChange={(e) => handleSelectAll(e.target.checked)}
                         style={{ width: '16px', height: '16px', accentColor: '#2563eb' }}
                       />
@@ -1222,28 +1303,51 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
                           )}
                         </td>
 
-                        {/* Quick 1-Click Rule Button */}
+                        {/* Quick 1-Click Rule / Modify Rule Button */}
                         <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                          <button
-                            onClick={() => openQuickRuleModal(txn)}
-                            title="Create smart rule from this entry"
-                            style={{
-                              background: '#f8fafc',
-                              border: '1px solid #cbd5e1',
-                              color: '#334155',
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            <Zap size={12} color="#d97706" />
-                            + Rule
-                          </button>
+                          {txn.matchedRulePattern ? (
+                            <button
+                              onClick={() => openModifyRuleFromRow(txn)}
+                              title={`Modify smart rule for "${txn.matchedRulePattern}"`}
+                              style={{
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                color: '#1d4ed8',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <Edit2 size={12} color="#2563eb" />
+                              Edit Rule
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => openQuickRuleModal(txn)}
+                              title="Create smart rule from this entry"
+                              style={{
+                                background: '#f8fafc',
+                                border: '1px solid #cbd5e1',
+                                color: '#334155',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <Zap size={12} color="#d97706" />
+                              + Rule
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -1351,17 +1455,25 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
 
             {/* Modal Body */}
             <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-              {/* Add New Rule Form */}
+              {/* Add / Modify Rule Form */}
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: editingRule ? '#eff6ff' : '#f8fafc',
+                border: editingRule ? '1.5px solid #3b82f6' : '1px solid #e2e8f0',
                 borderRadius: '12px',
                 padding: '16px 20px',
-                marginBottom: '24px'
+                marginBottom: '24px',
+                transition: 'all 0.2s ease'
               }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
-                  + Add New Narration Rule
-                </h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: editingRule ? '#1d4ed8' : '#1e293b' }}>
+                    {editingRule ? `✏️ Modify Rule: "${editingRule.pattern}"` : '+ Add New Narration Rule'}
+                  </h4>
+                  {editingRule && (
+                    <span style={{ fontSize: '11px', color: '#64748b', background: '#dbeafe', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                      Editing Mode
+                    </span>
+                  )}
+                </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 1fr auto', gap: '10px', alignItems: 'end' }}>
                   <div>
@@ -1378,7 +1490,8 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
                         padding: '8px 12px',
                         borderRadius: '6px',
                         border: '1px solid #cbd5e1',
-                        fontSize: '13px'
+                        fontSize: '13px',
+                        background: '#fff'
                       }}
                     />
                   </div>
@@ -1431,26 +1544,45 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
                     </select>
                   </div>
 
-                  <button
-                    onClick={handleAddRule}
-                    style={{
-                      background: '#2563eb',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '9px 16px',
-                      borderRadius: '6px',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Save Rule
-                  </button>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      onClick={handleSaveRule}
+                      style={{
+                        background: editingRule ? '#16a34a' : '#2563eb',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '9px 16px',
+                        borderRadius: '6px',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {editingRule ? 'Update Rule' : 'Save Rule'}
+                    </button>
+                    {editingRule && (
+                      <button
+                        onClick={handleCancelEditRule}
+                        style={{
+                          background: '#fff',
+                          color: '#475569',
+                          border: '1px solid #cbd5e1',
+                          padding: '9px 12px',
+                          borderRadius: '6px',
+                          fontWeight: 600,
+                          fontSize: '13px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Existing Rules List */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              {/* Existing Rules List Header & Search */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
                   Configured Rules ({rules.length})
                 </h4>
@@ -1472,8 +1604,30 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
                 </button>
               </div>
 
+              {/* Rules Search Filter */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    placeholder="Search rules by pattern or target ledger..."
+                    value={rulesSearch}
+                    onChange={(e) => setRulesSearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 12px 7px 32px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '12px'
+                    }}
+                  />
+                </div>
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {rules.map(rule => (
+                {rules
+                  .filter(r => !rulesSearch.trim() || r.pattern.toLowerCase().includes(rulesSearch.toLowerCase()) || r.targetLedgerName.toLowerCase().includes(rulesSearch.toLowerCase()))
+                  .map(rule => (
                   <div
                     key={rule.id}
                     style={{
@@ -1481,40 +1635,88 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '10px 14px',
-                      background: '#fff',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px'
+                      background: rule.enabled ? '#fff' : '#f8fafc',
+                      border: editingRule?.id === rule.id ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      opacity: rule.enabled ? 1 : 0.65
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                      <button
+                        onClick={() => handleToggleRuleEnabled(rule)}
+                        title={rule.enabled ? 'Click to disable rule' : 'Click to enable rule'}
+                        style={{
+                          border: 'none',
+                          background: rule.enabled ? '#dcfce7' : '#f1f5f9',
+                          color: rule.enabled ? '#15803d' : '#64748b',
+                          padding: '3px 8px',
+                          borderRadius: '12px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {rule.enabled ? 'ON' : 'OFF'}
+                      </button>
+
                       <span style={{
                         background: '#eff6ff',
                         color: '#2563eb',
                         fontWeight: 700,
-                        fontSize: '12px',
-                        padding: '3px 8px',
+                        fontSize: '11px',
+                        padding: '3px 7px',
                         borderRadius: '4px'
                       }}>
                         {rule.matchType}
                       </span>
-                      <strong style={{ fontSize: '13px', color: '#0f172a' }}>"{rule.pattern}"</strong>
+
+                      <strong style={{ fontSize: '13px', color: '#0f172a', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        "{rule.pattern}"
+                      </strong>
+
                       <span style={{ color: '#94a3b8' }}>➔</span>
-                      <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: 600 }}>{rule.targetLedgerName}</span>
+
+                      <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        {rule.targetLedgerName}
+                      </span>
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteRule(rule.id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#ef4444',
-                        cursor: 'pointer',
-                        padding: '4px'
-                      }}
-                      title="Delete Rule"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '12px' }}>
+                      <button
+                        onClick={() => handleStartEditRule(rule)}
+                        style={{
+                          background: '#eff6ff',
+                          border: '1px solid #bfdbfe',
+                          color: '#2563eb',
+                          cursor: 'pointer',
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        title="Modify Rule Pattern or Counterpart Ledger"
+                      >
+                        <Edit2 size={12} />
+                        Modify
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteRule(rule.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          padding: '5px'
+                        }}
+                        title="Delete Rule"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

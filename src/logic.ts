@@ -5088,24 +5088,16 @@ export async function createVouchersBulk(dataList: any[]) {
         if (resolvedId > 0) resolvedLineLedgerId = resolvedId;
       }
       const transid = nextTransid++;
-      const amid = data.assetId ? Number(data.assetId) : null;
       allTrans.push({
         transid,
         vid,
         acid,
         dt: data.date,
         maid: resolvedLineLedgerId,
-        // CRITICAL FIX: every reader of transc1 in this codebase (getLedgerWithBalance,
-        // trial balance, etc. -- see logic.ts lines ~552, ~1031, ~1709) reads
-        // `dramt`/`cramt` exclusively. This function was writing `crdr`/`amount`
-        // instead, a column shape nothing ever reads -- meaning every voucher
-        // created through bulk import had a debit/credit of effectively ₹0 in
-        // every ledger, balance, and report in the app, silently. Writing the
-        // same shape as createVoucher() (and every reader) fixes this.
+        // CRITICAL FIX: every reader of transc1 in this codebase reads dramt/cramt
+        // and standard schema columns. transc1 table does not have 'amid' or 'pfid'.
         dramt: Number(line.debit) || 0,
         cramt: Number(line.credit) || 0,
-        pfid: data.portfolioId ? Number(data.portfolioId) : null,
-        amid,
       });
 
       if (data.type === 'journal' || data.type === 'purchase' || data.type === 'sales' || data.type === 'bonus' || data.type === 'split' || data.type === 'merger' || data.type === 'demerger') {
@@ -5164,8 +5156,25 @@ export async function createVouchersBulk(dataList: any[]) {
   for (let i = 0; i < allTrans.length; i += 500) {
     const chunk = allTrans.slice(i, i + 500);
     const { error: tErr } = await supabase.from('transc1').insert(chunk);
-    if (tErr) throw new Error('Bulk insert failed for transc1: ' + tErr.message);
+    if (tErr) {
+      console.error('Failed to insert transc1 bulk:', tErr);
+      // Clean up inserted vouchers to avoid orphaned vouchers in database
+      const createdVids = vouchers.map(v => v.vid);
+      if (createdVids.length > 0) {
+        try {
+          await supabase.from('vouchersc1').delete().in('vid', createdVids);
+        } catch (cleanupErr) {
+          console.error('Failed to clean up orphaned vouchers:', cleanupErr);
+        }
+      }
+      throw new Error('Bulk insert failed for transc1: ' + tErr.message);
+    }
   }
+
+  // Update in-memory state immediately so UI and duplicate detection reflect new data
+  vouchers.forEach(v => state.vouchersC1.push({ ...v, _src: 'c' }));
+  allTrans.forEach(t => state.transC1.push({ ...t, _src: 'c' }));
+  rebuildAllIndexes();
 
   if (allNotes.length > 0) {
     for (let i = 0; i < allNotes.length; i += 500) {

@@ -34,6 +34,7 @@ export interface ParsedBankTransaction {
   isDuplicate: boolean;
   duplicateReason?: string;
   duplicateVoucherId?: number;
+  isManuallyAssigned?: boolean;
 }
 
 export interface ParsedBankStatement {
