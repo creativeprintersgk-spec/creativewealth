@@ -39,6 +39,7 @@ import {
   autoDetectBankAndAccount, 
   applyRulesToTransactions, 
   detectDuplicates, 
+  fetchLiveTransactionsForDeduplication,
   postBankTransactionsToAccounting,
   DEFAULT_SEED_RULES
 } from '../services/bankImportRulesService';
@@ -160,7 +161,9 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
       const detected = autoDetectBankAndAccount(
         parsed.accountNumber,
         parsed.bankName,
-        parsed.customerName
+        parsed.customerName,
+        undefined,
+        parsed.transactions
       );
 
       const resolvedAcid = detected.bankLedger?.acid || detected.memberAccount?.id || (memberPortfolios[0]?.id ?? 31);
@@ -170,14 +173,27 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
       setSelectedBankLedgerId(resolvedBankLedgerId);
       setMappingStatus(detected.isRemembered ? 'remembered' : (detected.bankLedger ? 'auto_matched' : 'manual'));
 
-      // Apply Rules and Detect Duplicates
+      // Apply Rules and immediate in-memory Duplicate Detection
       let txns = parsed.transactions;
       txns = applyRulesToTransactions(txns, resolvedAcid, rules);
-      if (resolvedBankLedgerId) {
-        txns = detectDuplicates(txns, resolvedBankLedgerId, resolvedAcid);
-      }
-
+      txns = detectDuplicates(txns, resolvedBankLedgerId, resolvedAcid);
       setTransactions(txns);
+
+      // Authoritative Real-Time Deduplication: Query Supabase directly for live transactions/vouchers in date window
+      if (parsed.transactions.length > 0) {
+        const dates = parsed.transactions.map(t => t.date).filter(Boolean).sort();
+        const minD = dates[0] || '2026-01-01';
+        const maxD = dates[dates.length - 1] || '2026-12-31';
+
+        fetchLiveTransactionsForDeduplication(resolvedBankLedgerId, resolvedAcid, minD, maxD).then(live => {
+          if (live.trans.length > 0 || live.vouchers.length > 0) {
+            setTransactions(prev => {
+              const applied = applyRulesToTransactions(prev, resolvedAcid, rules);
+              return detectDuplicates(applied, resolvedBankLedgerId, resolvedAcid, live.trans, live.vouchers);
+            });
+          }
+        }).catch(err => console.warn('Live deduplication background check failed:', err));
+      }
 
       // If recognized automatically, memorize if requested
       if (detected.bankLedger && parsed.accountNumber) {
@@ -224,6 +240,16 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
       txns = detectDuplicates(txns, ledgerId, acidToUse);
       setTransactions(txns);
 
+      // Trigger live deduplication for this ledger
+      const dates = parsedStatement.transactions.map(t => t.date).filter(Boolean).sort();
+      const minD = dates[0] || '2026-01-01';
+      const maxD = dates[dates.length - 1] || '2026-12-31';
+      fetchLiveTransactionsForDeduplication(ledgerId, acidToUse, minD, maxD).then(live => {
+        if (live.trans.length > 0 || live.vouchers.length > 0) {
+          setTransactions(prev => detectDuplicates(prev, ledgerId, acidToUse, live.trans, live.vouchers));
+        }
+      }).catch(() => {});
+
       if (rememberMapping && parsedStatement.accountNumber && ledger) {
         const member = memberPortfolios.find((p: any) => p.id === acidToUse);
         saveAccountMapping({
@@ -251,8 +277,18 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
       if (matchingBank) setSelectedBankLedgerId(matchingBank.id);
 
       let txns = applyRulesToTransactions(parsedStatement.transactions, acid, rules);
-      if (bankId) txns = detectDuplicates(txns, bankId, acid);
+      txns = detectDuplicates(txns, bankId, acid);
       setTransactions(txns);
+
+      // Trigger live deduplication for this acid and bank
+      const dates = parsedStatement.transactions.map(t => t.date).filter(Boolean).sort();
+      const minD = dates[0] || '2026-01-01';
+      const maxD = dates[dates.length - 1] || '2026-12-31';
+      fetchLiveTransactionsForDeduplication(bankId, acid, minD, maxD).then(live => {
+        if (live.trans.length > 0 || live.vouchers.length > 0) {
+          setTransactions(prev => detectDuplicates(prev, bankId, acid, live.trans, live.vouchers));
+        }
+      }).catch(() => {});
 
       if (rememberMapping && parsedStatement.accountNumber && matchingBank) {
         const member = memberPortfolios.find((p: any) => p.id === acid);
