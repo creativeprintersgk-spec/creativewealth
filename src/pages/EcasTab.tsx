@@ -20,6 +20,7 @@ import React, { useState, useRef } from "react";
 import { Upload, CheckCircle, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, CheckSquare, Square } from "lucide-react";
 import { supabase } from "../supabase";
 import { state, createVoucher, getStoredLedgers } from "../logic";
+import { formatDateDDMMMYYYY } from "../utils/dateUtils";
 
 // ── TYPES ───────────────────────────────────────────────────────────────────
 
@@ -1137,7 +1138,7 @@ export function EcasTab({
                             )}
                           </td>
                           <td style={{ padding: '8px 12px', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            {trade.date}
+                            {formatDateDDMMMYYYY(trade.date)}
                           </td>
                           <td style={{ padding: '8px 12px', maxWidth: '250px' }}>
                             <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '12px', lineHeight: '1.3' }}>

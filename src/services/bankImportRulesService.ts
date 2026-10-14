@@ -12,6 +12,7 @@
 
 import { state, createVouchersBulk, persistStateToIDB, isSupabaseReachable } from '../logic';
 import { supabase } from '../supabase';
+import { formatDateDDMMMYYYY } from '../utils/dateUtils';
 import type { ParsedBankTransaction } from './bankStatementParser';
 
 export interface BankNarrationRule {
@@ -661,7 +662,7 @@ export function detectDuplicates(
             ...txn,
             isDuplicate: true,
             selected: false,
-            duplicateReason: `Existing Voucher #${tr.vid} on ${tr.dt} (₹${trAmt.toLocaleString('en-IN')})`,
+            duplicateReason: `Existing Voucher #${tr.vid} on ${formatDateDDMMMYYYY(tr.dt)} (₹${trAmt.toLocaleString('en-IN')})`,
             duplicateVoucherId: trVid
           };
         }
@@ -677,7 +678,7 @@ export function detectDuplicates(
             ...txn,
             isDuplicate: true,
             selected: false,
-            duplicateReason: `Existing Voucher #${tr.vid} on ${tr.dt} (₹${trOppAmt.toLocaleString('en-IN')})`,
+            duplicateReason: `Existing Voucher #${tr.vid} on ${formatDateDDMMMYYYY(tr.dt)} (₹${trOppAmt.toLocaleString('en-IN')})`,
             duplicateVoucherId: trVid
           };
         }
@@ -704,7 +705,7 @@ export function detectDuplicates(
               ...txn,
               isDuplicate: true,
               selected: false,
-              duplicateReason: `Matched Reference/Chq in Voucher #${vVid} on ${v.dt}`,
+              duplicateReason: `Matched Reference/Chq in Voucher #${vVid} on ${formatDateDDMMMYYYY(v.dt)}`,
               duplicateVoucherId: vVid
             };
           }
@@ -755,7 +756,7 @@ export function detectDuplicates(
                 ...txn,
                 isDuplicate: true,
                 selected: false,
-                duplicateReason: `Dividend Recon / PMS: Voucher #${v.vid} (${companyKeyword} - ₹${vNetAmt.toLocaleString('en-IN')})`,
+                duplicateReason: `Dividend Recon / PMS: Voucher #${v.vid} on ${formatDateDDMMMYYYY(v.dt)} (${companyKeyword} - ₹${vNetAmt.toLocaleString('en-IN')})`,
                 duplicateVoucherId: vVid
               };
             }

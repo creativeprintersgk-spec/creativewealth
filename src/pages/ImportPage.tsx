@@ -12,6 +12,7 @@ import { EcasTab } from "./EcasTab";
 import { BankStatementImport } from "../components/BankStatementImport";
 import { parseFnoSymbol } from "../utils/fnoUtils";
 import { formatGSecName } from "../utils/gsecUtils";
+import { formatDateDDMMMYYYY } from "../utils/dateUtils";
 import { parseContractNoteClientPdf, parseContractNoteClientText } from "../services/contractNoteClientParser";
 
 import standardMprofitGroups from "../standard_mprofit_groups.json";
@@ -3420,7 +3421,7 @@ function ImportPageInner() {
                   gap: '8px'
                 }}>
                   <div>
-                    <strong>{d.fileName}</strong> — Individual: <strong>{d.individual}</strong> · Broker: <strong>{d.broker}</strong> · CN: <strong>{d.cnNo}</strong> · Date: <strong>{d.date}</strong>
+                    <strong>{d.fileName}</strong> — Individual: <strong>{d.individual}</strong> · Broker: <strong>{d.broker}</strong> · CN: <strong>{d.cnNo}</strong> · Date: <strong>{formatDateDDMMMYYYY(d.date)}</strong>
                   </div>
                   <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '11px' }}>
                     DUPLICATE SKIPPED ({d.reason})
@@ -3466,7 +3467,7 @@ function ImportPageInner() {
                           {b.portfolioName} {b.pan ? <span style={{ color: '#64748b', fontWeight: 600 }}>({b.pan})</span> : ''}
                         </div>
                         <div style={{ color: '#475569', marginTop: '2px' }}>
-                          Broker: <strong>{b.brokerLedgerName || b.brokerName}</strong> · CN: <strong>{b.cnNo}</strong> · Date: <strong>{b.cnDate}</strong> · Charges: <strong>₹{chgTotal.toFixed(2)}</strong>
+                          Broker: <strong>{b.brokerLedgerName || b.brokerName}</strong> · CN: <strong>{b.cnNo}</strong> · Date: <strong>{formatDateDDMMMYYYY(b.cnDate)}</strong> · Charges: <strong>₹{chgTotal.toFixed(2)}</strong>
                         </div>
                       </div>
                     </div>

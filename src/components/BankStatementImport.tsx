@@ -22,6 +22,7 @@ import {
   Edit2
 } from 'lucide-react';
 import { state, forceRefreshDatabase } from '../logic';
+import { formatDateDDMMMYYYY } from '../utils/dateUtils';
 import { 
   parseBankStatementPdf, 
   parseBankStatementCsvOrExcel, 
@@ -809,6 +810,9 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
                   <div style={{ fontSize: '13px', color: '#64748b' }}>
                     {parsedStatement.customerName && <span>Holder: <strong>{parsedStatement.customerName}</strong> • </span>}
                     {parsedStatement.ifsc && <span>IFSC: {parsedStatement.ifsc} • </span>}
+                    {(parsedStatement.periodFrom || parsedStatement.periodTo) && (
+                      <span>Period: <strong>{formatDateDDMMMYYYY(parsedStatement.periodFrom)} to {formatDateDDMMMYYYY(parsedStatement.periodTo)}</strong> • </span>
+                    )}
                     <span>{transactions.length} entries parsed</span>
                   </div>
                 </div>
@@ -1215,7 +1219,7 @@ export const BankStatementImport: React.FC<BankStatementImportProps> = ({ onNavi
 
                         {/* Date */}
                         <td style={{ padding: '12px 14px', whiteSpace: 'nowrap', fontWeight: 600, color: '#1e293b' }}>
-                          {txn.date}
+                          {formatDateDDMMMYYYY(txn.date)}
                         </td>
 
                         {/* Narration with Keyword Highlighting */}
