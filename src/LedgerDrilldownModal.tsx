@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { X, ExternalLink, Download, Plus, ArrowUpRight, ArrowDownLeft, Printer, Trash2, AlertTriangle } from 'lucide-react';
-import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries, formatDateDDMMMYYYY, deleteVoucher, forceRefreshDatabase } from './logic';
+import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries, getVoucherLegs, formatDateDDMMMYYYY, deleteVoucher, forceRefreshDatabase } from './logic';
 import { useFY } from './FYContext';
 
 interface LedgerDrilldownModalProps {
@@ -126,25 +126,55 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
   const transactions = isArray ? [] : drilldownData.transactions;
   const groups = getStoredGroups();
 
-  // Detect duplicate transactions on this ledger (same date, same debit/credit, same against ledger)
+  // Detect genuine duplicate transactions on this ledger
+  // A transaction is only a duplicate if another transaction on the same date has the exact same amount,
+  // same Dr/Cr, same counterpart accounts/legs, and compatible (or identical) narration.
   const duplicateVoucherIds = useMemo(() => {
-    const seen = new Map<string, string[]>();
-    transactions.forEach((t: any) => {
-      const amt = Number(t.debit || t.credit || 0);
-      const isDr = Number(t.debit) > 0;
-      const key = `${t.date}_${isDr ? 'DR' : 'CR'}_${amt.toFixed(2)}_${(t.againstLedger || '').trim().toLowerCase()}`;
-      const list = seen.get(key) || [];
-      list.push(String(t.voucherId));
-      seen.set(key, list);
-    });
     const dupIds = new Set<string>();
-    seen.forEach((list) => {
-      if (list.length > 1) {
-        list.forEach(id => dupIds.add(id));
+    for (let i = 0; i < transactions.length; i++) {
+      const a = transactions[i];
+      const amtA = Number(a.debit || a.credit || 0);
+      const isDrA = Number(a.debit) > 0;
+      const narrA = (a.narration || '').trim().toLowerCase();
+
+      for (let j = i + 1; j < transactions.length; j++) {
+        const b = transactions[j];
+        if (a.date !== b.date) continue;
+        const amtB = Number(b.debit || b.credit || 0);
+        const isDrB = Number(b.debit) > 0;
+        if (isDrA !== isDrB || Math.abs(amtA - amtB) > 0.001) continue;
+
+        const narrB = (b.narration || '').trim().toLowerCase();
+        // If both have distinct non-empty narrations (e.g. different MF quantities, different cheque nos), they are not duplicates
+        if (narrA && narrB && narrA !== narrB) continue;
+
+        // Check counterpart ledgers
+        const againstA = (a.againstLedger || '').trim().toLowerCase();
+        const againstB = (b.againstLedger || '').trim().toLowerCase();
+
+        if (againstA === 'multiple accounts' || againstB === 'multiple accounts') {
+          // Compare underlying voucher legs
+          const legsA = getVoucherLegs(a.voucherId)
+            .filter((l: any) => String(l.ledgerId) !== String(ledgerId))
+            .map((l: any) => `${l.ledgerId}_${Number(l.debit || 0).toFixed(2)}_${Number(l.credit || 0).toFixed(2)}`)
+            .sort()
+            .join('|');
+          const legsB = getVoucherLegs(b.voucherId)
+            .filter((l: any) => String(l.ledgerId) !== String(ledgerId))
+            .map((l: any) => `${l.ledgerId}_${Number(l.debit || 0).toFixed(2)}_${Number(l.credit || 0).toFixed(2)}`)
+            .sort()
+            .join('|');
+          if (!legsA || !legsB || legsA !== legsB) continue;
+        } else {
+          if (againstA !== againstB) continue;
+        }
+
+        dupIds.add(String(a.voucherId));
+        dupIds.add(String(b.voucherId));
       }
-    });
+    }
     return dupIds;
-  }, [transactions]);
+  }, [transactions, ledgerId]);
 
   const isBankLedger = useMemo(() => {
     if (!ledger) return false;

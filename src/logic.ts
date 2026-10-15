@@ -2122,18 +2122,32 @@ export function getLedgerWithBalance(
   // there is NO opening balance carry-forward for P&L accounts.
   // We detect them by walking the parent_id chain in acmac1 and looking for
   // special_type_id values:  250 = Profit & Loss,  280 = Income,  290 = Expense
-  const PNL_TYPE_IDS = new Set([250, 280, 290]);
   function isPnlLedger(row: any): boolean {
     if (!row) return false;
-    if (PNL_TYPE_IDS.has(Number(row.special_type_id))) return true;
-    // Walk up to 6 levels of parent groups
+    const rowSpec = Number(row.special_type_id);
+    // Bank accounts (40), Cash (50), FDs (70), Debtors (75), Creditors (90), Capital (10, 20) are Balance Sheet items, NEVER P&L
+    if ([40, 50, 70, 75, 90, 10, 20].includes(rowSpec)) return false;
+    // Direct income / expense ledgers
+    if (rowSpec === 280 || rowSpec === 290) return true;
+
+    // Walk up to 6 levels of parent groups (strictly groups!)
     let parentId = row.parent_id;
     for (let depth = 0; depth < 6 && parentId; depth++) {
       const parent = (state.acmac1 || []).find(
-        (a: any) => a.id === parentId && (!acidNum || a.acid === acidNum || a.acid === -1)
+        (a: any) => Boolean(a.is_group) && Number(a.id) === Number(parentId) && (!acidNum || Number(a.acid) === acidNum || Number(a.acid) === -1)
       );
       if (!parent) break;
-      if (PNL_TYPE_IDS.has(Number(parent.special_type_id))) return true;
+      const pId = Number(parent.id);
+      const pSpec = Number(parent.special_type_id);
+
+      // Check Balance Sheet groups first
+      if ([40, 50, 70, 75, 90, 10, 20].includes(pSpec)) return false;
+      if ([1, 2, 45, 50, 55, 60, 64, 65, 70, 85].includes(pId)) return false;
+
+      // Check P&L groups
+      if (pSpec === 280 || pSpec === 290) return true;
+      if ([150, 155, 160, 170, 171, 175, 180].includes(pId)) return true;
+
       parentId = parent.parent_id;
     }
     return false;
@@ -2205,6 +2219,7 @@ export function getLedgerWithBalance(
   // P&L ledgers start from plOpeningBalance (0 if prev year closed, else carry-forward amount).
   let openingBalance = isPlLedger ? plOpeningBalance : 0;
   let runningBalance = isPlLedger ? plOpeningBalance : 0;
+
   const transactions: any[] = [];
   const vtypMap: Record<string, string> = { '1': 'payment', '2': 'payment', '3': 'contra', '4': 'receipt', '5': 'journal', '6': 'payment', '10': 'receipt', '12': 'contra', '14': 'purchase', '15': 'sale' };
 
@@ -2258,6 +2273,13 @@ export function getLedgerWithBalance(
   }
 
   return { transactions, openingBalance, closingBalance: runningBalance };
+}
+
+export function getVoucherLegs(voucherId: string | number): any[] {
+  if (!cachedEntriesByVoucherId) {
+    getStoredEntries();
+  }
+  return cachedEntriesByVoucherId?.get(String(voucherId)) || [];
 }
 
 
