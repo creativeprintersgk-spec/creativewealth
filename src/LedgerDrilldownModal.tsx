@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { X, ExternalLink, Download, Plus, ArrowUpRight, ArrowDownLeft, Printer, Trash2, AlertTriangle } from 'lucide-react';
-import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries, getVoucherLegs, formatDateDDMMMYYYY, deleteVoucher, forceRefreshDatabase } from './logic';
+import { getLedgerWithBalance, getStoredLedgers, getStoredGroups, getStoredVouchers, getStoredEntries, formatDateDDMMMYYYY, deleteVoucher, forceRefreshDatabase } from './logic';
 import { useFY } from './FYContext';
 
 interface LedgerDrilldownModalProps {
@@ -126,55 +126,7 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
   const transactions = isArray ? [] : drilldownData.transactions;
   const groups = getStoredGroups();
 
-  // Detect genuine duplicate transactions on this ledger
-  // A transaction is only a duplicate if another transaction on the same date has the exact same amount,
-  // same Dr/Cr, same counterpart accounts/legs, and compatible (or identical) narration.
-  const duplicateVoucherIds = useMemo(() => {
-    const dupIds = new Set<string>();
-    for (let i = 0; i < transactions.length; i++) {
-      const a = transactions[i];
-      const amtA = Number(a.debit || a.credit || 0);
-      const isDrA = Number(a.debit) > 0;
-      const narrA = (a.narration || '').trim().toLowerCase();
 
-      for (let j = i + 1; j < transactions.length; j++) {
-        const b = transactions[j];
-        if (a.date !== b.date) continue;
-        const amtB = Number(b.debit || b.credit || 0);
-        const isDrB = Number(b.debit) > 0;
-        if (isDrA !== isDrB || Math.abs(amtA - amtB) > 0.001) continue;
-
-        const narrB = (b.narration || '').trim().toLowerCase();
-        // If both have distinct non-empty narrations (e.g. different MF quantities, different cheque nos), they are not duplicates
-        if (narrA && narrB && narrA !== narrB) continue;
-
-        // Check counterpart ledgers
-        const againstA = (a.againstLedger || '').trim().toLowerCase();
-        const againstB = (b.againstLedger || '').trim().toLowerCase();
-
-        if (againstA === 'multiple accounts' || againstB === 'multiple accounts') {
-          // Compare underlying voucher legs
-          const legsA = getVoucherLegs(a.voucherId)
-            .filter((l: any) => String(l.ledgerId) !== String(ledgerId))
-            .map((l: any) => `${l.ledgerId}_${Number(l.debit || 0).toFixed(2)}_${Number(l.credit || 0).toFixed(2)}`)
-            .sort()
-            .join('|');
-          const legsB = getVoucherLegs(b.voucherId)
-            .filter((l: any) => String(l.ledgerId) !== String(ledgerId))
-            .map((l: any) => `${l.ledgerId}_${Number(l.debit || 0).toFixed(2)}_${Number(l.credit || 0).toFixed(2)}`)
-            .sort()
-            .join('|');
-          if (!legsA || !legsB || legsA !== legsB) continue;
-        } else {
-          if (againstA !== againstB) continue;
-        }
-
-        dupIds.add(String(a.voucherId));
-        dupIds.add(String(b.voucherId));
-      }
-    }
-    return dupIds;
-  }, [transactions, ledgerId]);
 
   const isBankLedger = useMemo(() => {
     if (!ledger) return false;
@@ -462,7 +414,6 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
               ) : (
                 filteredTransactions.map((t: any, i: number) => {
                   const isImported = t.narration && (t.narration.toLowerCase().includes("mutual fund cas") || t.narration.toLowerCase().includes("contract note"));
-                  const isDup = duplicateVoucherIds.has(String(t.voucherId));
                   return (
                   <tr 
                     key={i} 
@@ -470,7 +421,7 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                     style={{ 
                       borderBottom: '1px solid #f9fafb', 
                       cursor: 'pointer', 
-                      backgroundColor: isDup ? '#fff1f2' : (isImported ? '#e0f2fe' : 'transparent') 
+                      backgroundColor: isImported ? '#e0f2fe' : 'transparent' 
                     }}
                     onClick={() => onVoucherClick(t.voucherId)}
                   >
@@ -487,23 +438,6 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                       }}>
                         {t.voucherType}
                       </span>
-                      {isDup && (
-                        <span 
-                          title="Potential duplicate transaction (matches another entry on same date, amount, and account)"
-                          style={{ 
-                            marginLeft: '6px',
-                            padding: '1px 5px', 
-                            borderRadius: '3px', 
-                            background: '#dc2626', 
-                            color: '#ffffff', 
-                            fontSize: '8.5px', 
-                            fontWeight: 800, 
-                            letterSpacing: '0.04em' 
-                          }}
-                        >
-                          DUPLICATE
-                        </span>
-                      )}
                     </td>
                     <td style={{ padding: '5px 8px', fontSize: '12px', color: '#1f2937', fontWeight: 500 }}>{t.againstLedger}</td>
                     {isDetailed && (
@@ -523,23 +457,23 @@ export default function LedgerDrilldownModal({ ledgerId, startDate, endDate, acc
                     <td className="print-hide" style={{ padding: '5px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <button
                         type="button"
-                        title={isDup ? `Delete Duplicate Voucher #${t.voucherId}` : `Delete Voucher #${t.voucherId}`}
+                        title={`Delete Voucher #${t.voucherId}`}
                         onClick={(e) => handleDeleteVoucher(e, t.voucherId, formatDateDDMMMYYYY(t.date), t.debit || t.credit, t.againstLedger)}
                         style={{
-                          background: isDup ? '#fee2e2' : 'transparent',
-                          border: isDup ? '1px solid #fecaca' : 'none',
+                          background: 'transparent',
+                          border: 'none',
                           cursor: 'pointer',
                           padding: '3px 5px',
                           borderRadius: '4px',
-                          color: isDup ? '#dc2626' : '#94a3b8',
+                          color: '#94a3b8',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          opacity: isDup ? 1 : 0.45,
+                          opacity: 0.45,
                           transition: 'opacity 0.2s, background 0.2s',
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#dc2626'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.opacity = isDup ? '1' : '0.45'; e.currentTarget.style.color = isDup ? '#dc2626' : '#94a3b8'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.45'; e.currentTarget.style.color = '#94a3b8'; }}
                       >
                         <Trash2 size={12} />
                       </button>

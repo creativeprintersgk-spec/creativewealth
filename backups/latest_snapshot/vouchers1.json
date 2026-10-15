@@ -145920,6 +145920,22 @@
     "acid": 30
   },
   {
+    "vid": 10834,
+    "vtyp": 6,
+    "dt": "2026-04-08",
+    "narr": null,
+    "pms_trans_id": -1,
+    "cnid": -1,
+    "acctlist": null,
+    "extid_source": -2,
+    "pfid": null,
+    "atype": null,
+    "sid": null,
+    "imp_rec_id": null,
+    "chqno": null,
+    "acid": 30
+  },
+  {
     "vid": 10835,
     "vtyp": 6,
     "dt": "2026-07-16",

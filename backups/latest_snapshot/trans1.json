@@ -241150,6 +241150,32 @@
     "acid": 30
   },
   {
+    "transid": 23640,
+    "vid": 10834,
+    "vtyp": 6,
+    "dt": "2026-04-08",
+    "maid": 48,
+    "ext_id": null,
+    "cramt": 647.65,
+    "dramt": 0,
+    "special_account": 40,
+    "narr": null,
+    "acid": 30
+  },
+  {
+    "transid": 23641,
+    "vid": 10834,
+    "vtyp": 6,
+    "dt": "2026-04-08",
+    "maid": 621,
+    "ext_id": null,
+    "cramt": 0,
+    "dramt": 647.65,
+    "special_account": -1,
+    "narr": null,
+    "acid": 30
+  },
+  {
     "transid": 23642,
     "vid": 10835,
     "vtyp": 6,
