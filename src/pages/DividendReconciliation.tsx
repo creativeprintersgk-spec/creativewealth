@@ -42,6 +42,7 @@ export default function DividendReconciliation() {
   // Data lists
   const [payoutList, setPayoutList] = useState<EligiblePayoutItem[]>([]);
   const [bankSelections, setBankSelections] = useState<Record<string, string>>({});
+  const [customRates, setCustomRates] = useState<Record<string, number>>({});
   const [customTdsValues, setCustomTdsValues] = useState<Record<string, number>>({});
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -119,18 +120,20 @@ export default function DividendReconciliation() {
     let totalTds = 0;
 
     payoutList.forEach(item => {
+      const rate = typeof customRates[item.id] === 'number' ? customRates[item.id] : item.payoutRate;
+      const gross = item.isReconciled ? item.grossAmount : Number((item.holdingQuantity * rate).toFixed(2));
       const currentTds = typeof customTdsValues[item.id] === 'number' ? customTdsValues[item.id] : item.tdsAmount;
-      totalGross += item.grossAmount;
+      totalGross += gross;
       totalTds += currentTds;
       if (item.isReconciled) {
-        totalReconciled += item.grossAmount;
+        totalReconciled += gross;
       } else {
-        totalPending += item.grossAmount;
+        totalPending += gross;
       }
     });
 
     return { totalGross, totalReconciled, totalPending, totalTds };
-  }, [payoutList, customTdsValues]);
+  }, [payoutList, customTdsValues, customRates]);
 
   // Single Action: Post Payout Double Entry
   const handlePostPayout = async (item: EligiblePayoutItem) => {
@@ -140,12 +143,14 @@ export default function DividendReconciliation() {
       return;
     }
 
+    const rate = typeof customRates[item.id] === 'number' ? customRates[item.id] : item.payoutRate;
+    const finalGross = item.isReconciled ? item.grossAmount : Number((item.holdingQuantity * rate).toFixed(2));
     const currentTds = customTdsValues[item.id] ?? item.tdsAmount;
     setProcessingId(item.id);
 
     try {
-      await postPayoutVoucher(item, bankId, currentTds);
-      setToastMessage(`✓ ${item.securityType === 'EQUITY' ? 'Dividend' : 'Interest'} of ₹${item.grossAmount.toLocaleString('en-IN')} posted to accounting ledgers!`);
+      await postPayoutVoucher(item, bankId, currentTds, finalGross, rate);
+      setToastMessage(`✓ ${item.securityType === 'EQUITY' ? 'Dividend' : 'Interest'} of ₹${finalGross.toLocaleString('en-IN', { minimumFractionDigits: 2 })} posted to accounting ledgers!`);
       loadData();
       setTimeout(() => setToastMessage(null), 3500);
     } catch (err: any) {
@@ -502,8 +507,10 @@ export default function DividendReconciliation() {
             ) : (
               filteredItems.map(item => {
                 const memberBanks = getCleanBankAccountsForMember(item.accountId);
+                const effectiveRate = typeof customRates[item.id] === 'number' ? customRates[item.id] : item.payoutRate;
+                const effectiveGross = item.isReconciled ? item.grossAmount : Number((item.holdingQuantity * effectiveRate).toFixed(2));
                 const currentTds = customTdsValues[item.id] ?? item.tdsAmount;
-                const netAmount = Number((item.grossAmount - currentTds).toFixed(2));
+                const netAmount = Number((effectiveGross - currentTds).toFixed(2));
 
                 const typeBadge = item.securityType === 'EQUITY' 
                   ? { bg: '#dcfce7', color: '#15803d', label: 'EQ' }
@@ -567,13 +574,38 @@ export default function DividendReconciliation() {
                     </td>
 
                     {/* Declared Rate */}
-                    <td style={{ padding: '10px 14px', textAlign: 'right', color: '#475569' }}>
-                      ₹{item.payoutRate.toFixed(2)}
+                    <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      {item.isReconciled ? (
+                        <span style={{ color: '#475569', fontWeight: 600 }}>₹{effectiveRate.toFixed(2)}</span>
+                      ) : (
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={customRates[item.id] !== undefined ? customRates[item.id] : effectiveRate}
+                          placeholder="0.00"
+                          onChange={e => {
+                            const val = parseFloat(e.target.value);
+                            setCustomRates(prev => ({ ...prev, [item.id]: isNaN(val) ? 0 : val }));
+                          }}
+                          style={{
+                            width: '70px',
+                            padding: '4px 6px',
+                            borderRadius: '5px',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '12px',
+                            textAlign: 'right',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            outline: 'none'
+                          }}
+                          title="Click to adjust declared rate"
+                        />
+                      )}
                     </td>
 
                     {/* Gross Amount */}
                     <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
-                      ₹{item.grossAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      ₹{effectiveGross.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
 
                     {/* TDS (Editable Input, Not Compulsory) */}

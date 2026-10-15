@@ -72,18 +72,43 @@ interface MfCasTabProps {
 
 // ── TRANSACTION TYPE CLASSIFIER ─────────────────────────────────────────────
 
+const KNOWN_PAN_MAP: Record<string, { name: string; defaultPf: string }> = {
+  'CGTPS8217E': { name: 'Saahil Shah', defaultPf: '1' },
+  'SLVPS8741A': { name: 'Arjin Shah', defaultPf: '64' },
+  'AAIPS3625H': { name: 'Pramesh Shah', defaultPf: '4' },
+  'AAIPS3624G': { name: 'Unnati Shah', defaultPf: '2' },
+  'BVDPM4828B': { name: 'Krisha Shah', defaultPf: '40' },
+  'AARHP2206E': { name: 'Pramesh Shah HUF', defaultPf: '35' },
+  'ABKHS7449L': { name: 'Saahil Shah HUF', defaultPf: '67' },
+};
+
 function classifyTransaction(rawType: string): CasTransaction['type'] {
   const t = rawType.toLowerCase();
+  const tNorm = t.replace(/s\s*t\s*p/g, 'stp');
   // Financial transactions take priority
-  if (t.includes('switch in') || t.includes('switch-in') || t.includes('lateral shift in') || t.includes('stp in')) return 'switch_in';
-  if (t.includes('switch out') || t.includes('switch-out') || t.includes('lateral shift out') || t.includes('stp out')) return 'switch_out';
-  if (t.includes('redemption') || t.includes('repurchase') || t.includes('instant redemption')) return 'redemption';
-  if (t.includes('purchase') || t.includes('sip') || t.includes('net purchase') || t.includes('subscription') || t.includes('reinvest')) return 'purchase';
-  if (t.includes('dividend') || t.includes('idcw')) return 'dividend';
+  if (
+    tNorm.includes('switch in') ||
+    tNorm.includes('switch-in') ||
+    tNorm.includes('lateral shift in') ||
+    tNorm.includes('stp in') ||
+    tNorm.includes('systematic transfer plan in')
+  ) return 'switch_in';
+
+  if (
+    tNorm.includes('switch out') ||
+    tNorm.includes('switch-out') ||
+    tNorm.includes('lateral shift out') ||
+    tNorm.includes('stp out') ||
+    tNorm.includes('systematic transfer plan out')
+  ) return 'switch_out';
+
+  if (tNorm.includes('redemption') || tNorm.includes('repurchase') || tNorm.includes('instant redemption')) return 'redemption';
+  if (tNorm.includes('purchase') || tNorm.includes('sip') || tNorm.includes('net purchase') || tNorm.includes('subscription') || tNorm.includes('reinvest')) return 'purchase';
+  if (tNorm.includes('dividend') || tNorm.includes('idcw')) return 'dividend';
   
   // Non-financial / fees
-  if (t.includes('stamp duty') || t.includes('stamp_duty')) return 'stamp_duty';
-  if (t.includes('stt paid') || t.includes('stt')) return 'stt';
+  if (tNorm.includes('stamp duty') || tNorm.includes('stamp_duty')) return 'stamp_duty';
+  if (tNorm.includes('stt paid') || tNorm.includes('stt')) return 'stt';
   
   return 'other';
 }
@@ -120,7 +145,7 @@ function cleanNum(s: string): number {
 // "Switch Out - To Bandhan Liquid Fund-(Dir Pln)-Gr , less STT" -> "Bandhan Liquid Fund"
 // "Switch In - From Bandhan Small Cap Fund-Dir-Growth" -> "Bandhan Small Cap Fund"
 function extractSwitchCounterpart(narr: string): string {
-  const m = narr.match(/(?:From|To)\s+([A-Za-z][A-Za-z\s&\-]+?(?:Fund|ETF|Scheme))/i);
+  const m = narr.match(/(?:From|To)\s+([A-Za-z0-9][A-Za-z0-9\s&\-]+?(?:Fund|ETF|Scheme|Plan|Option|\(AG\)))/i);
   return m ? m[1].replace(/-\s*(Dir|Direct|Growth|Dividend|Gr)\s*$/, '').trim() : '';
 }
 
@@ -133,6 +158,102 @@ function extractFundName(line: string): string {
   // Remove everything from "(Non" or "- ISIN" onwards
   const cleaned = afterCode.replace(/\s*\(\s*Non.*$/i, '').replace(/\s*-\s*ISIN.*$/i, '').trim();
   return cleaned;
+}
+
+function parseCasparserData(data: any): CasTransaction[] {
+  const transactions: CasTransaction[] = [];
+  let idCounter = 1;
+  const MINOR_FOLIOS = ['6341159', '34838122', '38967944'];
+
+  for (const folio of (data.folios || [])) {
+    const pan = (folio.PAN || '').toUpperCase().trim();
+    const folioNo = (folio.folio || '').trim();
+    const cleanFolio = folioNo.replace(/\s/g, '');
+    
+    for (const scheme of (folio.schemes || [])) {
+      const fundName = (scheme.scheme || '').trim();
+      const isin = (scheme.isin || '').replace(/\s/g, '').toUpperCase();
+      const reg = (scheme.rta || 'CAMS').toUpperCase().includes('K') ? 'KFINTECH' : 'CAMS';
+
+      let lastTx: CasTransaction | null = null;
+      for (const t of (scheme.transactions || [])) {
+        const rawType = (t.type || '').toUpperCase();
+        const amt = Math.abs(parseFloat(t.amount || 0));
+        const units = Math.abs(parseFloat(t.units || 0));
+        const price = Math.abs(parseFloat(t.nav || 0));
+        const dt = (t.date || '').substring(0, 10);
+        const desc = t.description || '';
+
+        // Handle fee lines
+        if (rawType === 'STAMP_DUTY_TAX' || rawType.includes('STAMP') || desc.toLowerCase().includes('stamp duty')) {
+          if (lastTx) lastTx.stampDutyAmount = (lastTx.stampDutyAmount || 0) + amt;
+          continue;
+        }
+        if (rawType === 'STT_TAX' || rawType.includes('STT') || desc.toLowerCase().includes('stt paid')) {
+          if (lastTx) lastTx.sttAmount = (lastTx.sttAmount || 0) + amt;
+          continue;
+        }
+
+        let txType: CasTransaction['type'] = 'other';
+        const dLow = desc.toLowerCase();
+        if (rawType === 'SWITCH_IN' || rawType.includes('SWITCH_IN') || dLow.includes('switch in') || dLow.includes('s t p in') || dLow.includes('stp in')) {
+          txType = 'switch_in';
+        } else if (rawType === 'SWITCH_OUT' || rawType.includes('SWITCH_OUT') || dLow.includes('switch out') || dLow.includes('s t p out') || dLow.includes('stp out')) {
+          txType = 'switch_out';
+        } else if (rawType === 'REDEMPTION' || rawType.includes('REDEMPTION') || dLow.includes('redemption') || dLow.includes('repurchase')) {
+          txType = 'redemption';
+        } else if (rawType === 'PURCHASE' || rawType === 'PURCHASE_SIP' || rawType.includes('PURCHASE') || dLow.includes('purchase') || dLow.includes('sip')) {
+          txType = 'purchase';
+        } else if (rawType.includes('DIVIDEND') || rawType.includes('IDCW') || dLow.includes('dividend') || dLow.includes('idcw')) {
+          txType = 'dividend';
+        }
+
+        if (txType === 'other' || (amt === 0 && units === 0)) continue;
+
+        const switchCounterpart = (txType === 'switch_in' || txType === 'switch_out')
+          ? extractSwitchCounterpart(desc) : '';
+
+        const isArjinMinor = pan === 'CGTPS8217E' && (
+          dLow.includes('arjin') ||
+          MINOR_FOLIOS.some(f => cleanFolio.includes(f))
+        );
+
+        const investorName = isArjinMinor
+          ? 'Arjin Saahil Shah'
+          : (KNOWN_PAN_MAP[pan]?.name || pan);
+
+        const defaultPortfolioId = isArjinMinor
+          ? '64'
+          : (KNOWN_PAN_MAP[pan]?.defaultPf || '');
+
+        const txObj: CasTransaction = {
+          id: idCounter++,
+          pan,
+          investorName,
+          fundName,
+          isin,
+          folio: folioNo,
+          date: dt,
+          type: txType,
+          amount: amt,
+          price,
+          units,
+          narration: desc,
+          switchCounterpart,
+          selected: true,
+          isDuplicate: false,
+          amid: null,
+          portfolioId: defaultPortfolioId,
+          bankLedgerId: '',
+          registrar: reg as any
+        };
+        transactions.push(txObj);
+        lastTx = txObj;
+      }
+    }
+  }
+
+  return transactions;
 }
 
 function parseCasText(text: string): CasTransaction[] {
@@ -158,7 +279,7 @@ function parseCasText(text: string): CasTransaction[] {
   let curReg: 'CAMS' | 'KFINTECH' | 'UNKNOWN' = 'UNKNOWN';
   let expectingName = false; // true after seeing "Folio No:" line
 
-  const TX_KW = /purchase|redemption|switch|sip|idcw|dividend|stp in|stp out|lateral|repurchase|subscription|reinvest/i;
+  const TX_KW = /purchase|redemption|switch|sip|idcw|dividend|stp|s\s*t\s*p|systematic|lateral|repurchase|subscription|reinvest/i;
   // Transaction line: DD-Mon-YYYY  amount  price  units  description
   const reTx = /^(\d{2}-[A-Za-z]{3}-\d{4})\s+([\(\)\d,\.]+)\s+([\d,\.]+)\s+([\(\)\d,\.]+)\s+(.+)$/;
   // Fee line: DD-Mon-YYYY amount (often STT or Stamp Duty right after a transaction)
@@ -169,6 +290,7 @@ function parseCasText(text: string): CasTransaction[] {
     const pm = line.match(/PAN:\s*([A-Z]{5}\d{4}[A-Z])\s+KYC:\s*(?:OK|NA)/);
     if (pm) {
       curPan = pm[1];
+      curName = KNOWN_PAN_MAP[curPan]?.name || curPan;
       expectingName = false;
       continue;
     }
@@ -246,10 +368,23 @@ function parseCasText(text: string): CasTransaction[] {
       if (amount === 0 && units === 0) continue;
       const switchCounterpart = (txType === 'switch_in' || txType === 'switch_out')
         ? extractSwitchCounterpart(desc) : '';
+      const isArjinMinor = curPan === 'CGTPS8217E' && (
+        desc.toLowerCase().includes('arjin') ||
+        curFolio.includes('6341159') ||
+        curFolio.includes('34838122') ||
+        curFolio.includes('38967944')
+      );
+      const investorName = isArjinMinor
+        ? 'Arjin Saahil Shah'
+        : (KNOWN_PAN_MAP[curPan]?.name || curName || curPan);
+      const defaultPortfolioId = isArjinMinor
+        ? '64'
+        : (KNOWN_PAN_MAP[curPan]?.defaultPf || '');
+
       transactions.push({
         id: idCounter++,
         pan: curPan,
-        investorName: curName || curPan,
+        investorName,
         fundName: curFund,
         isin: curIsin,
         folio: curFolio,
@@ -263,7 +398,7 @@ function parseCasText(text: string): CasTransaction[] {
         selected: true,
         isDuplicate: false,
         amid: null,
-        portfolioId: '',
+        portfolioId: defaultPortfolioId,
         bankLedgerId: '',
         registrar: curReg,
       });
@@ -275,90 +410,128 @@ function parseCasText(text: string): CasTransaction[] {
 // ── DUPLICATE CHECKER ───────────────────────────────────────────────────────
 
 function checkDuplicates(trades: CasTransaction[]): CasTransaction[] {
+  // Pre-index bs1 and scnote1 by portfolio for ultra-fast candidate lookup
+  const bs1ByPf = new Map<string, any[]>();
+  const allBs1 = state.bs1 || [];
+  for (const b of allBs1) {
+    const k = String(b.pfid ?? '');
+    let arr = bs1ByPf.get(k);
+    if (!arr) { arr = []; bs1ByPf.set(k, arr); }
+    arr.push(b);
+  }
+
+  const scnoteByPf = new Map<string, any[]>();
+  const allScnote = state.scnote1 || [];
+  for (const b of allScnote) {
+    const v = state.vouchersC1?.find((v: any) => v.vid === b.vid);
+    const k = String(v?.pfolio_id ?? '');
+    let arr = scnoteByPf.get(k);
+    if (!arr) { arr = []; scnoteByPf.set(k, arr); }
+    arr.push({ ...b, voucherDt: v?.dt });
+  }
+
+  // Pre-build O(1) Maps for assetMaster and sam to eliminate billions of inner loop iterations
+  const amMap = new Map<number, any>();
+  for (const a of (state.assetMaster || [])) amMap.set(a.amid, a);
+
+  const samMap = new Map<number, any>();
+  for (const s of (state.sam || [])) samMap.set(s.amid, s);
+
   return trades.map(t => {
-    // Strict duplicate check: must match date + ISIN (or fund name) + amount
-    // A loose check (date+amount only) causes false positives when multiple funds
-    // have transactions on the same day with the same amount
-        const existsInBs1 = (state.bs1 || []).some((b: any) => {
-      if (b.pfid !== undefined && t.portfolioId && String(b.pfid) !== String(t.portfolioId)) return false;
-      const matchDate = (b.dt || '').substring(0, 10) === t.date;
-      if (!matchDate) return false;
+    const tTime = new Date(t.date).getTime();
+    const candidateBs1 = t.portfolioId ? (bs1ByPf.get(String(t.portfolioId)) || []) : allBs1;
+
+    const existsInBs1 = candidateBs1.some((b: any) => {
+      
+      const bDateStr = (b.dt || '').substring(0, 10);
+      const bTime = new Date(bDateStr).getTime();
+      const dayDiff = Math.abs((tTime - bTime) / (1000 * 60 * 60 * 24));
+      if (dayDiff > 2) return false;
 
       let bIsin = '';
-      const am = state.assetMaster.find((a: any) => a.amid === b.amid);
+      const am = amMap.get(b.amid);
       if (am && am.isin) bIsin = am.isin.toUpperCase();
       if (!bIsin) {
-        const samEntry = state.sam.find((s: any) => s.amid === b.amid);
+        const samEntry = samMap.get(b.amid);
         if (samEntry && samEntry.extstr) bIsin = samEntry.extstr.toUpperCase();
       }
 
       const tIsin = (t.isin || '').replace(/\s/g, '').toUpperCase();
-      const matchIsin = !!tIsin && !!bIsin && bIsin.includes(tIsin);
+      const matchIsin = !!tIsin && !!bIsin && (bIsin.includes(tIsin) || tIsin.includes(bIsin));
 
-      const bName = (state.assetNameMap[b.amid] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const bName = (state.assetNameMap[b.amid] || am?.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const tName = (t.fundName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const bNameParts = (state.assetNameMap[b.amid] || '').toLowerCase().split(/[\s\-]+/).filter((w: string) => w.length > 2);
+      const bNameParts = (state.assetNameMap[b.amid] || am?.name || '').toLowerCase().split(/[\s\-]+/).filter((w: string) => w.length > 2);
       const tNameParts = (t.fundName || '').toLowerCase().split(/[\s\-]+/).filter((w: string) => w.length > 2);
       let sharedWords = 0;
       for (const w of tNameParts) {
          if (bNameParts.includes(w)) sharedWords++;
       }
-      const matchName = sharedWords >= 2 || (!!tName && !!bName && (bName.includes(tName) || tName.includes(bName)));
+      const matchName = sharedWords >= 2 || (!!tName && !!bName && (bName.includes(tName.slice(0, 15)) || tName.includes(bName.slice(0, 15))));
+
+      if (!matchIsin && !matchName) return false;
 
       const bGrossAmt = Number(b.amt || b.camt || 0);
       const bNetAmt = bGrossAmt - Number(b.chrgs || 0);
       const tAmtGross = t.amount + (t.stampDutyAmount || 0) + (t.sttAmount || 0);
-      const matchAmt = Math.abs(bNetAmt - t.amount) < 1 || 
-                       Math.abs(bGrossAmt - t.amount) < 1 ||
-                       Math.abs(bGrossAmt - tAmtGross) < 1;
+      const matchAmt = Math.abs(bNetAmt - t.amount) < 5 || 
+                       Math.abs(bGrossAmt - t.amount) < 5 ||
+                       Math.abs(bGrossAmt - tAmtGross) < 5;
 
-      const matchUnits = Math.abs(Number(b.qn || b.qty || 0) - t.units) < 0.001;
+      const matchUnits = Math.abs(Number(b.qn || b.qty || 0) - t.units) < 0.005;
 
-      if ((matchIsin || matchName) && (matchAmt || matchUnits)) return true;
-      return false;
+      if (dayDiff > 0) {
+        return (matchUnits && matchAmt);
+      }
+      return (matchAmt || matchUnits);
     });
 
-    const existsInScnote1 = (state.scnote1 || []).some((b: any) => {
-      // Find voucher to match portfolio
+    const candidateScnote = t.portfolioId ? (scnoteByPf.get(String(t.portfolioId)) || []) : allScnote;
+    const existsInScnote1 = candidateScnote.some((b: any) => {
       const v = state.vouchersC1?.find((v: any) => v.vid === b.vid);
       if (v && v.pfolio_id !== undefined && t.portfolioId && String(v.pfolio_id) !== String(t.portfolioId)) return false;
       
-      const dt = b.dt || v?.dt;
-      const matchDate = (dt || '').substring(0, 10) === t.date;
-      if (!matchDate) return false;
+      const dt = (b.dt || v?.dt || '').substring(0, 10);
+      const bTime = new Date(dt).getTime();
+      const dayDiff = Math.abs((tTime - bTime) / (1000 * 60 * 60 * 24));
+      if (dayDiff > 2) return false;
 
       let bIsin = '';
-      const am = state.assetMaster.find((a: any) => a.amid === b.amid);
+      const am = amMap.get(b.amid);
       if (am && am.isin) bIsin = am.isin.toUpperCase();
       if (!bIsin) {
-        const samEntry = state.sam.find((s: any) => s.amid === b.amid);
+        const samEntry = samMap.get(b.amid);
         if (samEntry && samEntry.extstr) bIsin = samEntry.extstr.toUpperCase();
       }
 
       const tIsin = (t.isin || '').replace(/\s/g, '').toUpperCase();
-      const matchIsin = !!tIsin && !!bIsin && bIsin.includes(tIsin);
+      const matchIsin = !!tIsin && !!bIsin && (bIsin.includes(tIsin) || tIsin.includes(bIsin));
 
-      const bName = (state.assetNameMap[b.amid] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const bName = (state.assetNameMap[b.amid] || am?.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const tName = (t.fundName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const bNameParts = (state.assetNameMap[b.amid] || '').toLowerCase().split(/[\s\-]+/).filter((w: string) => w.length > 2);
+      const bNameParts = (state.assetNameMap[b.amid] || am?.name || '').toLowerCase().split(/[\s\-]+/).filter((w: string) => w.length > 2);
       const tNameParts = (t.fundName || '').toLowerCase().split(/[\s\-]+/).filter((w: string) => w.length > 2);
       let sharedWords = 0;
       for (const w of tNameParts) {
          if (bNameParts.includes(w)) sharedWords++;
       }
-      const matchName = sharedWords >= 2 || (!!tName && !!bName && (bName.includes(tName) || tName.includes(bName)));
+      const matchName = sharedWords >= 2 || (!!tName && !!bName && (bName.includes(tName.slice(0, 15)) || tName.includes(bName.slice(0, 15))));
+
+      if (!matchIsin && !matchName) return false;
 
       const bGrossAmt = Number(b.amt || 0);
       const bNetAmt = bGrossAmt;
       const tAmtGross = t.amount + (t.stampDutyAmount || 0) + (t.sttAmount || 0);
-      const matchAmt = Math.abs(bNetAmt - t.amount) < 1 || 
-                       Math.abs(bGrossAmt - t.amount) < 1 ||
-                       Math.abs(bGrossAmt - tAmtGross) < 1;
+      const matchAmt = Math.abs(bNetAmt - t.amount) < 5 || 
+                       Math.abs(bGrossAmt - t.amount) < 5 ||
+                       Math.abs(bGrossAmt - tAmtGross) < 5;
 
-      const matchUnits = Math.abs(Number(b.qn || 0) - t.units) < 0.001;
+      const matchUnits = Math.abs(Number(b.qn || 0) - t.units) < 0.005;
 
-      if ((matchIsin || matchName) && (matchAmt || matchUnits)) return true;
-      return false;
+      if (dayDiff > 0) {
+        return (matchUnits && matchAmt);
+      }
+      return (matchAmt || matchUnits);
     });
 
     const exists = existsInBs1 || existsInScnote1;
@@ -448,9 +621,19 @@ export function MfCasTab({
     try {
       setCasMessage('📖 Loading PDF parser...');
 
+      if (file.name.toLowerCase().endsWith('.json')) {
+        setCasMessage('⚙️ Parsing casparser JSON...');
+        const text = await file.text();
+        const json = JSON.parse(text);
+        const parsed = parseCasparserData(json);
+        processParsedTrades(parsed);
+        return;
+      }
+
       if (file.name.toLowerCase().endsWith('.txt')) {
         const text = await file.text();
-        processTextContent(text);
+        const parsed = parseCasText(text);
+        processParsedTrades(parsed);
         return;
       }
 
@@ -514,17 +697,17 @@ export function MfCasTab({
         fullText += pageText + ' ';
       }
 
-      processTextContent(fullText);
+      const parsed = parseCasText(fullText);
+      processParsedTrades(parsed);
     } catch (err: any) {
       setCasMessage(`❌ Failed to load CAS: ${err.message}`);
     }
   };
 
-  const processTextContent = (text: string) => {
-    setCasMessage('⚙️ Parsing CAS transactions...');
+  const processParsedTrades = (parsed: CasTransaction[]) => {
+    setCasMessage('⚙️ Analyzing portfolios and checking duplicates...');
 
     try {
-      let parsed = parseCasText(text);
       // NOTE: checkDuplicates is called AFTER portfolio mapping below so that
       // t.portfolioId is populated and per-portfolio duplicate detection works.
 
@@ -561,7 +744,7 @@ export function MfCasTab({
       const mapped = parsed.map(t => {
          return {
            ...t,
-           portfolioId: panMap[t.pan] || '',
+           portfolioId: t.portfolioId || panMap[t.pan] || '',
          };
       });
 
@@ -931,10 +1114,10 @@ export function MfCasTab({
       }}
         onClick={() => casFileRef.current?.click()}
       >
-        <input ref={casFileRef} type="file" accept=".pdf,.txt" style={{ display: 'none' }} onChange={handleCasFile} />
+        <input ref={casFileRef} type="file" accept=".pdf,.txt,.json" style={{ display: 'none' }} onChange={handleCasFile} />
         <Upload size={40} color="#ea580c" style={{ marginBottom: '12px' }} />
         <div style={{ fontSize: '18px', fontWeight: 700, color: '#ea580c', marginBottom: '8px' }}>
-          Click to upload CAS PDF / Text file
+          Click to upload CAS PDF or casparser JSON
         </div>
         <div style={{ fontSize: '13px', color: '#9a3412' }}>
           {casPassword
@@ -1017,8 +1200,8 @@ export function MfCasTab({
       {/* Grouped by PAN */}
       {uniquePans.map(pan => {
         const panTrades = casTrades.filter(t => t.pan === pan);
-        const investorName = panTrades[0]?.investorName || pan;
-        const portfolioId = panTrades[0]?.portfolioId || '';
+        const investorName = KNOWN_PAN_MAP[pan]?.name || (pan === 'CGTPS8217E' ? 'Saahil Shah' : panTrades[0]?.investorName || pan);
+        const portfolioId = panTrades[0]?.portfolioId || KNOWN_PAN_MAP[pan]?.defaultPf || '';
         const isExpanded = expandedPans.has(pan) || casTrades.length < 20;
         const panSelected = panTrades.filter(t => t.selected && !t.isDuplicate).length;
         const isUnmapped = !portfolioId; // No portfolio selected yet

@@ -97,7 +97,7 @@ export const LATEST_EQUITY_DIVIDENDS: EquityDividendDeclaration[] = [
   { isin: 'INE249Z01020', symbol: 'MAZDOCK', companyName: 'Mazagon Dock Shipbuilders', recordDate: '2026-09-15', dividendPerShare: 4.62, dividendType: 'Final', fy: '2026-2027' },
   { isin: 'INE528G01035', symbol: 'COALINDIA', companyName: 'Coal India', recordDate: '2026-09-22', dividendPerShare: 5.25, dividendType: 'Final', fy: '2026-2027' },
   { isin: 'INE094A01015', symbol: 'HINDPETRO', companyName: 'Hindustan Petroleum Corporation', recordDate: '2026-09-11', dividendPerShare: 11.00, dividendType: 'Final', fy: '2026-2027' },
-  { isin: 'INE263A01024', symbol: 'BEL', companyName: 'Bharat Electronics', recordDate: '2026-09-09', dividendPerShare: 0.90, dividendType: 'Final', fy: '2026-2027' },
+  { isin: 'INE263A01024', symbol: 'BEL', companyName: 'Bharat Electronics', recordDate: '2026-09-09', dividendPerShare: 0.55, dividendType: 'Final', fy: '2026-2027' },
   { isin: 'INE257A01026', symbol: 'BHEL', companyName: 'Bharat Heavy Electricals', recordDate: '2026-10-05', dividendPerShare: 0.25, dividendType: 'Final', fy: '2026-2027' },
   { isin: 'INE213W01024', symbol: 'VIJAYA', companyName: 'Vijaya Diagnostic Centre', recordDate: '2026-10-07', dividendPerShare: 1.00, dividendType: 'Final', fy: '2026-2027' },
   { isin: 'INE274J01014', symbol: 'OIL', companyName: 'Oil India', recordDate: '2026-09-28', dividendPerShare: 2.50, dividendType: 'Final', fy: '2026-2027' },
@@ -240,7 +240,84 @@ export function computeEligibleFamilyPayouts(
     return `${calYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
-  const usedVoucherIds = new Set<number>();
+  const usedVoucherKeys = new Set<string>();
+
+  const findReconciliationVoucher = (
+    acidNum: number,
+    expectedDateStr: string,
+    targetIncomeLedgerId: number,
+    grossAmount: number,
+    netBankAmount: number,
+    sec: { isin?: string; symbol?: string; name?: string; type: 'EQUITY' | 'SGB' | 'BOND' | 'GSEC' }
+  ) => {
+    const sources: Array<{ src: 'c' | '1'; vouchers: any[]; trans: any[] }> = [
+      { src: 'c', vouchers: state.vouchersC1 || [], trans: state.transC1 || [] },
+      { src: '1', vouchers: state.vouchers1 || [], trans: state.trans1 || [] }
+    ];
+
+    const expTime = new Date(expectedDateStr).getTime();
+
+    for (const { src, vouchers, trans } of sources) {
+      for (const v of vouchers) {
+        const key = `${src}_${v.vid}`;
+        if (usedVoucherKeys.has(key)) continue;
+        if (Number(v.acid) !== acidNum) continue;
+        if (!v.dt) continue;
+
+        const vTime = new Date(v.dt).getTime();
+        const daysDiff = (vTime - expTime) / (1000 * 60 * 60 * 24);
+        if (daysDiff < -10 || daysDiff > 45) continue;
+
+        const creditLine = trans.find((t: any) => 
+          t.vid === v.vid && 
+          Number(t.maid) === targetIncomeLedgerId && 
+          Number(t.cramt) > 0
+        );
+        if (!creditLine) continue;
+
+        const narr = (v.narr || '').toUpperCase();
+        let matched = false;
+
+        // 1. Explicit text match (ISIN, Symbol, Name)
+        if (sec.isin && narr.includes(sec.isin.toUpperCase())) matched = true;
+        if (sec.symbol && narr.includes(sec.symbol.toUpperCase())) matched = true;
+        if (sec.name && narr.includes(sec.name.toUpperCase())) matched = true;
+
+        // 2. Amount match on target income ledger (within ₹0.10 tolerance)
+        const amtMatch = Math.abs(Number(creditLine.cramt) - grossAmount) < 0.1 || Math.abs(Number(creditLine.cramt) - netBankAmount) < 0.1;
+        if (!matched && amtMatch) {
+          if (sec.type === 'SGB') {
+            if (narr.includes('CENTRAL DEPOSITORY') || narr.includes('SGB') || narr.includes('GOLD') || narr.includes('RBI') || narr.includes('INTEREST') || narr.includes('COUPON') || narr.includes('IN22') || !narr) {
+              matched = true;
+            }
+          } else if (sec.type === 'BOND' || sec.type === 'GSEC') {
+            if (narr.includes('BOND') || narr.includes('GSEC') || narr.includes('GS') || narr.includes('RBI') || narr.includes('INTEREST') || narr.includes('COUPON') || narr.includes('CENTRAL DEPOSITORY') || narr.includes('APSBCL') || !narr) {
+              matched = true;
+            }
+          } else if (sec.type === 'EQUITY') {
+            if (narr.includes('DIV') || narr.includes('NACH') || narr.includes('ECS') || narr.includes('ACH') || narr.includes('CENTRAL DEPOSITORY') || !narr) {
+              matched = true;
+            }
+          }
+        }
+
+        if (matched) {
+          const debitBankLine = trans.find((t: any) => 
+            t.vid === v.vid && 
+            t.transid !== creditLine.transid && 
+            Number(t.dramt) > 0 && 
+            (state.acmac1 || []).some((a: any) => a.id === t.maid && Number(a.parent_id) === 60)
+          );
+          if (debitBankLine) {
+            usedVoucherKeys.add(key);
+            return { matchedVoucher: v, debitBankLine, creditLine, voucherSource: src };
+          }
+        }
+      }
+    }
+
+    return null;
+  };
 
   // ── A. EQUITIES (DIVIDENDS) ──
   // STRICT RULE: Iterate over actual active portfolios and held equity positions!
@@ -305,40 +382,22 @@ export function computeEligibleFamilyPayouts(
       let reconciledBankName: string | undefined = undefined;
       let reconciledVoucherId: string | undefined = undefined;
 
-      const rDateTime = new Date(matchedDiv.recordDate).getTime();
+      const reconMatch = findReconciliationVoucher(
+        acidNum,
+        matchedDiv.recordDate,
+        415,
+        grossAmount,
+        netBankAmount,
+        { isin: matchedDiv.isin, symbol: matchedDiv.symbol, name: matchedDiv.companyName, type: 'EQUITY' }
+      );
 
-      const matchedVoucher = (state.vouchersC1 || []).find((v: any) => {
-        if (usedVoucherIds.has(Number(v.vid))) return false;
-        if (Number(v.acid) !== acidNum) return false;
-        const vDate = v.dt || '';
-        if (!vDate) return false;
-        const vDateTime = new Date(vDate).getTime();
-        const daysDiff = (vDateTime - rDateTime) / (1000 * 60 * 60 * 24);
-        if (daysDiff < -10 || daysDiff > 45) return false;
-
-        const narr = (v.narr || '').toUpperCase();
-        return narr.includes(matchedDiv.symbol.toUpperCase()) || narr.includes(matchedDiv.isin.toUpperCase()) || narr.includes(matchedDiv.companyName.toUpperCase());
-      });
-
-      if (matchedVoucher) {
-        const creditLine = (state.transC1 || []).find((t: any) => t.vid === matchedVoucher.vid && Number(t.maid) === 415);
-        if (creditLine) {
-          isReconciled = true;
-          reconciledVoucherId = String(matchedVoucher.vid);
-          usedVoucherIds.add(Number(matchedVoucher.vid));
-          const debitBankLine = (state.transC1 || []).find((t: any) => 
-            t.vid === matchedVoucher.vid && 
-            t.transid !== creditLine.transid && 
-            Number(t.dramt) > 0 && 
-            (state.acmac1 || []).some((a: any) => a.id === t.maid && Number(a.parent_id) === 60)
-          );
-          if (debitBankLine) {
-            reconciledBankId = String(debitBankLine.maid);
-            const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid && Number(a.acid) === acidNum) ||
-                         (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
-            reconciledBankName = bObj ? bObj.name : undefined;
-          }
-        }
+      if (reconMatch) {
+        isReconciled = true;
+        reconciledVoucherId = String(reconMatch.matchedVoucher.vid);
+        reconciledBankId = String(reconMatch.debitBankLine.maid);
+        const bObj = (state.acmac1 || []).find((a: any) => a.id === reconMatch.debitBankLine.maid && Number(a.acid) === acidNum) ||
+                     (state.acmac1 || []).find((a: any) => a.id === reconMatch.debitBankLine.maid);
+        reconciledBankName = bObj ? bObj.name : undefined;
       }
 
       const effectiveBankId = reconciledBankId || (defaultBank ? String(defaultBank.id) : undefined);
@@ -406,45 +465,28 @@ export function computeEligibleFamilyPayouts(
           const tdsAmount = 0; // Section 193 exemption
           const netBankAmount = grossAmount;
 
+          // Check if already reconciled: strict date proximity to recordDate
           let isReconciled = false;
           let reconciledBankId: string | undefined = undefined;
           let reconciledBankName: string | undefined = undefined;
           let reconciledVoucherId: string | undefined = undefined;
 
-          const pDateTime = new Date(pDate).getTime();
+          const reconMatch = findReconciliationVoucher(
+            acidNum,
+            pDate,
+            401,
+            grossAmount,
+            netBankAmount,
+            { isin: sgb.isin, symbol: sgb.series, name: sgb.series, type: 'SGB' }
+          );
 
-          const matchedVoucher = (state.vouchersC1 || []).find((v: any) => {
-            if (usedVoucherIds.has(Number(v.vid))) return false;
-            if (Number(v.acid) !== acidNum) return false;
-            const vDate = v.dt || '';
-            if (!vDate) return false;
-            const vDateTime = new Date(vDate).getTime();
-            const daysDiff = (vDateTime - pDateTime) / (1000 * 60 * 60 * 24);
-            if (daysDiff < -10 || daysDiff > 35) return false;
-
-            const narr = (v.narr || '').toUpperCase();
-            return narr.includes(sgb.isin) || narr.includes(sgb.series.toUpperCase());
-          });
-
-          if (matchedVoucher) {
-            const creditLine = (state.transC1 || []).find((t: any) => t.vid === matchedVoucher.vid && Number(t.maid) === 401);
-            if (creditLine) {
-              isReconciled = true;
-              reconciledVoucherId = String(matchedVoucher.vid);
-              usedVoucherIds.add(Number(matchedVoucher.vid));
-              const debitBankLine = (state.transC1 || []).find((t: any) => 
-                t.vid === matchedVoucher.vid && 
-                t.transid !== creditLine.transid && 
-                Number(t.dramt) > 0 && 
-                (state.acmac1 || []).some((a: any) => a.id === t.maid && Number(a.parent_id) === 60)
-              );
-              if (debitBankLine) {
-                reconciledBankId = String(debitBankLine.maid);
-                const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid && Number(a.acid) === acidNum) ||
-                             (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
-                reconciledBankName = bObj ? bObj.name : undefined;
-              }
-            }
+          if (reconMatch) {
+            isReconciled = true;
+            reconciledVoucherId = String(reconMatch.matchedVoucher.vid);
+            reconciledBankId = String(reconMatch.debitBankLine.maid);
+            const bObj = (state.acmac1 || []).find((a: any) => a.id === reconMatch.debitBankLine.maid && Number(a.acid) === acidNum) ||
+                         (state.acmac1 || []).find((a: any) => a.id === reconMatch.debitBankLine.maid);
+            reconciledBankName = bObj ? bObj.name : undefined;
           }
 
           const effectiveBankId = reconciledBankId || (defaultBank ? String(defaultBank.id) : undefined);
@@ -516,45 +558,28 @@ export function computeEligibleFamilyPayouts(
           const tdsAmount = bnd.isin.startsWith('INE') && grossAmount >= 5000 ? Number((grossAmount * 0.10).toFixed(2)) : 0;
           const netBankAmount = Number((grossAmount - tdsAmount).toFixed(2));
 
+          // Check if already reconciled: strict date proximity to recordDate
           let isReconciled = false;
           let reconciledBankId: string | undefined = undefined;
           let reconciledBankName: string | undefined = undefined;
           let reconciledVoucherId: string | undefined = undefined;
 
-          const pDateTime = new Date(pDate).getTime();
+          const reconMatch = findReconciliationVoucher(
+            acidNum,
+            pDate,
+            401,
+            grossAmount,
+            netBankAmount,
+            { isin: bnd.isin, symbol: bnd.name, name: bnd.name, type: 'BOND' }
+          );
 
-          const matchedVoucher = (state.vouchersC1 || []).find((v: any) => {
-            if (usedVoucherIds.has(Number(v.vid))) return false;
-            if (Number(v.acid) !== acidNum) return false;
-            const vDate = v.dt || '';
-            if (!vDate) return false;
-            const vDateTime = new Date(vDate).getTime();
-            const daysDiff = (vDateTime - pDateTime) / (1000 * 60 * 60 * 24);
-            if (daysDiff < -10 || daysDiff > 35) return false;
-
-            const narr = (v.narr || '').toUpperCase();
-            return narr.includes(bnd.isin) || narr.includes(bnd.name.toUpperCase());
-          });
-
-          if (matchedVoucher) {
-            const creditLine = (state.transC1 || []).find((t: any) => t.vid === matchedVoucher.vid && Number(t.maid) === 401);
-            if (creditLine) {
-              isReconciled = true;
-              reconciledVoucherId = String(matchedVoucher.vid);
-              usedVoucherIds.add(Number(matchedVoucher.vid));
-              const debitBankLine = (state.transC1 || []).find((t: any) => 
-                t.vid === matchedVoucher.vid && 
-                t.transid !== creditLine.transid && 
-                Number(t.dramt) > 0 && 
-                (state.acmac1 || []).some((a: any) => a.id === t.maid && Number(a.parent_id) === 60)
-              );
-              if (debitBankLine) {
-                reconciledBankId = String(debitBankLine.maid);
-                const bObj = (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid && Number(a.acid) === acidNum) ||
-                             (state.acmac1 || []).find((a: any) => a.id === debitBankLine.maid);
-                reconciledBankName = bObj ? bObj.name : undefined;
-              }
-            }
+          if (reconMatch) {
+            isReconciled = true;
+            reconciledVoucherId = String(reconMatch.matchedVoucher.vid);
+            reconciledBankId = String(reconMatch.debitBankLine.maid);
+            const bObj = (state.acmac1 || []).find((a: any) => a.id === reconMatch.debitBankLine.maid && Number(a.acid) === acidNum) ||
+                         (state.acmac1 || []).find((a: any) => a.id === reconMatch.debitBankLine.maid);
+            reconciledBankName = bObj ? bObj.name : undefined;
           }
 
           const effectiveBankId = reconciledBankId || (defaultBank ? String(defaultBank.id) : undefined);
@@ -602,15 +627,19 @@ export function computeEligibleFamilyPayouts(
 export async function postPayoutVoucher(
   item: EligiblePayoutItem,
   selectedBankId?: string,
-  customTds?: number
+  customTds?: number,
+  customGross?: number,
+  customRate?: number
 ): Promise<{ success: boolean; voucherId: string }> {
   const bankId = selectedBankId || item.bankLedgerId;
   if (!bankId) {
     throw new Error(`Please select a Bank Account for ${item.securityName}.`);
   }
 
+  const finalGross = typeof customGross === 'number' ? Math.max(0, customGross) : item.grossAmount;
   const finalTds = typeof customTds === 'number' ? Math.max(0, customTds) : item.tdsAmount;
-  const netReceived = Number((item.grossAmount - finalTds).toFixed(2));
+  const netReceived = Number((finalGross - finalTds).toFixed(2));
+  const effectiveRate = typeof customRate === 'number' ? customRate : item.payoutRate;
 
   const isDividend = item.securityType === 'EQUITY';
   const targetIncomeLedgerId = isDividend ? 415 : 401; // 415 = Dividend, 401 = Interest on Investment
@@ -636,10 +665,10 @@ export async function postPayoutVoucher(
     {
       ledgerId: String(targetIncomeLedgerId),
       debit: 0,
-      credit: item.grossAmount,
+      credit: finalGross,
       quantity: 0,
       price: 0,
-      amount: item.grossAmount
+      amount: finalGross
     }
   ];
 
@@ -652,8 +681,8 @@ export async function postPayoutVoucher(
   }
 
   const narration = isDividend
-    ? `Dividend Received for ${item.securityName} (${item.symbol}) @ Rs ${item.payoutRate}/sh on ${item.holdingQuantity} shares (Record Date: ${item.recordDate})`
-    : `Interest Received for ${item.securityName} @ Rs ${item.payoutRate}/unit on ${item.holdingQuantity} units (Record Date: ${item.recordDate})`;
+    ? `Dividend Received for ${item.securityName} (${item.symbol}) @ Rs ${effectiveRate}/sh on ${item.holdingQuantity} shares (Record Date: ${item.recordDate})`
+    : `Interest Received for ${item.securityName} @ Rs ${effectiveRate}/unit on ${item.holdingQuantity} units (Record Date: ${item.recordDate})`;
 
   const voucherData = {
     id: Math.random().toString(36).substring(2, 11),

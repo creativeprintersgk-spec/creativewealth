@@ -44,6 +44,13 @@ export default function VoucherGrid({
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [focusedIndex, setFocusedIndex] = useState(0)
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+
+  useEffect(() => {
+    if (activeDropdown && itemRefs.current[focusedIndex]) {
+      itemRefs.current[focusedIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [focusedIndex, activeDropdown])
 
   useEffect(() => { onChange(rows) }, [rows])
 
@@ -221,6 +228,7 @@ export default function VoucherGrid({
                         ) : filteredLedgers.map((l, i) => (
                           <div
                             key={l.id}
+                            ref={el => { itemRefs.current[i] = el; }}
                             onMouseDown={() => {
                               updateRow(row.id, "ledgerId", l.id)
                               updateRow(row.id, "ledgerName", l.name)

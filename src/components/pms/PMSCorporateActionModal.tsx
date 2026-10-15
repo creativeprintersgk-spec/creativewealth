@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Share2, Info, Trash2 } from 'lucide-react';
 import { state, buildAssetFifoLedger, depleteFifoLots, FIFO_BUY_TRTY, FIFO_SELL_TRTY, getStoredPortfolios, getStoredLedgers, createVoucher, ensureLedgerExists, getVoucherById, updateVoucher, deleteVoucher } from '../../logic';
 import { searchAssets, type AssetMaster } from '../../services/assetMasterService';
@@ -38,7 +38,19 @@ export default function PMSCorporateActionModal({
   const [searchResults, setSearchResults] = useState<AssetMaster[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<AssetMaster | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [focusedAssetIdx, setFocusedAssetIdx] = useState(0);
+  const assetItemsRef = useRef<(HTMLDivElement | null)[]>([]);
   const [costAllocationPct, setCostAllocationPct] = useState<number>(100);
+
+  useEffect(() => {
+    setFocusedAssetIdx(0);
+  }, [searchResults, showDropdown]);
+
+  useEffect(() => {
+    if (showDropdown && assetItemsRef.current[focusedAssetIdx]) {
+      assetItemsRef.current[focusedAssetIdx]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [focusedAssetIdx, showDropdown]);
 
   // Transfer Specifics
   const [destPortfolioId, setDestPortfolioId] = useState('');
@@ -486,22 +498,53 @@ export default function PMSCorporateActionModal({
                   type="text" 
                   value={searchQuery} 
                   onChange={e => setSearchQuery(e.target.value)} 
+                  onKeyDown={e => {
+                    if (showDropdown && searchResults.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setFocusedAssetIdx(i => Math.min(i + 1, searchResults.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setFocusedAssetIdx(i => Math.max(i - 1, 0));
+                      } else if (e.key === 'Enter' || e.key === 'Tab') {
+                        if (searchResults[focusedAssetIdx]) {
+                          e.preventDefault();
+                          const a = searchResults[focusedAssetIdx];
+                          setSelectedAsset(a);
+                          setSearchQuery(a.name);
+                          setShowDropdown(false);
+                        }
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setShowDropdown(false);
+                      }
+                    }
+                  }}
                   placeholder="Search company name..." 
                   style={inputStyle} 
                 />
                 {showDropdown && searchResults.length > 0 && (
                   <div style={dropdownStyle}>
-                    {searchResults.map(asset => (
-                      <div 
-                        key={asset.amid} 
-                        onClick={() => { setSelectedAsset(asset); setSearchQuery(asset.name); setShowDropdown(false); }} 
-                        style={dropdownItemStyle}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                      >
-                        {asset.name}
-                      </div>
-                    ))}
+                    {searchResults.map((asset, aIdx) => {
+                      const isSelected = aIdx === focusedAssetIdx;
+                      return (
+                        <div 
+                          key={asset.amid} 
+                          ref={el => { assetItemsRef.current[aIdx] = el; }}
+                          onClick={() => { setSelectedAsset(asset); setSearchQuery(asset.name); setShowDropdown(false); }} 
+                          onMouseEnter={() => setFocusedAssetIdx(aIdx)}
+                          style={{
+                            ...dropdownItemStyle,
+                            background: isSelected ? '#eff6ff' : '#fff',
+                            color: isSelected ? '#1d4ed8' : '#1e293b',
+                            borderLeft: isSelected ? '3px solid #2563eb' : '3px solid transparent',
+                            fontWeight: isSelected ? 700 : 500
+                          }}
+                        >
+                          {asset.name}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -532,22 +575,53 @@ export default function PMSCorporateActionModal({
                   type="text" 
                   value={searchQuery} 
                   onChange={e => setSearchQuery(e.target.value)} 
+                  onKeyDown={e => {
+                    if (showDropdown && searchResults.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setFocusedAssetIdx(i => Math.min(i + 1, searchResults.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setFocusedAssetIdx(i => Math.max(i - 1, 0));
+                      } else if (e.key === 'Enter' || e.key === 'Tab') {
+                        if (searchResults[focusedAssetIdx]) {
+                          e.preventDefault();
+                          const a = searchResults[focusedAssetIdx];
+                          setSelectedAsset(a);
+                          setSearchQuery(a.name);
+                          setShowDropdown(false);
+                        }
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setShowDropdown(false);
+                      }
+                    }
+                  }}
                   placeholder="Search company name..." 
                   style={inputStyle} 
                 />
                 {showDropdown && searchResults.length > 0 && (
                   <div style={dropdownStyle}>
-                    {searchResults.map(asset => (
-                      <div 
-                        key={asset.amid} 
-                        onClick={() => { setSelectedAsset(asset); setSearchQuery(asset.name); setShowDropdown(false); }} 
-                        style={dropdownItemStyle}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                      >
-                        {asset.name}
-                      </div>
-                    ))}
+                    {searchResults.map((asset, aIdx) => {
+                      const isSelected = aIdx === focusedAssetIdx;
+                      return (
+                        <div 
+                          key={asset.amid} 
+                          ref={el => { assetItemsRef.current[aIdx] = el; }}
+                          onClick={() => { setSelectedAsset(asset); setSearchQuery(asset.name); setShowDropdown(false); }} 
+                          onMouseEnter={() => setFocusedAssetIdx(aIdx)}
+                          style={{
+                            ...dropdownItemStyle,
+                            background: isSelected ? '#eff6ff' : '#fff',
+                            color: isSelected ? '#1d4ed8' : '#1e293b',
+                            borderLeft: isSelected ? '3px solid #2563eb' : '3px solid transparent',
+                            fontWeight: isSelected ? 700 : 500
+                          }}
+                        >
+                          {asset.name}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

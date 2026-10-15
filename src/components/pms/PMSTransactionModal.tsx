@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Trash2, FolderOpen, Plus, Trash } from 'lucide-react';
 import { getVoucherById, updateVoucher, deleteVoucher, getStoredPortfolios, getStoredLedgers, getStoredGroups, ensureLedgerExists, resolveAssetLedgerId, getStoredAccounts, getAccountForPortfolio, state } from '../../logic';
 import { useFamily } from '../../contexts/FamilyContext';
@@ -63,9 +63,21 @@ export default function PMSTransactionModal({
   const [searchResults, setSearchResults] = useState<AssetMaster[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [focusedAssetIdx, setFocusedAssetIdx] = useState(0);
+  const assetItemsRef = useRef<(HTMLDivElement | null)[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isAddAssetOpen, setIsAddAssetOpen] = useState(false);
   const [addAssetTargetIdx, setAddAssetTargetIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    setFocusedAssetIdx(0);
+  }, [searchResults, showDropdown]);
+
+  useEffect(() => {
+    if (showDropdown && assetItemsRef.current[focusedAssetIdx]) {
+      assetItemsRef.current[focusedAssetIdx]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [focusedAssetIdx, showDropdown]);
 
   const { activeFamily } = useFamily();
   const allAccounts = getStoredAccounts();
@@ -665,6 +677,30 @@ export default function PMSTransactionModal({
             handleTradeChange(idx, 'assetName', e.target.value);
             setActiveRowIdx(idx);
           }}
+          onKeyDown={e => {
+            if (isEditingThisRow && showDropdown && searchResults.length > 0) {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setFocusedAssetIdx(i => Math.min(i + 1, searchResults.length - 1));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setFocusedAssetIdx(i => Math.max(i - 1, 0));
+              } else if (e.key === 'Enter' || e.key === 'Tab') {
+                if (searchResults[focusedAssetIdx]) {
+                  e.preventDefault();
+                  const asset = searchResults[focusedAssetIdx];
+                  handleTradeChange(idx, 'assetName', asset.name);
+                  handleTradeChange(idx, 'ledgerId', '');
+                  handleTradeChange(idx, 'amid', asset.amid);
+                  setShowDropdown(false);
+                  setActiveRowIdx(null);
+                }
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setShowDropdown(false);
+              }
+            }
+          }}
           onFocus={() => {
             setSearchQuery(trade.assetName);
             setActiveRowIdx(idx);
@@ -685,27 +721,38 @@ export default function PMSTransactionModal({
         />
         {isEditingThisRow && showDropdown && searchResults.length > 0 && (
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 100, maxHeight: '220px', overflowY: 'auto', marginTop: '4px', textAlign: 'left' }}>
-            {searchResults.map(asset => (
-              <div
-                key={asset.amid}
-                onClick={() => {
-                  handleTradeChange(idx, 'assetName', asset.name);
-                  handleTradeChange(idx, 'ledgerId', '');
-                  handleTradeChange(idx, 'amid', asset.amid);
-                  setShowDropdown(false);
-                  setActiveRowIdx(null);
-                }}
-                style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>{asset.name}</span>
-                  {asset.isin && <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 700, background: '#eff6ff', padding: '1px 6px', borderRadius: '4px' }}>{asset.isin}</span>}
+            {searchResults.map((asset, aIdx) => {
+              const isSelected = aIdx === focusedAssetIdx;
+              return (
+                <div
+                  key={asset.amid}
+                  ref={el => { assetItemsRef.current[aIdx] = el; }}
+                  onClick={() => {
+                    handleTradeChange(idx, 'assetName', asset.name);
+                    handleTradeChange(idx, 'ledgerId', '');
+                    handleTradeChange(idx, 'amid', asset.amid);
+                    setShowDropdown(false);
+                    setActiveRowIdx(null);
+                  }}
+                  onMouseEnter={() => setFocusedAssetIdx(aIdx)}
+                  style={{
+                    padding: '8px 12px',
+                    borderBottom: '1px solid #f1f5f9',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    background: isSelected ? '#eff6ff' : '#fff',
+                    borderLeft: isSelected ? '3px solid #2563eb' : '3px solid transparent'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', fontWeight: isSelected ? 700 : 600, color: isSelected ? '#1d4ed8' : '#0f172a' }}>{asset.name}</span>
+                    {asset.isin && <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 700, background: '#eff6ff', padding: '1px 6px', borderRadius: '4px' }}>{asset.isin}</span>}
+                  </div>
+                  <span style={{ fontSize: '10px', color: '#64748b' }}>{asset.asset_type_name} {asset.ticker ? `• ${asset.ticker}` : ''}</span>
                 </div>
-                <span style={{ fontSize: '10px', color: '#64748b' }}>{asset.asset_type_name} {asset.ticker ? `• ${asset.ticker}` : ''}</span>
-              </div>
-            ))}
+              );
+            })}
             <div
               onMouseDown={e => {
                 e.preventDefault();

@@ -1,5 +1,5 @@
 import { X, Trash2, Save, Copy } from "lucide-react";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   createVoucher,
   updateVoucher,
@@ -62,6 +62,12 @@ export default function VoucherModal({
   const [simplePrice, setSimplePrice] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [focusedDropdownIndex, setFocusedDropdownIndex] = useState(0);
+  const mainDropdownItemsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const counterDropdownItemsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const amountInputRef = useRef<HTMLInputElement>(null);
+  const counterInputRef = useRef<HTMLInputElement>(null);
+  const mainInputRef = useRef<HTMLInputElement>(null);
 
   const [voucherLines, setVoucherLines] = useState<VoucherLine[]>([]);
 
@@ -117,6 +123,26 @@ export default function VoucherModal({
     return "";
   });
   const [mainAccountSearch, setMainAccountSearch] = useState("");
+
+  const mainFilteredLedgers = useMemo(() => {
+    return mappedLedgers.filter(l => l.name.toLowerCase().includes(mainAccountSearch.toLowerCase())).slice(0, 50);
+  }, [mappedLedgers, mainAccountSearch]);
+
+  const counterFilteredLedgers = useMemo(() => {
+    return mappedLedgers.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 50);
+  }, [mappedLedgers, searchQuery]);
+
+  useEffect(() => {
+    setFocusedDropdownIndex(0);
+  }, [searchQuery, mainAccountSearch, activeDropdown]);
+
+  useEffect(() => {
+    if (activeDropdown === "m" && mainDropdownItemsRef.current[focusedDropdownIndex]) {
+      mainDropdownItemsRef.current[focusedDropdownIndex]?.scrollIntoView({ block: 'nearest' });
+    } else if (activeDropdown === "s" && counterDropdownItemsRef.current[focusedDropdownIndex]) {
+      counterDropdownItemsRef.current[focusedDropdownIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [focusedDropdownIndex, activeDropdown]);
 
   const isSimpleMode = (type === "payment" || type === "receipt") && voucherLines.length <= 2;
 
@@ -381,19 +407,73 @@ export default function VoucherModal({
                   {!selectedLedger ? (
                     <>
                       <input
+                        ref={mainInputRef}
                         type="text"
                         value={activeDropdown === "m" ? mainAccountSearch : mainLedgerName}
                         onFocus={() => { setActiveDropdown("m"); setMainAccountSearch(mainLedgerName); }}
-                        onBlur={() => setTimeout(() => setActiveDropdown(null), 150)}
-                        onChange={e => setMainAccountSearch(e.target.value)}
+                        onBlur={() => setTimeout(() => setActiveDropdown(null), 200)}
+                        onChange={e => { setMainAccountSearch(e.target.value); setActiveDropdown("m"); }}
+                        onKeyDown={e => {
+                          if (activeDropdown === "m") {
+                            if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setFocusedDropdownIndex(i => Math.min(i + 1, mainFilteredLedgers.length - 1));
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setFocusedDropdownIndex(i => Math.max(i - 1, 0));
+                            } else if (e.key === "Enter" || e.key === "Tab") {
+                              if (mainFilteredLedgers.length > 0 && mainFilteredLedgers[focusedDropdownIndex]) {
+                                e.preventDefault();
+                                const sel = mainFilteredLedgers[focusedDropdownIndex];
+                                setMainAccount(sel.id);
+                                setActiveDropdown(null);
+                                setTimeout(() => counterInputRef.current?.focus(), 50);
+                              }
+                            } else if (e.key === "Escape") {
+                              e.preventDefault();
+                              setActiveDropdown(null);
+                            }
+                          } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setActiveDropdown("m");
+                          }
+                        }}
                         placeholder="Select account..."
                         style={{ fontSize: "15px", fontWeight: 700, padding: "5px 10px", border: "1px solid #e2e8f0", borderRadius: "5px", background: "white", minWidth: "220px" }}
                       />
                       {activeDropdown === "m" && (
                         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 200, background: "white", border: "1px solid #e2e8f0", borderRadius: "6px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.1)" }}>
-                          {mappedLedgers.filter(l => l.name.toLowerCase().includes(mainAccountSearch.toLowerCase())).slice(0, 50).map(l => (
-                            <div key={l.name} onMouseDown={() => setMainAccount(l.id)} style={{ padding: "8px 12px", cursor: "pointer", fontSize: "13px", borderBottom: "1px solid #f1f5f9" }}>{l.name}</div>
-                          ))}
+                          {mainFilteredLedgers.length === 0 ? (
+                            <div style={{ padding: "8px 12px", color: "#94a3b8", fontSize: "12px" }}>No accounts found</div>
+                          ) : (
+                            mainFilteredLedgers.map((l, idx) => {
+                              const isSelected = idx === focusedDropdownIndex;
+                              return (
+                                <div
+                                  key={l.id}
+                                  ref={el => { mainDropdownItemsRef.current[idx] = el; }}
+                                  onMouseDown={() => {
+                                    setMainAccount(l.id);
+                                    setActiveDropdown(null);
+                                    setTimeout(() => counterInputRef.current?.focus(), 50);
+                                  }}
+                                  onMouseEnter={() => setFocusedDropdownIndex(idx)}
+                                  style={{
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    borderBottom: "1px solid #f1f5f9",
+                                    background: isSelected ? "#eff6ff" : "white",
+                                    color: isSelected ? "#1d4ed8" : "#1e293b",
+                                    borderLeft: isSelected ? "3px solid #2563eb" : "3px solid transparent",
+                                    fontWeight: isSelected ? 700 : 500
+                                  }}
+                                >
+                                  {l.name}
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
                       )}
                     </>
@@ -416,22 +496,77 @@ export default function VoucherModal({
                     {type === "payment" ? "Paid To" : "Received From"}
                   </label>
                   <input
+                    ref={counterInputRef}
                     type="text"
                     value={activeDropdown === "s" ? searchQuery : simpleAccount}
                     onFocus={() => { setActiveDropdown("s"); setSearchQuery(simpleAccount); }}
-                    onBlur={() => setTimeout(() => setActiveDropdown(null), 150)}
-                    onChange={e => { setSearchQuery(e.target.value); setSimpleAccount(e.target.value); }}
+                    onBlur={() => setTimeout(() => setActiveDropdown(null), 200)}
+                    onChange={e => { setSearchQuery(e.target.value); setSimpleAccount(e.target.value); setActiveDropdown("s"); }}
+                    onKeyDown={e => {
+                      if (activeDropdown === "s") {
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setFocusedDropdownIndex(i => Math.min(i + 1, counterFilteredLedgers.length - 1));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setFocusedDropdownIndex(i => Math.max(i - 1, 0));
+                        } else if (e.key === "Enter" || e.key === "Tab") {
+                          if (counterFilteredLedgers.length > 0 && counterFilteredLedgers[focusedDropdownIndex]) {
+                            e.preventDefault();
+                            const sel = counterFilteredLedgers[focusedDropdownIndex];
+                            setSimpleAccount(sel.name);
+                            setActiveDropdown(null);
+                            setTimeout(() => amountInputRef.current?.focus(), 50);
+                          }
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setActiveDropdown(null);
+                        }
+                      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setActiveDropdown("s");
+                      }
+                    }}
                     style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "13px" }}
                     placeholder="Search ledger..."
                   />
                   {activeDropdown === "s" && (
                     <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 200, background: "white", border: "1px solid #e2e8f0", borderRadius: "6px", maxHeight: "160px", overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.1)" }}>
-                      {mappedLedgers.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 50).map(l => (
-                        <div key={l.name} onMouseDown={() => { setSimpleAccount(l.name); setActiveDropdown(null); }} style={{ padding: "8px 12px", cursor: "pointer", fontSize: "13px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between" }}>
-                          <span>{l.name}</span>
-                          {renderHint(l.name)}
-                        </div>
-                      ))}
+                      {counterFilteredLedgers.length === 0 ? (
+                        <div style={{ padding: "8px 12px", color: "#94a3b8", fontSize: "12px" }}>No matching ledgers</div>
+                      ) : (
+                        counterFilteredLedgers.map((l, idx) => {
+                          const isSelected = idx === focusedDropdownIndex;
+                          return (
+                            <div
+                              key={l.id || l.name}
+                              ref={el => { counterDropdownItemsRef.current[idx] = el; }}
+                              onMouseDown={() => {
+                                setSimpleAccount(l.name);
+                                setActiveDropdown(null);
+                                setTimeout(() => amountInputRef.current?.focus(), 50);
+                              }}
+                              onMouseEnter={() => setFocusedDropdownIndex(idx)}
+                              style={{
+                                padding: "8px 12px",
+                                cursor: "pointer",
+                                fontSize: "13px",
+                                borderBottom: "1px solid #f1f5f9",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                background: isSelected ? "#eff6ff" : "white",
+                                color: isSelected ? "#1d4ed8" : "#1e293b",
+                                borderLeft: isSelected ? "3px solid #2563eb" : "3px solid transparent",
+                                fontWeight: isSelected ? 700 : 500
+                              }}
+                            >
+                              <span>{l.name}</span>
+                              {renderHint(l.name)}
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   )}
                   {counterMeta && (
@@ -477,6 +612,7 @@ export default function VoucherModal({
                 <div style={{ width: "130px" }}>
                   <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px", color: "#64748b", letterSpacing: "0.06em" }}>Amount (₹)</label>
                   <input
+                    ref={amountInputRef}
                     type="number"
                     value={simpleAmount}
                     onChange={e => setSimpleAmount(e.target.value)}
