@@ -4370,8 +4370,209 @@ export async function deleteVoucher(id: any) {
   }
 }
 
-export async function saveLedger(ledger: any) { console.log('saveLedger stub', ledger?.id); }
-export async function deleteLedger(id: any) { console.log('deleteLedger stub', id); }
+export async function saveLedger(ledgerData: {
+  id?: string | number;
+  name: string;
+  groupId: string | number;
+  acid?: string | number;
+  openingBalance?: number;
+  openingType?: 'DR' | 'CR';
+  descr?: string;
+  addinfo?: string;
+}): Promise<Ledger> {
+  const name = (ledgerData.name || '').trim();
+  if (!name) {
+    throw new Error('Ledger name is required.');
+  }
+
+  const acidNum = ledgerData.acid ? Number(ledgerData.acid) : 31;
+  const parentId = Number(ledgerData.groupId) || 60;
+  const openingBal = Number(ledgerData.openingBalance) || 0;
+  const openingType = ledgerData.openingType || 'DR';
+
+  // Check if we are updating an existing ledger
+  const existingId = ledgerData.id ? Number(ledgerData.id) : null;
+  let existing = existingId && existingId > 0 && existingId < 1000000000
+    ? state.acmac1.find((a: any) => !a.is_group && Number(a.id) === existingId && Number(a.acid) === acidNum)
+    : null;
+
+  if (existing) {
+    existing.name = name;
+    existing.parent_id = parentId;
+    if (openingBal > 0) {
+      if (openingType === 'CR') {
+        existing.cr_bal = openingBal;
+        existing.db_bal = 0;
+      } else {
+        existing.db_bal = openingBal;
+        existing.cr_bal = 0;
+      }
+    } else {
+      existing.db_bal = 0;
+      existing.cr_bal = 0;
+    }
+    if (ledgerData.descr !== undefined) existing.descr = ledgerData.descr;
+    if (ledgerData.addinfo !== undefined) existing.addinfo = ledgerData.addinfo;
+
+    if (await isSupabaseReachable()) {
+      try {
+        await supabase.from('acmac1').update({
+          name: existing.name,
+          parent_id: existing.parent_id,
+          db_bal: existing.db_bal,
+          cr_bal: existing.cr_bal,
+          descr: existing.descr,
+          addinfo: existing.addinfo
+        }).eq('id', existing.id).eq('acid', existing.acid);
+      } catch (err: any) {
+        console.warn('⚠️ Supabase offline, updated ledger locally:', err?.message);
+      }
+    }
+
+    rebuildAllIndexes();
+    await persistStateToIDB();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('wealthcore-sync-complete'));
+    }
+
+    return {
+      id: String(existing.id),
+      name: existing.name,
+      groupId: String(existing.parent_id),
+      openingBalance: openingBal,
+      openingType,
+      currentBalance: openingBal,
+      currentType: openingType,
+      amid: existing.id >= 100000 ? existing.id : undefined,
+      acid: existing.acid
+    };
+  }
+
+  // Create NEW ledger:
+  // Duplicate check for this acid
+  const dup = state.acmac1.find((a: any) => 
+    !a.is_group && 
+    Number(a.acid) === acidNum && 
+    (a.name || '').trim().toLowerCase() === name.toLowerCase()
+  );
+  if (dup) {
+    throw new Error(`A ledger named "${name}" already exists for this member.`);
+  }
+
+  // Determine next unique ID
+  const isAssetGroup = parentId >= 200000 || ASSET_GROUP_IDS.includes(parentId);
+  let nextId: number;
+  if (isAssetGroup) {
+    const assetIds = state.acmac1.map((a: any) => Number(a.id)).filter(id => id >= 500000 && !isNaN(id));
+    nextId = (assetIds.length > 0 ? Math.max(...assetIds) : 504000) + 1;
+  } else {
+    // Non-asset custom ledgers: allocate in 1000+ range
+    const nonAssetCustomIds = state.acmac1.map((a: any) => Number(a.id)).filter(id => id < 100000 && !isNaN(id));
+    nextId = (nonAssetCustomIds.length > 0 ? Math.max(1000, ...nonAssetCustomIds) : 1000) + 1;
+  }
+
+  while (state.acmac1.some((a: any) => Number(a.id) === nextId && Number(a.acid) === acidNum)) {
+    nextId++;
+  }
+
+  const specialTypeId = [60].includes(parentId) ? 40
+    : [75].includes(parentId) ? 75
+    : [160, 170, 171, 175].includes(parentId) ? 290
+    : [1, 2, 3].includes(parentId) ? 250
+    : 150;
+
+  const dbBal = openingType === 'DR' ? openingBal : 0;
+  const crBal = openingType === 'CR' ? openingBal : 0;
+
+  const newRow: any = {
+    id: nextId,
+    name,
+    parent_id: parentId,
+    is_group: false,
+    acid: acidNum,
+    clid: 1,
+    is_it_ledger: 0,
+    special_type_id: specialTypeId,
+    cr_bal: crBal,
+    db_bal: dbBal,
+    flags: '0',
+    descr: ledgerData.descr || null,
+    addinfo: ledgerData.addinfo || null
+  };
+
+  if (await isSupabaseReachable()) {
+    try {
+      const { error } = await supabase.from('acmac1').insert(newRow);
+      if (error) {
+        console.warn('⚠️ Supabase insert acmac1 failed, saved locally:', error.message);
+      }
+    } catch (err: any) {
+      console.warn('⚠️ Supabase offline, saving ledger to local state:', err?.message);
+    }
+  }
+
+  state.acmac1.push(newRow);
+  rebuildAllIndexes();
+  await persistStateToIDB();
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('wealthcore-sync-complete'));
+  }
+
+  return {
+    id: String(newRow.id),
+    name: newRow.name,
+    groupId: String(newRow.parent_id),
+    openingBalance: openingBal,
+    openingType,
+    currentBalance: openingBal,
+    currentType: openingType,
+    amid: newRow.id >= 100000 ? newRow.id : undefined,
+    acid: newRow.acid
+  };
+}
+
+export async function deleteLedger(id: string | number, acid?: number): Promise<boolean> {
+  const ledgerIdNum = Number(id);
+  const acidNum = acid ? Number(acid) : null;
+
+  // Check if transactions exist for this ledger
+  const hasTrans = (state.transC1 || []).some((t: any) => Number(t.maid) === ledgerIdNum && (!acidNum || Number(t.acid) === acidNum)) ||
+                   (state.trans1 || []).some((t: any) => Number(t.maid) === ledgerIdNum && (!acidNum || Number(t.acid) === acidNum));
+  if (hasTrans) {
+    throw new Error('Cannot delete this ledger: recorded transactions exist in this ledger book.');
+  }
+
+  const initialLength = state.acmac1.length;
+  state.acmac1 = state.acmac1.filter((a: any) => {
+    if (a.is_group) return true;
+    if (Number(a.id) !== ledgerIdNum) return true;
+    if (acidNum && Number(a.acid) !== acidNum) return true;
+    return false;
+  });
+
+  if (state.acmac1.length === initialLength) {
+    return false;
+  }
+
+  if (await isSupabaseReachable()) {
+    try {
+      let q = supabase.from('acmac1').delete().eq('id', ledgerIdNum);
+      if (acidNum) q = q.eq('acid', acidNum);
+      await q;
+    } catch (err: any) {
+      console.warn('⚠️ Supabase delete acmac1 failed, removed locally:', err?.message);
+    }
+  }
+
+  rebuildAllIndexes();
+  await persistStateToIDB();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('wealthcore-sync-complete'));
+  }
+
+  return true;
+}
 export async function saveMasterRecord(type: any, record: any) { 
   if (type === 'portfolios') {
     const pfolio_type = record.portfolioType === 'Equity' ? 1 

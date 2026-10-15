@@ -228,6 +228,24 @@ export default function LedgerPage() {
                 >
                   Edit
                 </button>
+                <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>|</span>
+                <button
+                  onClick={() => {
+                    setEditingLedger(null);
+                    setShowLedgerModal(true);
+                  }}
+                  style={{
+                    fontSize: '0.75rem',
+                    color: '#2563eb',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px 4px',
+                    fontWeight: 600
+                  }}
+                >
+                  + New Ledger
+                </button>
               </div>
 
             </div>
@@ -445,6 +463,7 @@ export default function LedgerPage() {
           onClose={() => setShowLedgerModal(false)}
           onSaved={handleLedgerSaved}
           initialLedger={editingLedger}
+          accountId={selectedAccountId || undefined}
         />
       )}
 
