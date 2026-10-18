@@ -628,25 +628,59 @@ export default function SimulatorDashboard() {
     }).sort((a, b) => b.value - a.value);
   }, [familyAccounts, consolidatedFamilyTotal, summary.currentValue, accountValuationMap]);
 
+  // ── 4b. HISTORICAL PRICE LOOKUP MAP (Indexed by amid for fast O(1) MTM calculations) ──
+  const priceHistoryMap = useMemo(() => {
+    const map = new Map<number, Array<{ date: string; currp: number; row_id: number }>>();
+    (state.mprices || []).forEach((m: any) => {
+      const p = Number(m.currp);
+      if (p > 0) {
+        const amid = Number(m.amid);
+        if (!map.has(amid)) map.set(amid, []);
+        map.get(amid)!.push({ date: m.date, currp: p, row_id: Number(m.row_id) || 0 });
+      }
+    });
+    map.forEach(list => {
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.row_id - a.row_id);
+    });
+    return map;
+  }, [state.mprices, tick, globalRefreshTrigger]);
+
   // ── 5. RETURN BY PERIOD TOGGLE & SPARKLINE DATA ──
   const periodData = useMemo(() => {
     const val = summary.currentValue;
-    const todayStr = '2026-10-10';
-    const date1M = '2026-09-10';
-    const date1Y = '2025-10-10';
-    
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const d365 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const getHistPrice = (amid: number, targetDate: string, maxLookbackDays: number) => {
+      const list = priceHistoryMap.get(amid);
+      if (!list || list.length === 0) return null;
+      for (let i = 0; i < list.length; i++) {
+        const p = list[i];
+        if (p.date <= targetDate) {
+          const dTarget = new Date(targetDate).getTime();
+          const dPrice = new Date(p.date).getTime();
+          const diffDays = Math.abs(dTarget - dPrice) / (24 * 3600 * 1000);
+          if (diffDays <= maxLookbackDays) return p.currp;
+          return null;
+        }
+      }
+      return null;
+    };
+
     let cg1M = 0;
     let cg1Y = 0;
     if (returnPeriod === '1M') {
       try {
-        const rows1M = getCapitalGains(pfIds, date1M, todayStr) || [];
+        const rows1M = getCapitalGains(pfIds, d30, todayStr) || [];
         cg1M = rows1M.reduce((s: number, r: any) => s + (Number(r.gainLoss) || 0), 0);
       } catch (e) {
         console.warn('Period capital gains error:', e);
       }
     } else if (returnPeriod === '1Y') {
       try {
-        const rows1Y = getCapitalGains(pfIds, date1Y, todayStr) || [];
+        const rows1Y = getCapitalGains(pfIds, d365, todayStr) || [];
         cg1Y = rows1Y.reduce((s: number, r: any) => s + (Number(r.gainLoss) || 0), 0);
       } catch (e) {
         console.warn('Period capital gains error:', e);
@@ -663,7 +697,20 @@ export default function SimulatorDashboard() {
           sparkline: [val - summary.todaysGain, val - summary.todaysGain * 0.75, val - summary.todaysGain * 0.4, val - summary.todaysGain * 0.1, val]
         };
       case '1M': {
-        const gain1M = Math.round(summary.overallGain * 0.084) + (cg1M || 0);
+        let mtm1M = 0;
+        holdings.forEach(h => {
+          if (h.quantity > 0 && h.currentPrice > 0) {
+            // Compare against 30-day target or dense baseline snapshot (2026-10-02)
+            const histP = getHistPrice(h.amid, d30, 20) || getHistPrice(h.amid, '2026-10-02', 15);
+            if (histP && histP > 0) {
+              const ratio = h.currentPrice / histP;
+              if (ratio >= 0.33 && ratio <= 3) {
+                mtm1M += h.quantity * (h.currentPrice - histP);
+              }
+            }
+          }
+        });
+        const gain1M = Math.round(mtm1M) + (cg1M || 0);
         const pct1M = val > 0 ? (gain1M / (val - gain1M)) * 100 : 0;
         return {
           gain: gain1M,
@@ -674,7 +721,19 @@ export default function SimulatorDashboard() {
         };
       }
       case '1Y': {
-        const gain1Y = Math.round(summary.overallGain * 0.52) + (cg1Y || 0);
+        let mtm1Y = 0;
+        holdings.forEach(h => {
+          if (h.quantity > 0 && h.currentPrice > 0) {
+            const histP = getHistPrice(h.amid, d365, 300);
+            if (histP && histP > 0) {
+              const ratio = h.currentPrice / histP;
+              if (ratio >= 0.33 && ratio <= 3) {
+                mtm1Y += h.quantity * (h.currentPrice - histP);
+              }
+            }
+          }
+        });
+        const gain1Y = Math.round(mtm1Y) + (cg1Y || 0);
         const pct1Y = val > 0 ? (gain1Y / (val - gain1Y)) * 100 : 0;
         return {
           gain: gain1Y,
@@ -694,7 +753,7 @@ export default function SimulatorDashboard() {
           sparkline: [summary.totalInvested, summary.totalInvested * 1.04, summary.totalInvested * 1.08, summary.totalInvested * 1.12, val]
         };
     }
-  }, [returnPeriod, summary, xirrData]);
+  }, [returnPeriod, summary, xirrData, holdings, pfIds, priceHistoryMap]);
 
   // ── 6. UPCOMING ACTIONS & EVENTS (MATURITIES, COUPONS, TAX ACTIONS) ──
   const upcomingActions = useMemo(() => {
