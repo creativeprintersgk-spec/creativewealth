@@ -42,7 +42,7 @@ import { state, buildAssetFifoLedger, expandPortfolioFamily, getAssetName } from
 export interface XIRRCashFlow {
   date: string;
   amount: number; // negative = money invested (outflow from investor's pocket), positive = money received
-  type: 'buy' | 'sell' | 'dividend' | 'current_value';
+  type: 'buy' | 'sell' | 'dividend' | 'interest' | 'current_value';
   amid?: number;
 }
 
@@ -57,9 +57,10 @@ export interface XIRRResult {
 }
 
 // Real cash-movement transaction types only.
-const XIRR_CASH_BUY_TRTY = new Set([12, 15, 19, 20, 25, 30]); // excludes 35 (Div Reinvest) -- see design note 1 above
+const XIRR_CASH_BUY_TRTY = new Set([12, 15, 19, 20, 25, 30]); // excludes 35 (Div Reinvest) & 65 (Interest Reinvest)
 const XIRR_CASH_SELL_TRTY = new Set([99, 101, 150]);
 const XIRR_DIVIDEND_TRTY = 62;
+const XIRR_INTEREST_PAYOUT_TRTY = new Set([67, 69]); // 67 = Interest (Payout), 69 = Interest
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -123,8 +124,10 @@ export function getXIRRCashFlows(pfids: (number | string)[], amid?: number, asOf
       flows.push({ date: dt, amount: amt, type: 'sell', amid: Number(t.amid) });
     } else if (trty === XIRR_DIVIDEND_TRTY) {
       flows.push({ date: dt, amount: amt, type: 'dividend', amid: Number(t.amid) });
+    } else if (XIRR_INTEREST_PAYOUT_TRTY.has(trty)) {
+      flows.push({ date: dt, amount: amt, type: 'interest', amid: Number(t.amid) });
     }
-    // Everything else (bonus/split/merger/demerger/div-reinvest) is
+    // Everything else (bonus/split/merger/demerger/div-reinvest/interest-cumulative) is
     // deliberately excluded -- see design note 2 in the file header.
   });
 

@@ -2739,10 +2739,24 @@ export function buildAssetFifoLedger(
       }
 
       if (delQty > 0.000001 && isInPeriod) {
+        // Resolve opening acquisition cost basis if no buy vouchers exist in bs1
+        let fallbackCost = 0;
+        const acct = acmac1ByAmidMap.get(sAmid) || (state.acmac1 || []).find((a: any) => Number(a.id) === sAmid || Number(a.exint1) === sAmid || Number(a.amid) === sAmid);
+        if (acct && Number(acct.db_bal) > 0) {
+          fallbackCost = Number(acct.db_bal);
+        } else {
+          const sumRow = (state.sumTable || []).find((sr: any) => Number(sr.pfolio_id) === sPfid && Number(sr.amid) === sAmid);
+          if (sumRow && Number(sumRow.amtinv) > 0) {
+            fallbackCost = Number(sumRow.amtinv);
+          }
+        }
+
         const proceeds = delQty * sellPrice;
+        const effectiveCost = fallbackCost > 0 ? fallbackCost : 0;
         const purDt = (s.purdt || s.dt || '').slice(0, 10);
-        const taxRes = computeAssetTax(resolvedAtty, aname, 0, proceeds, purDt, dt);
+        const taxRes = computeAssetTax(resolvedAtty, aname, effectiveCost, proceeds, purDt, dt);
         const folio = getFolioNumber(s.sid, sAmid, sPfid);
+        const unitCost = delQty > 0 ? (effectiveCost / delQty) : 0;
 
         results.push({
           portfolioId: s.pfid,
@@ -2756,16 +2770,17 @@ export function buildAssetFifoLedger(
           sellDate: dt,
           holdingDays: taxRes.holdingDays,
           quantity: delQty,
-          buyPrice: 0,
+          buyPrice: unitCost,
           sellPrice,
-          costBasis: 0,
+          costBasis: effectiveCost,
           saleProceeds: proceeds,
-          gainLoss: proceeds,
+          gainLoss: taxRes.gainLoss,
           gainType: taxRes.gainType,
           taxRate: typeof taxRes.taxRate === 'number' ? taxRes.taxRate : 30,
           estimatedTax: taxRes.estimatedTax,
           indexationUsed: taxRes.indexationUsed,
-          notes: taxRes.notes,
+          notes: fallbackCost > 0 ? 'Cost basis derived from opening balance ledger' : taxRes.notes,
+          needsReview: fallbackCost === 0,
           realEstateComparison: taxRes.realEstateComparison
         });
       }
@@ -3068,8 +3083,16 @@ export function getCapitalGains(portfolioIds: (number | string)[], fromDate: str
     const t = state.bs1[i];
     if (!pSet.has(Number(t.pfid))) continue;
     const atyid = Number(t.atyid);
-    // Exclude Derivatives / F&O (Futures & Options) as they are Business Income (PGBP under Sec 43(5)), not Capital Gains
-    if (atyid === 30 || atyid === 80 || atyid === 81 || atyid === 82 || atyid === 83) continue;
+    const resolvedAtty = resolveAssetType(Number(t.pfid), Number(t.amid), atyid);
+    // Non-capital assets have NO capital gains under the Income Tax Act:
+    // - Derivatives / F&O (30, 80-84): Business income (Sec 43(5)), not Capital Gains
+    // - Fixed Deposits (90): Return of bank deposit principal; interest is taxed under 'Income from Other Sources'
+    // - Bank / Other Deposits (120): Bank deposits
+    // - PPF / EPF (130): Sovereign statutory savings (EEE)
+    // - Post Office Schemes (140): Government small savings
+    // - Loans / Advances (220): Liability / lending
+    const NON_CAPITAL_TYPES = new Set([30, 80, 81, 82, 83, 84, 90, 120, 130, 140, 220]);
+    if (NON_CAPITAL_TYPES.has(atyid) || NON_CAPITAL_TYPES.has(resolvedAtty)) continue;
 
     const isMf = atyid === 60 || atyid === 61 || atyid === 62;
     const sidKey = (isMf && t.sid) ? `_${t.sid}` : '';
