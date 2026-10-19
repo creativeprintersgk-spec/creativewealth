@@ -663,39 +663,37 @@ export default function SimulatorDashboard() {
     const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const d365 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    // Dynamic historical price resolution:
-    // 1. Searches for the most recent closing price on or before targetDate within maxLookbackDays.
-    // 2. If no price is recorded on or before targetDate (e.g. gap before dense daily sync began),
-    //    uses the closest available recorded price within maxLookbackDays.
-    // 3. For SGBs without an active traded quote in the window, tracks standard Gold benchmark (AMID 466).
-    const getHistPrice = (amid: number, targetDate: string, maxLookbackDays: number, isSgb?: boolean) => {
-      let list = priceHistoryMap.get(amid);
-      if ((!list || list.length === 0) && isSgb) {
-        list = priceHistoryMap.get(466);
-      }
+    // Dynamic historical price resolution using carry-forward last-known price:
+    // 1. List is sorted descending by date (newest first).
+    // 2. Returns the most recent price on or before targetDate — i.e., carry-forward last close.
+    //    This is correct for all assets including SGBs: if no trade on a day, the previous
+    //    closing price is the valid price. No gold benchmark fallback — each security uses
+    //    only its own price history.
+    // 3. If targetDate predates all known prices (e.g. SGB issued after the target window),
+    //    returns the oldest available price (earliest known) as the best approximation.
+    const getHistPrice = (amid: number, targetDate: string) => {
+      const list = priceHistoryMap.get(amid);
       if (!list || list.length === 0) return null;
 
       const targetTime = new Date(targetDate).getTime();
-      let bestPrice: number | null = null;
-      let minDiffDays = Infinity;
 
+      // List is newest-first. Walk forward to find the first entry on or before targetDate.
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
         if (!p.currp || p.currp <= 0) continue;
         const pTime = new Date(p.date).getTime();
-        const diffDays = Math.abs(targetTime - pTime) / (24 * 3600 * 1000);
-
         if (pTime <= targetTime) {
-          if (diffDays <= maxLookbackDays) return p.currp;
-          break; // Older entries are even further in the past
-        } else {
-          if (diffDays < minDiffDays && diffDays <= maxLookbackDays) {
-            minDiffDays = diffDays;
-            bestPrice = p.currp;
-          }
+          // This is the most recent known price on or before targetDate — carry-forward last close
+          return p.currp;
         }
       }
-      return bestPrice;
+
+      // All known prices are after targetDate — return the oldest available (last in list)
+      // This handles cases like an SGB that started trading only after our target window.
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i].currp > 0) return list[i].currp;
+      }
+      return null;
     };
 
     let cg1M = 0;
@@ -729,8 +727,7 @@ export default function SimulatorDashboard() {
         let mtm1M = 0;
         holdings.forEach(h => {
           if (h.quantity > 0 && h.currentPrice > 0) {
-            const isSgb = /sgb|sovereign/i.test(h.assetName || '');
-            const histP = getHistPrice(h.amid, d30, 45, isSgb);
+            const histP = getHistPrice(h.amid, d30);
             if (histP && histP > 0) {
               const ratio = h.currentPrice / histP;
               if (ratio >= 0.33 && ratio <= 3) {
@@ -761,8 +758,7 @@ export default function SimulatorDashboard() {
         let mtm1Y = 0;
         holdings.forEach(h => {
           if (h.quantity > 0 && h.currentPrice > 0) {
-            const isSgb = /sgb|sovereign/i.test(h.assetName || '');
-            const histP = getHistPrice(h.amid, d365, 300, isSgb);
+            const histP = getHistPrice(h.amid, d365);
             if (histP && histP > 0) {
               const ratio = h.currentPrice / histP;
               if (ratio >= 0.33 && ratio <= 3) {
