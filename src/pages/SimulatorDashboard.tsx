@@ -663,36 +663,50 @@ export default function SimulatorDashboard() {
     const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const d365 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    // Dynamic historical price resolution using carry-forward last-known price:
+    // Dynamic historical price resolution with staleness protection:
     // 1. List is sorted descending by date (newest first).
-    // 2. Returns the most recent price on or before targetDate — i.e., carry-forward last close.
-    //    This is correct for all assets including SGBs: if no trade on a day, the previous
-    //    closing price is the valid price. No gold benchmark fallback — each security uses
-    //    only its own price history.
-    // 3. If targetDate predates all known prices (e.g. SGB issued after the target window),
-    //    returns the oldest available price (earliest known) as the best approximation.
-    const getHistPrice = (amid: number, targetDate: string) => {
+    // 2. Returns the closest recorded closing price on or before targetDate within maxPastDays (default 45 days).
+    // 3. If there is a historical data gap where daily snapshots only started recently (e.g. Oct 2026 vs Mar 2025),
+    //    it anchors to the earliest continuous snapshot within 25 days after targetDate rather than leaping
+    //    back 1.5+ years to March 2025 (which previously fabricated a false multi-lakh gain).
+    // 4. If no valid price exists within the window, returns null so current price is preserved (0 phantom gain).
+    const getHistPrice = (amid: number, targetDate: string, maxPastDays = 45) => {
       const list = priceHistoryMap.get(amid);
       if (!list || list.length === 0) return null;
 
       const targetTime = new Date(targetDate).getTime();
+      const maxStalenessMs = maxPastDays * 24 * 60 * 60 * 1000;
+      const maxFutureMs = 25 * 24 * 60 * 60 * 1000;
 
-      // List is newest-first. Walk forward to find the first entry on or before targetDate.
+      let bestPast: { currp: number; date: string } | null = null;
+      let bestFuture: { currp: number; date: string } | null = null;
+
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
         if (!p.currp || p.currp <= 0) continue;
         const pTime = new Date(p.date).getTime();
-        if (pTime <= targetTime) {
-          // This is the most recent known price on or before targetDate — carry-forward last close
-          return p.currp;
+        const diff = targetTime - pTime;
+
+        if (diff >= 0) {
+          // Candidate past price on or before targetDate
+          if (diff <= maxStalenessMs) {
+            if (!bestPast || diff < (targetTime - new Date(bestPast.date).getTime())) {
+              bestPast = p;
+            }
+          }
+        } else {
+          // Candidate future price (e.g. earliest date of continuous tracking period)
+          const futureDiff = Math.abs(diff);
+          if (futureDiff <= maxFutureMs) {
+            if (!bestFuture || futureDiff < (new Date(bestFuture.date).getTime() - targetTime)) {
+              bestFuture = p;
+            }
+          }
         }
       }
 
-      // All known prices are after targetDate — return the oldest available (last in list)
-      // This handles cases like an SGB that started trading only after our target window.
-      for (let i = list.length - 1; i >= 0; i--) {
-        if (list[i].currp > 0) return list[i].currp;
-      }
+      if (bestPast) return bestPast.currp;
+      if (bestFuture) return bestFuture.currp;
       return null;
     };
 
@@ -758,7 +772,7 @@ export default function SimulatorDashboard() {
         let mtm1Y = 0;
         holdings.forEach(h => {
           if (h.quantity > 0 && h.currentPrice > 0) {
-            const histP = getHistPrice(h.amid, d365);
+            const histP = getHistPrice(h.amid, d365, 120);
             if (histP && histP > 0) {
               const ratio = h.currentPrice / histP;
               if (ratio >= 0.33 && ratio <= 3) {
