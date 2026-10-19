@@ -629,12 +629,22 @@ export default function SimulatorDashboard() {
   }, [familyAccounts, consolidatedFamilyTotal, summary.currentValue, accountValuationMap]);
 
   // ── 4b. HISTORICAL PRICE LOOKUP MAP (Indexed by amid for fast O(1) MTM calculations) ──
+  // Unit Normalization Architecture:
+  //   Physical Gold   (AMIDs 466, 753): IBJA live/synced standard rate is ~₹14,800/unit (source_id_atyp=50).
+  //     MProfit legacy records (source_id_atyp=75) used scale ~152 (per 0.1g). Multiply by 100 = 15,200.
+  //   Physical Silver (AMIDs 752, 754): IBJA live/synced standard rate is ~₹2,25,000/kg (source_id_atyp=50).
+  //     MProfit legacy records (source_id_atyp=77) used scale ~2,430 (per 10g). Multiply by 100 = 243,000.
+  //   This 100× normalization matches the exact commodity market movement without any 92× data glitch.
+  const GOLD_SILVER_AMIDS_SET = new Set([466, 752, 753, 754]);
   const priceHistoryMap = useMemo(() => {
     const map = new Map<number, Array<{ date: string; currp: number; row_id: number }>>();
     (state.mprices || []).forEach((m: any) => {
-      const p = Number(m.currp);
+      let p = Number(m.currp);
       if (p > 0) {
         const amid = Number(m.amid);
+        if (GOLD_SILVER_AMIDS_SET.has(amid) && Number(m.source_id_atyp) !== 50) {
+          p = p * 100;
+        }
         if (!map.has(amid)) map.set(amid, []);
         map.get(amid)!.push({ date: m.date, currp: p, row_id: Number(m.row_id) || 0 });
       }
@@ -653,20 +663,39 @@ export default function SimulatorDashboard() {
     const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const d365 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    const getHistPrice = (amid: number, targetDate: string, maxLookbackDays: number) => {
-      const list = priceHistoryMap.get(amid);
+    // Dynamic historical price resolution:
+    // 1. Searches for the most recent closing price on or before targetDate within maxLookbackDays.
+    // 2. If no price is recorded on or before targetDate (e.g. gap before dense daily sync began),
+    //    uses the closest available recorded price within maxLookbackDays.
+    // 3. For SGBs without an active traded quote in the window, tracks standard Gold benchmark (AMID 466).
+    const getHistPrice = (amid: number, targetDate: string, maxLookbackDays: number, isSgb?: boolean) => {
+      let list = priceHistoryMap.get(amid);
+      if ((!list || list.length === 0) && isSgb) {
+        list = priceHistoryMap.get(466);
+      }
       if (!list || list.length === 0) return null;
+
+      const targetTime = new Date(targetDate).getTime();
+      let bestPrice: number | null = null;
+      let minDiffDays = Infinity;
+
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
-        if (p.date <= targetDate) {
-          const dTarget = new Date(targetDate).getTime();
-          const dPrice = new Date(p.date).getTime();
-          const diffDays = Math.abs(dTarget - dPrice) / (24 * 3600 * 1000);
+        if (!p.currp || p.currp <= 0) continue;
+        const pTime = new Date(p.date).getTime();
+        const diffDays = Math.abs(targetTime - pTime) / (24 * 3600 * 1000);
+
+        if (pTime <= targetTime) {
           if (diffDays <= maxLookbackDays) return p.currp;
-          return null;
+          break; // Older entries are even further in the past
+        } else {
+          if (diffDays < minDiffDays && diffDays <= maxLookbackDays) {
+            minDiffDays = diffDays;
+            bestPrice = p.currp;
+          }
         }
       }
-      return null;
+      return bestPrice;
     };
 
     let cg1M = 0;
@@ -700,8 +729,8 @@ export default function SimulatorDashboard() {
         let mtm1M = 0;
         holdings.forEach(h => {
           if (h.quantity > 0 && h.currentPrice > 0) {
-            // Compare against 30-day target or dense baseline snapshot (2026-10-02)
-            const histP = getHistPrice(h.amid, d30, 20) || getHistPrice(h.amid, '2026-10-02', 15);
+            const isSgb = /sgb|sovereign/i.test(h.assetName || '');
+            const histP = getHistPrice(h.amid, d30, 45, isSgb);
             if (histP && histP > 0) {
               const ratio = h.currentPrice / histP;
               if (ratio >= 0.33 && ratio <= 3) {
@@ -711,12 +740,20 @@ export default function SimulatorDashboard() {
           }
         });
         const gain1M = Math.round(mtm1M) + (cg1M || 0);
-        const pct1M = val > 0 ? (gain1M / (val - gain1M)) * 100 : 0;
+        const openVal1M = Math.max(val - gain1M, 1);
+        const pct1M = (gain1M / openVal1M) * 100;
+        // Annualized 1M return: compounds monthly return to annual equivalent.
+        // Formula: ((1 + monthly_return)^12 − 1) × 100 (industry standard CAGR equivalent)
+        const xirr1M = openVal1M > 0
+          ? (pct1M >= 0
+              ? Number(((Math.pow(1 + pct1M / 100, 12) - 1) * 100).toFixed(1))
+              : Number((-((Math.pow(1 + Math.abs(pct1M) / 100, 12) - 1) * 100)).toFixed(1)))
+          : null;
         return {
           gain: gain1M,
           gainPct: pct1M,
           label: '1 Month Gain',
-          xirr: null,
+          xirr: xirr1M,
           sparkline: [val - gain1M, val - gain1M * 0.8, val - gain1M * 0.55, val - gain1M * 0.2, val]
         };
       }
@@ -724,7 +761,8 @@ export default function SimulatorDashboard() {
         let mtm1Y = 0;
         holdings.forEach(h => {
           if (h.quantity > 0 && h.currentPrice > 0) {
-            const histP = getHistPrice(h.amid, d365, 300);
+            const isSgb = /sgb|sovereign/i.test(h.assetName || '');
+            const histP = getHistPrice(h.amid, d365, 300, isSgb);
             if (histP && histP > 0) {
               const ratio = h.currentPrice / histP;
               if (ratio >= 0.33 && ratio <= 3) {
@@ -734,12 +772,15 @@ export default function SimulatorDashboard() {
           }
         });
         const gain1Y = Math.round(mtm1Y) + (cg1Y || 0);
-        const pct1Y = val > 0 ? (gain1Y / (val - gain1Y)) * 100 : 0;
+        const openVal1Y = Math.max(val - gain1Y, 1);
+        const pct1Y = (gain1Y / openVal1Y) * 100;
+        // 1Y window is already annual — simple annual return equals annualized XIRR
+        const xirr1Y = Number(pct1Y.toFixed(1));
         return {
           gain: gain1Y,
           gainPct: pct1Y,
           label: '1-Year Gain',
-          xirr: null,
+          xirr: xirr1Y,
           sparkline: [val - gain1Y, val - gain1Y * 0.8, val - gain1Y * 0.5, val - gain1Y * 0.25, val]
         };
       }

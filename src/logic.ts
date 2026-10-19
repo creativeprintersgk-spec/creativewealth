@@ -506,7 +506,7 @@ async function performBackgroundSync() {
         console.log('📦 Supabase is offline/unreachable. Retaining current in-memory state.');
         return;
       }
-      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v38') : null;
+      const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v39') : null;
       if (cachedState && cachedState.bs1 && cachedState.bs1.length > 0) {
         console.log('📦 Supabase is offline/unreachable. Restoring from IDB cache.');
         Object.assign(state, cachedState);
@@ -665,7 +665,7 @@ async function performBackgroundSync() {
     rebuildAllIndexes();
 
     if (typeof indexedDB !== 'undefined') {
-      await set('wealthcore_state_v38', JSON.parse(JSON.stringify(newState)));
+      await set('wealthcore_state_v39', JSON.parse(JSON.stringify(newState)));
       console.log('Background sync complete and cached.');
     }
     if (typeof window !== 'undefined') {
@@ -683,7 +683,7 @@ export async function initDatabase() {
   console.log('Initializing WealthCore...');
   
   try {
-    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v38') : null;
+    const cachedState = (typeof indexedDB !== 'undefined') ? await get('wealthcore_state_v39') : null;
     if (cachedState) {
       console.log('Loaded from IDB cache!');
       Object.assign(state, cachedState);
@@ -813,7 +813,7 @@ export async function initDatabase() {
 export async function persistStateToIDB() {
   if (typeof indexedDB !== 'undefined') {
     try {
-      await set('wealthcore_state_v38', JSON.parse(JSON.stringify(state)));
+      await set('wealthcore_state_v39', JSON.parse(JSON.stringify(state)));
       console.log('✅ WealthCore state saved to IndexedDB');
     } catch (e) {
       console.warn('Failed to persist state to IndexedDB:', e);
@@ -1435,6 +1435,18 @@ function _resolveAssetTypeInner(pfid: number, amidNum: number, defaultAtty?: num
   return resolvedAtty;
 }
 
+export const CANONICAL_AMID_MAP: Record<number, number> = {
+  503084: 234448, // Mirae Asset Nifty MidSmallcap400 Momentum Quality 100 ETF Fund of Fund - Direct Plan - Growth
+  504006: 234799, // Edelweiss Nifty500 Multicap Momentum Quality 50 Index Fund - Direct - Growth
+  503083: 233212, // Edelweiss Nifty Midcap150 Momentum 50 Index Fund - Direct Plan - Growth
+  503151: 214155, // Edelweiss Liquid Fund-Direct Plan-Growth Option
+  504007: 213924, // Mirae Asset Liquid Fund - Direct Plan - Growth
+};
+
+export function getCanonicalAmid(amid: number): number {
+  return CANONICAL_AMID_MAP[Number(amid)] || Number(amid);
+}
+
 // ── HOLDINGS ──────────────────────────────────────────────────────────────────
 export interface AssetHolding {
   assetId: number; assetName: string; amid: number;
@@ -1468,6 +1480,17 @@ export function getHoldings(
     if (b.amid) s.add(Number(b.amid));
   });
 
+  // ── PHANTOM / ACCOUNTING / EXPIRED EXCLUSIONS ──
+  // These AMIDs must NEVER appear in holdings:
+  //   455  — "Intra-day Trading Profit/Loss" — an accounting P&L ledger, not an investment asset
+  //   737  — "FUTCUREURINR28NOV2023"          — expired Nov-2023 currency futures contract; sum_table
+  //           retains stale qty=30,000 but the contract has long since settled/expired
+  //  1490  — Internal MProfit synthetic row (pre-existing exclusion)
+  // NOTE: Sub-folio AMIDs (503083, 503084, 504006) are NOT excluded here because they represent real
+  // SIP investment lots. They are cleanly merged into their parent funds (233212, 234448, 234799)
+  // via CANONICAL_AMID_MAP with live and historical NAVs.
+  const PHANTOM_AMIDS = new Set([455, 737, 1490]);
+
   // 1. Filter sum_table for active holdings or closed positions with actual historical entries
   // If an asset has 0 quantity and 0 value, it must ONLY be shown if includeZeroQty is true
   // AND the asset actually has historical transactions in bs1 for this portfolio since inception!
@@ -1475,7 +1498,7 @@ export function getHoldings(
   const rows = state.sumTable.filter((s: any) => {
     const pf = Number(s.pfolio_id);
     if (!pSet.has(pf)) return false;
-    if (Number(s.amid) === 1490) return false;
+    if (PHANTOM_AMIDS.has(Number(s.amid))) return false;
 
     const hasQty = Math.abs(Number(s.qnt)) > 0.0001;
     const hasCurrv = Math.abs(Number(s.currv)) > 0.01;
@@ -1506,16 +1529,17 @@ export function getHoldings(
 
   const map: Record<number, AssetHolding> = {};
   filteredRows.forEach((s: any) => {
-    const amid = s.amid;
-    const price = state.priceMap[amid] || { curr: 0, prev: 0 };
-    const am = state.assetMaster.find((a: any) => a.amid === amid);
+    const rawAmid = Number(s.amid);
+    const amid = getCanonicalAmid(rawAmid);
+    const price = state.priceMap[amid] || state.priceMap[rawAmid] || { curr: 0, prev: 0 };
+    const am = state.assetMaster.find((a: any) => Number(a.amid) === amid) || state.assetMaster.find((a: any) => Number(a.amid) === rawAmid);
 
     const qty = Number(s.qnt) || 0;
     const currv = Number(s.currv) || 0;
     const inv = Number(s.amtinv) || 0;
     const tgain = Number(s.tgain) || 0;
 
-    const rawName = state.assetNameMap[amid] || '';
+    const rawName = state.assetNameMap[amid] || state.assetNameMap[rawAmid] || '';
     const isDerivative = [30, 31, 32, 33, 80, 81, 82, 83, 84].includes(s.resolvedAtty) ||
                          /^(futstk|futidx|futcur|futcom|optstk|optidx|optcur|optcom)/i.test(rawName);
 
@@ -1549,12 +1573,13 @@ export function getHoldings(
       prevPrice = avgPrice;
     }
 
-    let finalAssetName = state.assetNameMap[amid] || `Asset ${amid}`;
+    let finalAssetName = state.assetNameMap[amid] || (am && am.name) || state.assetNameMap[rawAmid] || `Asset ${amid}`;
     const isMarketAsset = [50, 51, 60, 61, 75, 77, 100].includes(s.resolvedAtty);
     if (!isMarketAsset || finalAssetName.startsWith('Asset ')) {
-      const ledgerMatch = acmac1ByAmidMap.get(amid) || state.acmac1.find((l: any) => !l.is_group && (
+      const ledgerMatch = acmac1ByAmidMap.get(amid) || acmac1ByAmidMap.get(rawAmid) || state.acmac1.find((l: any) => !l.is_group && (
         Number(l.exint1 || l.amid) === amid ||
-        (Number(l.parent_id) >= 200000 && Number(l.id) === amid) ||
+        Number(l.exint1 || l.amid) === rawAmid ||
+        (Number(l.parent_id) >= 200000 && (Number(l.id) === amid || Number(l.id) === rawAmid)) ||
         (s.sid && Number(l.id) === 500000 + Number(s.sid))
       ));
       if (ledgerMatch && ledgerMatch.name) {
@@ -1564,7 +1589,7 @@ export function getHoldings(
       }
     }
 
-    const isin = state.isinMap[amid] || (am && am.isin) || '';
+    const isin = state.isinMap[amid] || state.isinMap[rawAmid] || (am && am.isin) || '';
     finalAssetName = formatGSecName(finalAssetName, isin);
 
     if (!map[amid]) {
@@ -1593,20 +1618,25 @@ export function getHoldings(
     const qtyRow = effectiveQty;
     h.quantity += qtyRow;
     h.amtInvested += inv;
-    const port = state.portfolios.find((p: any) => p.id === s.pfolio_id);
-    const ex = h.portfolioSplits.find(sp => sp.portfolioId === s.pfolio_id);
+    if (price.curr > 0) {
+      h.currentPrice = price.curr;
+      h.prevPrice = price.prev || price.curr;
+    }
+    const port = state.portfolios.find((p: any) => Number(p.id) === Number(s.pfolio_id));
+    const ex = h.portfolioSplits.find(sp => Number(sp.portfolioId) === Number(s.pfolio_id));
     if (ex) { 
       ex.quantity += qtyRow; 
       ex.amtInvested += inv; 
-      ex.currentValue = ex.quantity * currPrice; 
+      ex.currentValue = ex.quantity * h.currentPrice; 
+      if (!ex.folio && s.refno) ex.folio = s.refno;
     }
     else {
       h.portfolioSplits.push({
-        portfolioId: s.pfolio_id,
+        portfolioId: Number(s.pfolio_id),
         portfolioName: port?.investor_name || `Portfolio ${s.pfolio_id}`,
         quantity: qtyRow, 
         amtInvested: inv, 
-        currentValue: qtyRow * currPrice,
+        currentValue: qtyRow * h.currentPrice,
         folio: s.refno
       });
     }
@@ -1700,9 +1730,9 @@ export function getHoldings(
       });
       if (alreadyMapped) return;
 
-      // In MProfit, acmac1.db_bal - acmac1.cr_bal is the cumulative closing balance
-      // matching the Accounting Balance Sheet. Both PMS and Balance Sheet MUST be identical.
-      const netBalance = Number(((Number(l.db_bal) || 0) - (Number(l.cr_bal) || 0)).toFixed(2));
+      // Use live getLedgerBalance so vouchers (e.g. FD closures, receipts, adjustments)
+      // are accurately accounted for, ensuring PMS and Balance Sheet are 100% in sync!
+      const netBalance = Number(getLedgerBalance(lid, l.acid).toFixed(2));
 
       if (!includeZeroQty && netBalance <= 0.01) return;
 
@@ -1887,7 +1917,7 @@ export function getAssetTransactions(portfolioIds: number[], amid: number, start
 
   // 1. Check for Buy/Sell trade records from bs1 (Stocks, Mutual Funds, Traded Bonds)
   const allTx = state.bs1
-    .filter((t: any) => (pSet.size === 0 || pSet.has(t.pfid)) && t.amid === amid)
+    .filter((t: any) => (pSet.size === 0 || pSet.has(t.pfid)) && (Number(t.amid) === amid || getCanonicalAmid(Number(t.amid)) === amid))
     .sort((a: any, b: any) => (a.dt || '').localeCompare(b.dt || ''));
 
   if (allTx.length > 0) {
@@ -4802,7 +4832,7 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     const amids = Array.from(new Set(
       state.sumTable
         .filter((s: any) => Math.abs(Number(s.qnt)) > 0.0001 || Math.abs(Number(s.currv)) > 0.01)
-        .map((s: any) => Number(s.amid))
+        .flatMap((s: any) => [Number(s.amid), getCanonicalAmid(Number(s.amid))])
         .filter((id: number) => !!id && !isNaN(id))
     ));
 
@@ -4924,6 +4954,12 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
     // 5. Update in-memory state FIRST so UI refreshes immediately
     fetchedPrices.forEach((p: any) => {
       state.priceMap[p.amid] = { curr: p.currp, prev: p.prevp };
+      // Also propagate price to any synthetic AMID mapped to this canonical amid
+      Object.entries(CANONICAL_AMID_MAP).forEach(([synthStr, canonId]) => {
+        if (Number(canonId) === p.amid) {
+          state.priceMap[Number(synthStr)] = { curr: p.currp, prev: p.prevp };
+        }
+      });
       const idx = (state.mprices || []).findIndex((m: any) => m.amid === p.amid && m.date === p.date);
       if (idx >= 0) {
         state.mprices[idx] = { ...state.mprices[idx], ...p };
@@ -4938,7 +4974,8 @@ export async function syncLivePrices(onProgress?: (msg: string) => void, force =
 
     // Recalculate currv on state.sumTable so all summary calculations match new prices
     state.sumTable.forEach((s: any) => {
-      const p = state.priceMap[s.amid];
+      const amid = getCanonicalAmid(Number(s.amid));
+      const p = state.priceMap[amid] || state.priceMap[s.amid];
       if (p && p.curr > 0 && Number(s.qnt) !== 0) {
         s.currv = Number(s.qnt) * p.curr;
       }
